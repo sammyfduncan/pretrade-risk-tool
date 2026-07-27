@@ -1,0 +1,28 @@
+# Core data stack
+numpy>=2.0,<3
+pandas>=2.2,<3          # pinned <3: pandas-ta-classic / vectorbt not yet validated on pandas 3.x
+pyarrow                 # parquet IO
+
+# Data acquisition
+oandapyV20>=0.7.2       # OANDA REST API (historical candles now, paper execution later)
+python-dotenv           # loads OANDA_API_KEY from .env
+
+# Feature engineering
+# NOTE: original `pandas-ta` was removed from PyPI (project went private in 2024).
+# pandas-ta-classic is the maintained community fork of the last open version,
+# same indicator API, supports numpy 2.x. Import name: pandas_ta_classic.
+pandas-ta-classic
+
+# Modeling
+lightgbm>=4.3
+scikit-learn>=1.5
+
+# Backtesting
+vectorbt
+
+# Persistence / config
+joblib
+pyyaml
+
+# Dev
+pytest

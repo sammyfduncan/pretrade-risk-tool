@@ -1,0 +1,31 @@
+# Per-asset configuration — gold (step 1).
+# Adding a new asset later = copy this file, change instrument/asset, tune params.
+
+asset: gold
+instrument: XAU_USD        # OANDA instrument name
+granularity: H1            # candle timeframe (day-trading cadence, README open item)
+
+history:
+  start: "2019-01-01"      # ~40k H1 bars of history
+  # end omitted -> now
+
+label:
+  # "Did close rise more than atr_mult * ATR(14) over the next horizon_bars?"
+  mode: long_threshold     # long_threshold | updown
+  horizon_bars: 12         # forward-return window (12 H1 bars = half a trading day)
+  atr_mult: 1.0            # move must exceed this many ATRs to count as a positive
+
+cv:
+  n_splits: 5
+  gap_bars: 12             # MUST be >= label.horizon_bars (prevents label-overlap leakage)
+
+model:
+  type: lightgbm           # lightgbm | logistic (baseline)
+  # Step 1 uses fixed sensible defaults defined in modeling/models.py.
+  # No hyperparameter tuning until the walk-forward harness is trusted (see CLAUDE.md).
+
+backtest:
+  prob_entry: 0.60         # go long when P(up-move) >= this
+  prob_exit: 0.50          # flatten when P(up-move) <= this
+  fee_pct: 0.0001          # ~half-spread per side as a fraction (XAU_USD spread ~0.3-0.5 USD/oz)
+  init_cash: 10000
