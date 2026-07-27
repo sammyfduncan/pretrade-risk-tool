@@ -4,15 +4,18 @@ Usage:
     python scripts/backtest.py --config config/gold.yaml
 
 Reads data/processed/<asset>_oof.parquet (produced by train.py) plus raw
-prices; prints strategy-vs-buy-and-hold metrics and a threshold sensitivity
-table; writes reports/<asset>_backtest.txt.
+prices. Entries are the top `entry_quantile` of predictions (computed on an
+expanding window, so no future information sets today's threshold); exits are
+the label's own barriers, so the simulated trade matches the labeled one.
+
+Writes reports/<asset>_backtest.txt.
 """
 
 import argparse
 
 import pandas as pd
 
-from commodity_ml.backtest.engine import run_backtest, threshold_sweep
+from commodity_ml.backtest.engine import quantile_sweep, run_backtest
 from commodity_ml.config import bars_per_year, load_config
 
 
@@ -35,29 +38,38 @@ def main() -> None:
     args = parser.parse_args()
     cfg = load_config(args.config)
 
-    close = pd.read_parquet(cfg.raw_path)["close"]
-    oof = pd.read_parquet(cfg.oof_path)["proba"]
+    close = pd.read_parquet(cfg.raw_path())["close"]
+    oof = pd.read_parquet(cfg.oof_path)
+    proba, barrier_pct = oof["proba"], oof["barrier_pct"]
     ppy = bars_per_year(cfg.granularity)
 
-    print(f"Backtesting {cfg.asset} on OOF window {oof.index[0]} -> {oof.index[-1]}")
-    print(f"  entry: P >= {cfg.backtest.prob_entry}, exit: P <= {cfg.backtest.prob_exit}, "
-          f"fees: {cfg.backtest.fee_pct:.2%}/side\n")
+    print(f"Backtesting {cfg.asset} on OOF window {proba.index[0]} -> {proba.index[-1]}")
+    print(f"  entry: top {1 - cfg.backtest.entry_quantile:.0%} of predictions "
+          f"(expanding-window quantile)")
+    print(f"  exit:  +/-{cfg.label.atr_mult} ATR barriers, or {cfg.label.horizon_bars} bars")
+    print(f"  fees:  {cfg.backtest.fee_pct:.2%}/side\n")
 
-    result = run_backtest(close, oof, cfg.backtest, cfg.granularity, ppy)
+    result = run_backtest(
+        close, proba, barrier_pct, cfg.backtest, cfg.granularity, ppy, cfg.label.horizon_bars
+    )
 
     strategy_txt = f"=== Strategy (long-only, OOF predictions) ===\n{fmt_stats(result.stats)}"
     bh_txt = f"=== Buy & hold (same window) ===\n{fmt_stats(result.buy_hold_stats)}"
     print(strategy_txt + "\n\n" + bh_txt)
 
-    sweep = threshold_sweep(close, oof, cfg.backtest, cfg.granularity, ppy)
-    sweep_txt = ("=== Entry-threshold sensitivity (DIAGNOSTIC — do not cherry-pick "
+    sweep = quantile_sweep(
+        close, proba, barrier_pct, cfg.backtest, cfg.granularity, ppy, cfg.label.horizon_bars
+    )
+    sweep_txt = ("=== Entry-selectivity sensitivity (DIAGNOSTIC — do not cherry-pick "
                  "the best row) ===\n" + sweep.to_string())
     print("\n" + sweep_txt)
 
+    # Entries are debounced (engine.debounce_entries), so trades never overlap
+    # and each one is an independent bet — the count can be taken at face value.
     n_trades = result.stats.get("n_trades", 0)
     if n_trades < 100:
-        print(f"\nNOTE: only {n_trades} trades — below the pre-registered minimum "
-              "sample (100+). No conclusions yet (README methodology).")
+        print(f"\nNOTE: {n_trades} non-overlapping trades, below the pre-registered "
+              "minimum of 100 (README methodology). No conclusions yet.")
 
     cfg.reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = cfg.reports_dir / f"{cfg.asset}_backtest.txt"

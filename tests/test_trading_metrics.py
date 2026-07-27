@@ -6,6 +6,7 @@ import pytest
 
 from commodity_ml.evaluation.trading_metrics import (
     annualized_sharpe,
+    annualized_sortino,
     max_drawdown,
     profit_factor,
     summarize,
@@ -23,6 +24,19 @@ def test_sharpe_known_case():
 
 def test_sharpe_zero_variance_is_zero():
     assert annualized_sharpe(pd.Series([0.01] * 50), 252) == 0.0
+
+
+def test_sortino_undefined_when_barely_ever_in_market():
+    """A strategy with almost no losing bars must not report a spectacular
+    Sortino from a near-zero denominator — that reads as fake performance."""
+    returns = pd.Series([0.0] * 500 + [0.001, -0.0001])
+    assert np.isnan(annualized_sortino(returns, 252))
+
+
+def test_sortino_computed_with_enough_downside():
+    rng = np.random.default_rng(1)
+    returns = pd.Series(rng.normal(0.001, 0.01, 1000))
+    assert np.isfinite(annualized_sortino(returns, 252))
 
 
 def test_max_drawdown_known_curve():

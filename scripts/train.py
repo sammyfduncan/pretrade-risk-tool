@@ -18,6 +18,7 @@ import pandas as pd
 
 from commodity_ml.config import load_config
 from commodity_ml.evaluation.ml_metrics import fold_metrics_table, overall_metrics
+from commodity_ml.labels import LABEL_COLUMNS
 from commodity_ml.modeling.walkforward import fit_final_model, walk_forward
 
 
@@ -42,7 +43,9 @@ def main() -> None:
     cfg = load_config(args.config)
 
     dataset = pd.read_parquet(cfg.dataset_path)
-    feature_names = [c for c in dataset.columns if c not in ("label", "close")]
+    # exit_bars / barrier_pct describe the label's own outcome — they are
+    # backtest inputs, never model inputs. Feeding them in would be lookahead.
+    feature_names = [c for c in dataset.columns if c not in LABEL_COLUMNS + ["close"]]
     X, y = dataset[feature_names], dataset["label"]
     print(f"Training on {len(X):,} bars, {len(feature_names)} features, "
           f"{cfg.cv.n_splits} walk-forward folds (gap={cfg.cv.gap_bars} bars)")
@@ -66,8 +69,15 @@ def main() -> None:
         print("\n=== Top features (last fold, split importance) ===")
         print(imp.head(10).to_string())
 
-    # OOF predictions -> the only backtest input
-    oof_df = pd.DataFrame({"proba": wf.oof_proba, "label": y.loc[wf.oof_proba.index]})
+    # OOF predictions -> the only backtest input. barrier_pct rides along so the
+    # backtest can place each trade's stops at the same width the label used.
+    oof_df = pd.DataFrame(
+        {
+            "proba": wf.oof_proba,
+            "label": y.loc[wf.oof_proba.index],
+            "barrier_pct": dataset["barrier_pct"].loc[wf.oof_proba.index],
+        }
+    )
     oof_df.to_parquet(cfg.oof_path)
 
     final_model = fit_final_model(X, y, cfg.model.type)
@@ -77,8 +87,9 @@ def main() -> None:
             "model": final_model,
             "feature_names": feature_names,
             "label_config": cfg.label,
-            "instrument": cfg.instrument,
+            "symbol": cfg.symbol,
             "granularity": cfg.granularity,
+            "trained_on_source": cfg.data.source,
             "trained_through": dataset.index[-1],
             "oof_auc": overall["auc"],
         },

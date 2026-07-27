@@ -156,6 +156,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.env.example 
 
 # Spyder project settings
 .spyderproject
@@ -226,3 +227,6 @@ reports/*
 !data/processed/.gitkeep
 !models/.gitkeep
 !reports/.gitkeep
+
+# Ai assistance
+CLAUDE.md 

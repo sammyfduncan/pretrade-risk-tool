@@ -1,19 +1,39 @@
 # Per-asset configuration — gold (step 1).
-# Adding a new asset later = copy this file, change instrument/asset, tune params.
+# Adding a new asset later = copy this file, change symbol/epic/instrument.
 
 asset: gold
-instrument: XAU_USD        # OANDA instrument name
-granularity: H1            # candle timeframe (day-trading cadence, README open item)
+symbol: XAUUSD
+granularity: H4            # see CLAUDE.md "Timeframe": macro data updates daily,
+                           # so H1/M15 ask the model to time entries with a
+                           # feature that is constant across 24/96 bars.
 
-history:
-  start: "2019-01-01"      # ~40k H1 bars of history
+data:
+  source: dukascopy        # dukascopy (deep free history, for training) | ig (broker, allowance-capped)
+  start: "2019-01-01"
   # end omitted -> now
 
+  dukascopy:
+    instrument: "XAU/USD"
+    offer_side: bid        # bid | ask. Spread cost is modeled separately via backtest.fee_pct.
+
+  ig:
+    # IG identifies markets by "epic", not ticker. Epics differ per account region,
+    # so this is left unset deliberately — find yours with:
+    #     python scripts/find_epic.py --search "spot gold"
+    epic: null
+
+features:
+  technical: true          # price-path indicators — strong on volatility, weak on direction
+  macro: true              # FRED real yields / dollar / VIX — the directional candidates
+
 label:
-  # "Did close rise more than atr_mult * ATR(14) over the next horizon_bars?"
-  mode: long_threshold     # long_threshold | updown
-  horizon_bars: 12         # forward-return window (12 H1 bars = half a trading day)
-  atr_mult: 1.0            # move must exceed this many ATRs to count as a positive
+  # Symmetric triple barrier: take-profit at +atr_mult*ATR, stop at -atr_mult*ATR,
+  # give up after horizon_bars. Symmetry is the point — it removes the volatility
+  # channel that contaminated the old long_threshold label (see labels.py).
+  mode: triple_barrier     # triple_barrier | updown | long_threshold (legacy, contaminated)
+  horizon_bars: 12         # 12 H4 bars = 2 trading days
+  atr_mult: 1.5            # barrier width in ATRs; must clear costs to be tradeable
+  timeout: sign            # sign (label by direction at horizon) | drop
 
 cv:
   n_splits: 5
@@ -21,11 +41,14 @@ cv:
 
 model:
   type: lightgbm           # lightgbm | logistic (baseline)
-  # Step 1 uses fixed sensible defaults defined in modeling/models.py.
-  # No hyperparameter tuning until the walk-forward harness is trusted (see CLAUDE.md).
+  # Still no hyperparameter tuning: the logistic baseline beat LightGBM on the
+  # first run, which means the bottleneck is information, not model capacity.
 
 backtest:
-  prob_entry: 0.60         # go long when P(up-move) >= this
-  prob_exit: 0.50          # flatten when P(up-move) <= this
-  fee_pct: 0.0001          # ~half-spread per side as a fraction (XAU_USD spread ~0.3-0.5 USD/oz)
+  # Exits now come from the label's own barriers, so the simulated trade is the
+  # trade the model was trained to predict. Entry threshold is a quantile of the
+  # predicted distribution, not an absolute probability — an absolute 0.60 is
+  # unreachable for a calibrated model on a ~35% base rate.
+  entry_quantile: 0.90     # go long on the top decile of predictions
+  fee_pct: 0.0001          # ~half-spread per side as a fraction
   init_cash: 10000

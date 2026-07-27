@@ -13,6 +13,9 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+# Below this many losing bars, downside deviation is too noisy to annualize.
+MIN_DOWNSIDE_OBSERVATIONS = 30
+
 
 def annualized_sharpe(returns: pd.Series, periods_per_year: float) -> float:
     """Mean/std of per-bar returns, scaled to annual. Risk-free rate ignored."""
@@ -22,10 +25,16 @@ def annualized_sharpe(returns: pd.Series, periods_per_year: float) -> float:
 
 
 def annualized_sortino(returns: pd.Series, periods_per_year: float) -> float:
-    """Like Sharpe but penalizes only downside deviation."""
+    """Like Sharpe but penalizes only downside deviation.
+
+    Returns NaN — not 0.0 — when there are too few losing bars to estimate
+    downside deviation. A strategy that is barely ever in the market divides
+    by a near-zero denominator and produces an astronomically large ratio that
+    reads as spectacular performance; NaN correctly says "undefined here".
+    """
     downside = returns[returns < 0]
-    if len(downside) < 2 or downside.std(ddof=1) == 0:
-        return 0.0
+    if len(downside) < MIN_DOWNSIDE_OBSERVATIONS or downside.std(ddof=1) == 0:
+        return float("nan")
     return float(returns.mean() / downside.std(ddof=1) * np.sqrt(periods_per_year))
 
 

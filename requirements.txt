@@ -4,14 +4,24 @@ pandas>=2.2,<3          # pinned <3: pandas-ta-classic / vectorbt not yet valida
 pyarrow                 # parquet IO
 
 # Data acquisition
-oandapyV20>=0.7.2       # OANDA REST API (historical candles now, paper execution later)
-python-dotenv           # loads OANDA_API_KEY from .env
+# Two sources, deliberately (see CLAUDE.md "Where training data comes from"):
+#   trading-ig       -> IG broker API: epic lookup, recent bars, and live/paper execution later.
+#                       Historical allowance is only 10,000 price points per WEEK, so it
+#                       cannot supply years of intraday history.
+#   dukascopy-python -> free deep XAUUSD history for model training. No account needed.
+trading-ig>=0.0.24
+dukascopy-python>=4.0
+python-dotenv           # loads IG credentials from .env
 
 # Feature engineering
 # NOTE: original `pandas-ta` was removed from PyPI (project went private in 2024).
 # pandas-ta-classic is the maintained community fork of the last open version,
 # same indicator API, supports numpy 2.x. Import name: pandas_ta_classic.
 pandas-ta-classic
+pandas-datareader       # FRED macro series (real yields, dollar, VIX) — no API key needed
+
+# Data validation (used to cross-check Dukascopy against an independent feed)
+yfinance
 
 # Modeling
 lightgbm>=4.3

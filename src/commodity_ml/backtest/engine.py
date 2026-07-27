@@ -12,20 +12,35 @@ Honesty rules baked in here:
    signal to t+1 means we fill at close(t+1) — slightly pessimistic, never
    optimistic. Removing this shift makes results look better and is a bug.
 
-3. Spread/fee cost is charged on every side of every trade (fees=fee_pct),
-   and a buy-and-hold portfolio is always computed alongside as the
-   'did the model beat doing nothing' reference.
+3. The entry threshold is an **expanding-window quantile**, not a fixed
+   probability. Two reasons. A fixed 0.60 is unreachable for a well-calibrated
+   model on a ~35% base rate — on the first gold run the calibrated baseline
+   crossed it twice in six years, while LightGBM crossed it constantly only
+   because it was overconfident. And taking the quantile over the *whole* OOF
+   period would set today's threshold using predictions from the future, so
+   the quantile is computed only over predictions seen so far.
 
-Strategy shape (step 1): long-only. Enter when P(up-move) >= prob_entry,
-flatten when it decays to <= prob_exit. The entry/exit gap is deliberate
-hysteresis — one threshold for both would flip in and out on noise (same
-principle the README mandates for cross-asset rotation later).
+4. Exits come from the label's own barriers, so the simulated trade is the
+   trade the model was trained to predict: take profit at +barrier_pct, stop
+   out at -barrier_pct, and give up after the label horizon. Previously the
+   model was graded on a 1-ATR/12-bar question but traded on a
+   "hold until probability decays" rule — two different strategies.
+
+5. Entries are debounced so trades never overlap (see `debounce_entries`).
+   Each trade is then one independent bet on one labeled outcome, which is
+   what the README's "100+ trades" minimum assumes — overlapping trades
+   inflate the apparent sample without adding information.
+
+6. Spread/fee cost is charged on every side of every trade, and a
+   buy-and-hold portfolio is always computed alongside as the
+   'did the model beat doing nothing' reference.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 import vectorbt as vbt
 
@@ -33,6 +48,7 @@ from commodity_ml.config import BacktestConfig
 from commodity_ml.evaluation import trading_metrics
 
 SIGNAL_DELAY = 1  # bars between prediction and execution; see module docstring
+QUANTILE_WARMUP = 500  # bars of history before the expanding quantile is trusted
 
 _GRANULARITY_FREQ = {"M5": "5min", "M15": "15min", "M30": "30min", "H1": "1h", "H4": "4h", "D": "1D"}
 
@@ -47,6 +63,38 @@ class BacktestResult:
     buy_hold: vbt.Portfolio
     stats: dict
     buy_hold_stats: dict
+    threshold: pd.Series
+
+
+def expanding_quantile_entries(proba: pd.Series, quantile: float) -> tuple[pd.Series, pd.Series]:
+    """Long signal when a prediction ranks in the top (1-quantile) of history.
+
+    Uses only predictions available up to and including each bar, so the
+    threshold at time t never depends on anything after t.
+    """
+    threshold = proba.expanding(min_periods=QUANTILE_WARMUP).quantile(quantile)
+    entries = (proba >= threshold) & threshold.notna()
+    return entries, threshold
+
+
+def debounce_entries(entries: pd.Series, min_gap: int) -> pd.Series:
+    """Keep an entry only if `min_gap` bars have passed since the last kept one.
+
+    Two reasons this matters. Economically, it stops the model firing a burst
+    of signals across one move and counting it as many bets — 757 overlapping
+    trades in the first gold run were only ~63 independent ones, well under the
+    pre-registered 100-trade minimum. Mechanically, it guarantees the vertical
+    time barrier (an exit `min_gap` bars after an entry) lands before the next
+    possible entry, so entry and exit signals can never collide on the same bar
+    and leave a position open past its horizon.
+    """
+    kept = np.zeros(len(entries), dtype=bool)
+    last = -min_gap - 1
+    for i in np.flatnonzero(entries.to_numpy()):
+        if i - last > min_gap:
+            kept[i] = True
+            last = i
+    return pd.Series(kept, index=entries.index)
 
 
 def _summarize_portfolio(pf: vbt.Portfolio, periods_per_year: float) -> dict:
@@ -62,20 +110,34 @@ def _summarize_portfolio(pf: vbt.Portfolio, periods_per_year: float) -> dict:
 def run_backtest(
     close: pd.Series,
     oof_proba: pd.Series,
+    barrier_pct: pd.Series,
     cfg: BacktestConfig,
     granularity: str,
     periods_per_year: float,
+    horizon_bars: int,
 ) -> BacktestResult:
     close = close.loc[oof_proba.index]  # OOF window only — see rule 1
+    barrier_pct = barrier_pct.loc[oof_proba.index]
 
-    entries = (oof_proba >= cfg.prob_entry).shift(SIGNAL_DELAY, fill_value=False)
-    exits = (oof_proba <= cfg.prob_exit).shift(SIGNAL_DELAY, fill_value=False)
+    raw_entries, threshold = expanding_quantile_entries(oof_proba, cfg.entry_quantile)
+    entries = debounce_entries(raw_entries, horizon_bars).shift(
+        SIGNAL_DELAY, fill_value=False
+    )
+
+    # Barriers are set from the ATR at the signal bar, so shift them alongside
+    # the signal to keep each trade's stops matched to its own entry.
+    stops = barrier_pct.shift(SIGNAL_DELAY).ffill().fillna(barrier_pct.median())
 
     freq = granularity_to_freq(granularity)
     pf = vbt.Portfolio.from_signals(
         close,
         entries,
-        exits,
+        # The vertical barrier: give up on a trade after the label's horizon,
+        # matching the label's own time limit. Debouncing guarantees the next
+        # entry cannot land on this bar, so the exit is never lost to a conflict.
+        entries.shift(horizon_bars, fill_value=False),
+        sl_stop=stops,
+        tp_stop=stops,
         fees=cfg.fee_pct,
         init_cash=cfg.init_cash,
         freq=freq,
@@ -87,38 +149,38 @@ def run_backtest(
         buy_hold=bh,
         stats=_summarize_portfolio(pf, periods_per_year),
         buy_hold_stats=_summarize_portfolio(bh, periods_per_year),
+        threshold=threshold,
     )
 
 
-def threshold_sweep(
+def quantile_sweep(
     close: pd.Series,
     oof_proba: pd.Series,
+    barrier_pct: pd.Series,
     cfg: BacktestConfig,
     granularity: str,
     periods_per_year: float,
-    entry_thresholds: tuple[float, ...] = (0.50, 0.55, 0.60, 0.65, 0.70),
+    horizon_bars: int,
+    quantiles: tuple[float, ...] = (0.70, 0.80, 0.90, 0.95, 0.99),
 ) -> pd.DataFrame:
-    """Sensitivity of results to the entry threshold (exit kept at the same
-    hysteresis gap below entry as in the config).
+    """Sensitivity of results to how selective the entry rule is.
 
     DIAGNOSTIC ONLY. Picking the best row of this table and reporting it as
     'the result' is multiple-comparisons overfitting — the README methodology
-    forbids exactly that. Use it to check the configured threshold isn't a
+    forbids exactly that. Use it to check the configured quantile isn't a
     knife-edge fluke: a real effect degrades smoothly across neighbors.
     """
-    gap = cfg.prob_entry - cfg.prob_exit
     rows = []
-    for entry in entry_thresholds:
+    for q in quantiles:
         variant = BacktestConfig(
-            prob_entry=entry,
-            prob_exit=entry - gap,
-            fee_pct=cfg.fee_pct,
-            init_cash=cfg.init_cash,
+            entry_quantile=q, fee_pct=cfg.fee_pct, init_cash=cfg.init_cash
         )
-        stats = run_backtest(close, oof_proba, variant, granularity, periods_per_year).stats
+        stats = run_backtest(
+            close, oof_proba, barrier_pct, variant, granularity, periods_per_year, horizon_bars
+        ).stats
         rows.append(
             {
-                "prob_entry": entry,
+                "entry_quantile": q,
                 "n_trades": stats.get("n_trades", 0),
                 "total_return": round(stats["total_return"], 4),
                 "sharpe": round(stats["sharpe"], 2),
@@ -127,4 +189,4 @@ def threshold_sweep(
                 "time_in_market": round(stats.get("time_in_market", 0.0), 3),
             }
         )
-    return pd.DataFrame(rows).set_index("prob_entry")
+    return pd.DataFrame(rows).set_index("entry_quantile")

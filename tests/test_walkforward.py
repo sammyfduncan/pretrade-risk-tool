@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from commodity_ml.config import AssetConfig, CVConfig, HistoryConfig, LabelConfig
+from commodity_ml.config import AssetConfig, CVConfig, LabelConfig
 from commodity_ml.modeling.walkforward import walk_forward
 
 
@@ -60,9 +60,8 @@ def test_config_rejects_gap_smaller_than_horizon():
     with pytest.raises(ValueError, match="gap_bars"):
         AssetConfig(
             asset="x",
-            instrument="XAU_USD",
+            symbol="XAUUSD",
             granularity="H1",
-            history=HistoryConfig(start="2019-01-01"),
             label=LabelConfig(horizon_bars=12),
             cv=CVConfig(n_splits=5, gap_bars=6),
         )
