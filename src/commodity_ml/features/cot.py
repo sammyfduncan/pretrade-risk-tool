@@ -161,14 +161,11 @@ def _parse_socrata_rows(rows: list[dict]) -> pd.DataFrame:
     return df.astype(float)
 
 
-def build_cot_features(cot: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.DataFrame:
-    """Derive the three pre-registered positioning features and align to bars.
-
-    Everything is computed on the weekly report index first (rolling windows
-    are backward-looking there), then aligned; raw positions never leave this
-    module. Formulas are fixed in docs/step2_design.md §3 — windows are repo
-    conventions, not tunables.
-    """
+def derive_weekly(cot: pd.DataFrame) -> pd.DataFrame:
+    """The three pre-registered features on the weekly report index — the one
+    place the formulas live (docs/step2_design.md §3; windows are repo
+    conventions, not tunables). Rolling windows are backward-looking here, so
+    this is causal by construction; alignment adds the knowability rules."""
     mm_net_frac = (cot["mm_long"] - cot["mm_short"]) / cot["oi"]
     prod_net_frac = (cot["prod_long"] - cot["prod_short"]) / cot["oi"]
 
@@ -176,8 +173,13 @@ def build_cot_features(cot: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.Dat
     derived["cot_mm_net_z"] = _rolling_z(mm_net_frac)
     derived["cot_mm_net_chg_4w"] = mm_net_frac.diff(CHANGE_WINDOW_WEEKS)
     derived["cot_prod_net_z"] = _rolling_z(prod_net_frac)
+    return derived
 
-    return _align_to_bars(derived, bar_index)
+
+def build_cot_features(cot: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.DataFrame:
+    """Derive the positioning features and align them to bars. Raw positions
+    never leave this module."""
+    return _align_to_bars(derive_weekly(cot), bar_index)
 
 
 def _rolling_z(series: pd.Series) -> pd.Series:
@@ -200,18 +202,8 @@ def _align_to_bars(derived: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.Dat
         derived = derived.copy()
         derived.index = derived.index.tz_localize("UTC")
 
-    knowable = derived.index + pd.Timedelta(days=PUBLICATION_LAG_DAYS)
-    for first, last, knowable_from in PUBLICATION_INTERRUPTIONS:
-        affected = (derived.index >= pd.Timestamp(first, tz="UTC")) & (
-            derived.index <= pd.Timestamp(last, tz="UTC")
-        )
-        override = pd.Timestamp(knowable_from, tz="UTC")
-        knowable = pd.DatetimeIndex(
-            [max(k, override) if hit else k for k, hit in zip(knowable, affected)]
-        )
-
     block = derived.copy()
-    block.index = knowable
+    block.index = knowable_index(derived.index)
     # An interruption makes several reports knowable at the same instant;
     # merge_asof backward on duplicate keys takes the last row, i.e. the most
     # recent report — exactly what a trader reading the catch-up batch would
@@ -229,6 +221,25 @@ def _align_to_bars(derived: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.Dat
         tolerance=MAX_STALENESS,
     )
     return merged
+
+
+def knowable_index(report_index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+    """When each report actually became knowable: the 7-day lag, overridden by
+    the publication-interruption table. One implementation, used by both the
+    bar alignment and the Tier-1 diagnostics, so they cannot disagree."""
+    if report_index.tz is None:
+        report_index = report_index.tz_localize("UTC")
+
+    knowable = report_index + pd.Timedelta(days=PUBLICATION_LAG_DAYS)
+    for first, last, knowable_from in PUBLICATION_INTERRUPTIONS:
+        affected = (report_index >= pd.Timestamp(first, tz="UTC")) & (
+            report_index <= pd.Timestamp(last, tz="UTC")
+        )
+        override = pd.Timestamp(knowable_from, tz="UTC")
+        knowable = pd.DatetimeIndex(
+            [max(k, override) if hit else k for k, hit in zip(knowable, affected)]
+        )
+    return knowable
 
 
 def cot_feature_names() -> list[str]:

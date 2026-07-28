@@ -60,12 +60,13 @@ FFILL_LIMIT_DAYS = 3
 
 TIMELINE_MODES = {"tone": "timelinetone", "vol": "timelinevol", "n_articles": "timelinevolraw"}
 
-# GDELT throttles aggressively (HTTP 429 well under one request per second);
-# its informal guidance is one request every ~5 seconds, and a burst can land
-# the client in a multi-minute penalty box — observed: a 429 that outlasted
-# 40s of backoff. The schedule below tolerates ~8 minutes of cool-down.
-_REQUEST_PAUSE_S = 5.0
-_BACKOFF_S = (15, 30, 60, 120, 240)
+# GDELT throttling, learned the hard way (2026-07-28): the stated limit is one
+# request per 5 seconds, but the penalty box is STICKY — once 429'd, further
+# requests keep re-arming it (an 8-minute exponential-backoff ladder never got
+# out). So: pace well under the limit, and on a 429 go completely silent for
+# minutes before trying again, few times, rather than retrying quickly.
+_REQUEST_PAUSE_S = 10.0
+_BACKOFF_S = (300, 420, 600)
 
 
 def fetch_gdelt(
@@ -139,6 +140,8 @@ def _request_with_retries(
             return response.json()
         except (requests.RequestException, json.JSONDecodeError) as error:
             last_error = error
+            print(f"    {mode}: {error} — sleeping {wait}s before retrying "
+                  "(the 429 penalty box is sticky; hammering extends it)")
             time.sleep(wait)
     raise ConnectionError(
         f"GDELT {mode} request failed after {len(_BACKOFF_S)} attempts: {last_error}"
@@ -185,13 +188,11 @@ def _mask_zero_article_days(frame: pd.DataFrame) -> pd.DataFrame:
     return masked
 
 
-def build_gdelt_features(gdelt: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.DataFrame:
-    """Derive the three pre-registered features and align to bars.
-
-    Formulas fixed in docs/step2_design.md §3. Short gaps are bridged with a
+def derive_daily(gdelt: pd.DataFrame) -> pd.DataFrame:
+    """The three pre-registered features on the daily index — the one place
+    the formulas live (docs/step2_design.md §3). Short gaps are bridged with a
     limited ffill; anything longer stays NaN and the alignment tolerance turns
-    it into missing features rather than fossils.
-    """
+    it into missing features rather than fossils."""
     daily = gdelt.reindex(pd.date_range(gdelt.index.min(), gdelt.index.max(), freq="D"))
     tone = daily["tone"].ffill(limit=FFILL_LIMIT_DAYS)
     vol = daily["vol"].ffill(limit=FFILL_LIMIT_DAYS)
@@ -202,8 +203,12 @@ def build_gdelt_features(gdelt: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd
     derived["gdelt_vol_smooth7_z"] = _rolling_z(
         vol.rolling(VOL_SMOOTH_DAYS, min_periods=VOL_SMOOTH_DAYS).mean()
     )
+    return derived
 
-    return _align_to_bars(derived, bar_index)
+
+def build_gdelt_features(gdelt: pd.DataFrame, bar_index: pd.DatetimeIndex) -> pd.DataFrame:
+    """Derive the daily features and align them to bars."""
+    return _align_to_bars(derive_daily(gdelt), bar_index)
 
 
 def _rolling_z(series: pd.Series) -> pd.Series:
