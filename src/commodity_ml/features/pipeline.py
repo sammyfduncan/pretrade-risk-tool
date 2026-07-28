@@ -36,6 +36,8 @@ from commodity_ml.features.crossasset import (
     build_crossasset_features,
     crossasset_feature_names,
 )
+from commodity_ml.features.cot import build_cot_features, cot_feature_names
+from commodity_ml.features.gdelt import build_gdelt_features, gdelt_feature_names
 from commodity_ml.features.macro import build_macro_features, macro_feature_names
 from commodity_ml.features.technical import build_features
 
@@ -74,13 +76,17 @@ def build_feature_frame(
     *,
     macro: pd.DataFrame | None = None,
     partners: dict[str, pd.DataFrame] | None = None,
+    cot: pd.DataFrame | None = None,
+    gdelt: pd.DataFrame | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     """Assemble every enabled feature family onto `raw`'s bar index.
 
     `macro` is the raw FRED frame from features.macro.fetch_macro; `partners`
-    maps symbol -> candles for cross-asset legs. Both are passed in rather than
-    fetched here so the caller controls network access — training pulls fresh
-    data, the parity test passes synthetic frames, and the live path can cache.
+    maps symbol -> candles for cross-asset legs; `cot`/`gdelt` are the pinned
+    alt-data snapshots (features.cot.load_cot_snapshot / features.gdelt
+    .load_gdelt_snapshot). Everything is passed in rather than fetched here so
+    the caller controls network access — training pulls fresh data, the parity
+    test passes synthetic frames, and the live path can cache.
     """
     frames: list[pd.DataFrame] = []
     names: list[str] = []
@@ -106,6 +112,26 @@ def build_feature_frame(
         frames.append(build_crossasset_features(numerator, denominator, raw.index))
         names += crossasset_feature_names()
 
+    if cfg.features.cot:
+        if cot is None:
+            raise ValueError(
+                "features.cot is enabled but no COT frame was passed. Load the "
+                "pinned snapshot with features.cot.load_cot_snapshot(cfg) and "
+                "hand it in."
+            )
+        frames.append(build_cot_features(cot, raw.index))
+        names += cot_feature_names()
+
+    if cfg.features.gdelt:
+        if gdelt is None:
+            raise ValueError(
+                "features.gdelt is enabled but no GDELT frame was passed. Load "
+                "the pinned snapshot with features.gdelt.load_gdelt_snapshot(cfg) "
+                "and hand it in."
+            )
+        frames.append(build_gdelt_features(gdelt, raw.index))
+        names += gdelt_feature_names()
+
     return pd.concat(frames, axis=1), names
 
 
@@ -115,6 +141,8 @@ def latest_feature_row(
     *,
     macro: pd.DataFrame | None = None,
     partners: dict[str, pd.DataFrame] | None = None,
+    cot: pd.DataFrame | None = None,
+    gdelt: pd.DataFrame | None = None,
 ) -> pd.Series:
     """The feature vector for the most recent bar — the live prediction entry point.
 
@@ -128,7 +156,9 @@ def latest_feature_row(
             f"features, got {len(raw)}. Fetch more history before predicting."
         )
 
-    features, _ = build_feature_frame(cfg, raw, macro=macro, partners=partners)
+    features, _ = build_feature_frame(
+        cfg, raw, macro=macro, partners=partners, cot=cot, gdelt=gdelt
+    )
     row = features.iloc[-1]
     if row.isna().any():
         missing = list(row.index[row.isna()])

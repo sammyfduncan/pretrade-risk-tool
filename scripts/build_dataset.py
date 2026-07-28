@@ -17,6 +17,8 @@ import pandas as pd
 
 from commodity_ml.config import load_config
 from commodity_ml.dataset import METADATA_COLUMNS, feature_columns
+from commodity_ml.features.cot import cot_feature_names, load_cot_snapshot
+from commodity_ml.features.gdelt import gdelt_feature_names, load_gdelt_snapshot
 from commodity_ml.features.macro import fetch_macro
 from commodity_ml.features.pipeline import (
     build_feature_frame,
@@ -52,11 +54,41 @@ def main() -> None:
     for symbol in partner_symbols(cfg):
         print(f"  cross-asset leg {symbol}: {len(partners[symbol]):,} candles")
 
+    # Alt-data comes from pinned snapshots, never a silent refetch — GDELT is
+    # not point-in-time reproducible, so the snapshot IS the sample.
+    cot_raw = None
+    if cfg.features.cot:
+        cot_raw = load_cot_snapshot(cfg)
+        print(f"  COT snapshot: {len(cot_raw):,} weekly reports "
+              f"({cot_raw.index[0].date()} -> {cot_raw.index[-1].date()})")
+    gdelt_raw = None
+    if cfg.features.gdelt:
+        gdelt_raw = load_gdelt_snapshot(cfg)
+        print(f"  GDELT snapshot: {len(gdelt_raw):,} days "
+              f"({gdelt_raw.index[0].date()} -> {gdelt_raw.index[-1].date()})")
+
     # One shared assembly path with scripts/predict.py — see features/pipeline.py.
     features, feature_names = build_feature_frame(
-        cfg, raw, macro=macro_raw, partners=partners
+        cfg, raw, macro=macro_raw, partners=partners, cot=cot_raw, gdelt=gdelt_raw
     )
     print(f"  features assembled: {len(feature_names)}")
+
+    # Alt-data gaps (publication interruptions, news droughts) become NaN bars
+    # that dropna will eat silently — count them here so a hole like Feb-2023's
+    # COT outage is seen and expected, not discovered months later.
+    for family, names, enabled in (
+        ("cot", cot_feature_names(), cfg.features.cot),
+        ("gdelt", gdelt_feature_names(), cfg.features.gdelt),
+    ):
+        if not enabled:
+            continue
+        holes = features[names].isna().any(axis=1)
+        if holes.any():
+            runs = (holes != holes.shift()).cumsum()[holes]
+            longest = runs.value_counts().max()
+            block = runs.index[runs == runs.value_counts().idxmax()]
+            print(f"  {family}: {int(holes.sum()):,} bars with missing features "
+                  f"(longest run {longest} bars, {block[0].date()} -> {block[-1].date()})")
 
     labels = make_labels(raw, cfg.label)
     # Stored as metadata, never as a feature: in meta mode training is filtered

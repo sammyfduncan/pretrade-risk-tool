@@ -53,6 +53,11 @@ class FeatureConfig:
     technical: bool = True
     macro: bool = True
     crossasset: bool = True
+    # Step-2 alt-data families (docs/step2_design.md). Default FALSE on purpose:
+    # the step-1 template frozen at 69f0527 must stay reproducible without them,
+    # and turning one on is a pre-registered decision, not a code side effect.
+    cot: bool = False    # CFTC COT positioning (features/cot.py)
+    gdelt: bool = False  # GDELT news tone/attention (features/gdelt.py)
 
 
 @dataclass(frozen=True)
@@ -67,6 +72,35 @@ class CrossAssetConfig:
 
     numerator_symbol: str = "XAUUSD"
     denominator_symbol: str = "XAGUSD"
+
+
+@dataclass(frozen=True)
+class COTConfig:
+    """CFTC Commitments of Traders — which futures contract is 'this asset'.
+
+    Only the contract code is per-asset; the release schedule, publication lag
+    and staleness tolerance are properties of the CFTC's publishing process and
+    live as constants in features/cot.py, exactly as FRED lags live in macro.py.
+    """
+
+    # Disaggregated Futures-Only dataset, cftc_contract_market_code.
+    # Gold = "GOLD - COMMODITY EXCHANGE INC.". Silver later: "084691".
+    contract_code: str = "088691"
+
+
+@dataclass(frozen=True)
+class GDELTConfig:
+    """GDELT DOC 2.0 news query — the per-asset entity/theme filter.
+
+    The query is the one genuinely per-asset judgment call in the alt-data
+    layer (README: a blended 'commodities sentiment' is rejected as too
+    diffuse). It must be validated by eyeballing article previews BEFORE any
+    timeline data is fetched — see scripts/fetch_altdata.py --preview and
+    docs/step2_design.md §4 — so an empty query with the family enabled is a
+    refusal, not a default.
+    """
+
+    query: str = ""
 
 
 @dataclass(frozen=True)
@@ -133,6 +167,8 @@ class AssetConfig:
     data: DataConfig = field(default_factory=DataConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
     crossasset: CrossAssetConfig = field(default_factory=CrossAssetConfig)
+    cot: COTConfig = field(default_factory=COTConfig)
+    gdelt: GDELTConfig = field(default_factory=GDELTConfig)
     primary: PrimaryConfig = field(default_factory=PrimaryConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
     cv: CVConfig = field(default_factory=CVConfig)
@@ -150,6 +186,13 @@ class AssetConfig:
             raise ValueError(f"Unknown data.source: {self.data.source!r}")
         if not (self.features.technical or self.features.macro or self.features.crossasset):
             raise ValueError("At least one feature family must be enabled.")
+        if self.features.gdelt and not self.gdelt.query:
+            raise ValueError(
+                "features.gdelt is enabled but gdelt.query is empty. The query must "
+                "be validated first — run scripts/fetch_altdata.py --preview, eyeball "
+                "the article list, and record the final query in the yaml and in "
+                "docs/step2_design.md §4."
+            )
 
     # ---- development / holdout split ----
     #
@@ -196,6 +239,20 @@ class AssetConfig:
         return PROJECT_ROOT / "data" / "raw" / f"{symbol}_{self.granularity}_{source}.parquet"
 
     @property
+    def cot_snapshot_path(self) -> Path:
+        """Pinned COT snapshot (scripts/fetch_altdata.py). Symbol-keyed like raw
+        candles; no source/granularity segments because neither applies. A
+        sidecar `<name>.meta.json` written next to it carries provenance."""
+        return PROJECT_ROOT / "data" / "raw" / f"{self.symbol}_cot.parquet"
+
+    @property
+    def gdelt_snapshot_path(self) -> Path:
+        """Pinned GDELT snapshot. GDELT is not point-in-time reproducible, so
+        this file IS the sample — build_dataset.py and predict.py only ever
+        read it, never silently refetch."""
+        return PROJECT_ROOT / "data" / "raw" / f"{self.symbol}_gdelt.parquet"
+
+    @property
     def dataset_path(self) -> Path:
         return PROJECT_ROOT / "data" / "processed" / f"{self.asset}_dataset.parquet"
 
@@ -232,6 +289,8 @@ def load_config(path: str | Path) -> AssetConfig:
         data=data,
         features=FeatureConfig(**raw.get("features", {})),
         crossasset=CrossAssetConfig(**raw.get("crossasset", {})),
+        cot=COTConfig(**raw.get("cot", {})),
+        gdelt=GDELTConfig(**raw.get("gdelt", {})),
         primary=PrimaryConfig(**raw.get("primary", {})),
         label=LabelConfig(**raw.get("label", {})),
         cv=CVConfig(**raw.get("cv", {})),

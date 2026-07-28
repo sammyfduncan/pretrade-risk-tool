@@ -36,6 +36,8 @@ from dotenv import load_dotenv
 
 from commodity_ml.config import load_config
 from commodity_ml.decision import decide
+from commodity_ml.features import cot as cot_module
+from commodity_ml.features import gdelt as gdelt_module
 from commodity_ml.features.macro import fetch_macro
 from commodity_ml.features.pipeline import (
     MIN_HISTORY_BARS,
@@ -71,6 +73,26 @@ def load_candles(cfg, refresh: bool) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
+def refuse_if_stale(
+    name: str,
+    last_observation: pd.Timestamp,
+    lag_days: int,
+    tolerance: pd.Timedelta,
+    refetch_cmd: str,
+) -> None:
+    """Fail before feature assembly with an actionable message, rather than
+    letting latest_feature_row's NaN-refusal report a puzzling one."""
+    now = pd.Timestamp.utcnow().tz_localize(None)
+    observation = last_observation.tz_localize(None) if last_observation.tz else last_observation
+    if now - (observation + pd.Timedelta(days=lag_days)) > tolerance:
+        raise SystemExit(
+            f"{name} snapshot is stale: latest observation {observation.date()} is past "
+            f"the {tolerance.days}-day staleness guard, so the current bar's features "
+            f"would be NaN and the decision would refuse anyway.\n"
+            f"Refresh it first: {refetch_cmd}"
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config/gold.yaml")
@@ -82,6 +104,13 @@ def main() -> None:
     cfg = load_config(args.config)
 
     artifact = joblib.load(cfg.model_path)
+    if artifact.get("excluded_families"):
+        raise SystemExit(
+            f"This artifact was trained with --exclude-family "
+            f"{artifact['excluded_families']} — a matched-row ablation for step-2 "
+            "evaluation, never a live model. Retrain without the flag (the retained "
+            "feature set is expressed by the yaml flags alone)."
+        )
 
     raw = load_candles(cfg, refresh=args.refresh)
     # Only the trailing window is needed, but keep a wide margin over the
@@ -92,7 +121,30 @@ def main() -> None:
         if cfg.features.macro else None
     partners = load_partner_candles(cfg)
 
-    features = latest_feature_row(cfg, window, macro=macro_raw, partners=partners)
+    # Alt-data reads the same pinned snapshots training used — never a silent
+    # refetch. Staleness is checked up front so the error is actionable.
+    cot_raw = None
+    if cfg.features.cot:
+        cot_raw = cot_module.load_cot_snapshot(cfg)
+        refuse_if_stale(
+            "COT", cot_raw.index[-1], cot_module.PUBLICATION_LAG_DAYS,
+            cot_module.MAX_STALENESS,
+            f"python scripts/fetch_altdata.py --config {args.config} --source cot --force",
+        )
+    gdelt_raw = None
+    if cfg.features.gdelt:
+        gdelt_raw = gdelt_module.load_gdelt_snapshot(cfg)
+        refuse_if_stale(
+            "GDELT", gdelt_raw.index[-1], gdelt_module.PUBLICATION_LAG_DAYS,
+            gdelt_module.MAX_STALENESS,
+            f"python scripts/fetch_altdata.py --config {args.config} --source gdelt "
+            "--force   (a GDELT refetch is a new sample — ledger it, "
+            "docs/step2_design.md §11)",
+        )
+
+    features = latest_feature_row(
+        cfg, window, macro=macro_raw, partners=partners, cot=cot_raw, gdelt=gdelt_raw
+    )
     decision = decide(
         artifact,
         features,

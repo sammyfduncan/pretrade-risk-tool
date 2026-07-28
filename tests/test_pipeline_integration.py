@@ -13,7 +13,7 @@ call, and cross-asset is disabled so no partner file is needed.
 import numpy as np
 import pandas as pd
 import pytest
-from conftest import make_ohlcv
+from conftest import make_cot, make_gdelt, make_ohlcv
 
 from commodity_ml.backtest.engine import run_backtest, run_rule_backtest
 from commodity_ml.config import (
@@ -118,6 +118,40 @@ def test_a_non_numeric_feature_column_is_refused(built):
 
     with pytest.raises(ValueError, match="Non-numeric columns"):
         feature_columns(contaminated)
+
+
+def test_altdata_columns_join_the_feature_contract():
+    """Step-2 families must flow through the build_dataset -> train contract
+    untouched: their columns are features (not metadata), and train.py's
+    inference from the file agrees with what the builder wrote."""
+    from commodity_ml.config import GDELTConfig
+
+    base, raw = cfg_for_tests(), make_ohlcv(n=3000)
+    cfg = AssetConfig(
+        asset="test",
+        symbol=base.symbol,
+        granularity=base.granularity,
+        features=FeatureConfig(
+            technical=True, macro=False, crossasset=False, cot=True, gdelt=True
+        ),
+        gdelt=GDELTConfig(query="synthetic"),
+        primary=base.primary,
+        label=base.label,
+        cv=base.cv,
+    )
+
+    features, feature_names = build_feature_frame(
+        cfg, raw, cot=make_cot(), gdelt=make_gdelt(n_days=1700)
+    )
+    labels = make_labels(raw, cfg.label)
+    primary = make_primary_signal(raw, cfg.primary)
+    dataset = pd.concat([features, labels, primary, raw["close"]], axis=1).dropna()
+
+    assert len(dataset) > 500, "alt-data NaNs should not have eaten the dataset"
+    for name in ("cot_mm_net_z", "gdelt_tone_z"):
+        assert name in feature_names and name in dataset.columns
+    assert set(dataset.columns) == set(feature_names) | set(METADATA_COLUMNS)
+    assert sorted(feature_columns(dataset)) == sorted(feature_names)
 
 
 def test_parquet_round_trip_preserves_the_contract(built, tmp_path):

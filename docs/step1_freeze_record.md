@@ -98,6 +98,11 @@ hyperparameter tuning, optuna, CFTC positioning, ETF flows, gold/copper. The
 constraint identified in runs 1–2 was information, not model capacity, and every
 additional variant weakens the holdout further.
 
+*(Update 2026-07-28: step 2 reopened CFTC positioning and news sentiment under
+its own pre-registered program with a separate append-only ledger —
+`docs/step2_design.md` §8. Both ledgers count against the same single holdout;
+whenever it is spent, interpret against their union.)*
+
 ---
 
 ## 3. Development results (gold, as frozen)

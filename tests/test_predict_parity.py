@@ -33,7 +33,8 @@ from commodity_ml.features.pipeline import (
     partner_symbols,
 )
 
-from conftest import make_ohlcv
+from commodity_ml.config import GDELTConfig
+from conftest import make_cot, make_gdelt, make_ohlcv
 
 GOLD, SILVER = "XAUUSD", "XAGUSD"
 
@@ -164,3 +165,98 @@ def test_ratio_moves_the_right_way(cfg, candles):
     shocked, _ = build_feature_frame(cfg, gold, partners=crashed)
     assert shocked["gsr_z"].iloc[-1] > base["gsr_z"].iloc[-1]
     assert np.isfinite(shocked["gsr_z"].iloc[-1])
+
+
+# --------------------------------------------------------------------------
+# Step-2 alt-data families through the same parity gauntlet
+# --------------------------------------------------------------------------
+
+@pytest.fixture
+def altdata_cfg(cfg) -> AssetConfig:
+    return AssetConfig(
+        asset="gold",
+        symbol=GOLD,
+        granularity="H4",
+        features=FeatureConfig(
+            technical=True, macro=False, crossasset=True, cot=True, gdelt=True
+        ),
+        crossasset=CrossAssetConfig(numerator_symbol=GOLD, denominator_symbol=SILVER),
+        gdelt=GDELTConfig(query='"gold price" OR bullion'),
+        label=LabelConfig(horizon_bars=12),
+        cv=CVConfig(gap_bars=12),
+    )
+
+
+@pytest.fixture
+def altdata():
+    # Candles run 2020-01 -> 2022-01; both snapshots comfortably span that.
+    return make_cot(), make_gdelt()
+
+
+def test_live_row_matches_training_row_with_altdata(altdata_cfg, candles, altdata):
+    """The headline parity property with all families on — and the live call
+    only gets alt-data up to the window end, so this pins causality too."""
+    gold, partners = candles
+    cot, gdelt = altdata
+    full, _ = build_feature_frame(altdata_cfg, gold, partners=partners, cot=cot, gdelt=gdelt)
+
+    for cut in (MIN_HISTORY_BARS * 2, len(gold) - 5, len(gold)):
+        window = gold.iloc[:cut].iloc[-MIN_HISTORY_BARS * 2:]
+        end = window.index[-1].tz_localize(None)
+        live = latest_feature_row(
+            altdata_cfg,
+            window,
+            partners={s: df.loc[: window.index[-1]] for s, df in partners.items()},
+            cot=cot.loc[:end],
+            gdelt=gdelt.loc[:end],
+        )
+        pd.testing.assert_series_equal(
+            live, full.loc[window.index[-1]], check_exact=False, rtol=1e-6,
+            obj=f"live feature row at bar {cut}",
+        )
+
+
+def test_future_cot_reports_are_never_used(altdata_cfg, candles, altdata):
+    gold, partners = candles
+    cot, gdelt = altdata
+    window = gold.iloc[: len(gold) - 200]
+    end = window.index[-1].tz_localize(None)
+    honest_partners = {s: df.loc[: window.index[-1]] for s, df in partners.items()}
+
+    poisoned = cot.copy()
+    poisoned.loc[poisoned.index > end, ["mm_long", "mm_short", "oi"]] = 1e9
+
+    pd.testing.assert_series_equal(
+        latest_feature_row(altdata_cfg, window, partners=honest_partners,
+                           cot=cot, gdelt=gdelt),
+        latest_feature_row(altdata_cfg, window, partners=honest_partners,
+                           cot=poisoned, gdelt=gdelt),
+    )
+
+
+def test_future_gdelt_days_are_never_used(altdata_cfg, candles, altdata):
+    gold, partners = candles
+    cot, gdelt = altdata
+    window = gold.iloc[: len(gold) - 200]
+    end = window.index[-1].tz_localize(None)
+    honest_partners = {s: df.loc[: window.index[-1]] for s, df in partners.items()}
+
+    poisoned = gdelt.copy()
+    poisoned.loc[poisoned.index > end, "tone"] = 100.0
+
+    pd.testing.assert_series_equal(
+        latest_feature_row(altdata_cfg, window, partners=honest_partners,
+                           cot=cot, gdelt=gdelt),
+        latest_feature_row(altdata_cfg, window, partners=honest_partners,
+                           cot=cot, gdelt=poisoned),
+    )
+
+
+def test_missing_altdata_frame_is_reported(altdata_cfg, candles, altdata):
+    gold, partners = candles
+    cot, gdelt = altdata
+
+    with pytest.raises(ValueError, match="load_cot_snapshot"):
+        build_feature_frame(altdata_cfg, gold, partners=partners, cot=None, gdelt=gdelt)
+    with pytest.raises(ValueError, match="load_gdelt_snapshot"):
+        build_feature_frame(altdata_cfg, gold, partners=partners, cot=cot, gdelt=None)

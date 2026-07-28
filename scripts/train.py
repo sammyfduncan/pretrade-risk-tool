@@ -2,9 +2,19 @@
 
 Usage:
     python scripts/train.py --config config/gold.yaml [--baseline]
+    python scripts/train.py --config config/gold.yaml --exclude-family cot,gdelt
 
 --baseline additionally runs the LogisticRegression baseline on identical
 folds, to check the boosted model is earning its complexity.
+
+--exclude-family drops an alt-data family's COLUMNS while keeping the same
+dataset ROWS. This is the matched-row ablation device from
+docs/step2_design.md §6: toggling a family in the yaml would change which rows
+survive dropna and therefore the fold boundaries, so yaml-level ablations
+partly measure sample composition. Excluding columns on one both-families-on
+dataset keeps rows and folds identical, so AUC deltas are attributable to the
+columns alone. EVALUATION-ONLY: the artifact it saves is refused by the live
+path — a retained family is expressed by yaml flags plus a retrain.
 
 Outputs:
     models/<asset>_lightgbm.joblib          final model + metadata
@@ -18,6 +28,8 @@ import pandas as pd
 
 from commodity_ml.config import AssetConfig, load_config
 from commodity_ml.dataset import feature_columns
+from commodity_ml.features.cot import cot_feature_names
+from commodity_ml.features.gdelt import gdelt_feature_names
 from commodity_ml.evaluation.ml_metrics import fold_metrics_table, overall_metrics
 from commodity_ml.modeling.calibration import IdentityCalibrator
 from commodity_ml.modeling.walkforward import fit_final_model, walk_forward
@@ -83,8 +95,18 @@ def main() -> None:
     parser.add_argument("--use-holdout", action="store_true",
                         help="INCLUDE the fenced-off final period. Single-use: once you "
                              "have seen it, it is no longer an out-of-sample test.")
+    parser.add_argument("--exclude-family", default="",
+                        help="comma-separated alt-data families (cot,gdelt) to drop as "
+                             "COLUMNS while keeping identical rows/folds — the "
+                             "matched-row ablation for step-2 evaluation ONLY")
     args = parser.parse_args()
     cfg = load_config(args.config)
+
+    excluded_families = [f for f in args.exclude_family.split(",") if f]
+    family_columns = {"cot": cot_feature_names(), "gdelt": gdelt_feature_names()}
+    unknown = [f for f in excluded_families if f not in family_columns]
+    if unknown:
+        raise SystemExit(f"--exclude-family only knows {sorted(family_columns)}, got {unknown}")
 
     dataset = pd.read_parquet(cfg.dataset_path)
     dataset = select_slice(cfg, dataset, use_holdout=args.use_holdout)
@@ -103,6 +125,19 @@ def main() -> None:
     # model inputs. Feeding them in would be lookahead. dataset.feature_columns
     # owns that split and refuses a dataset that does not match this code.
     feature_names = feature_columns(dataset)
+    if excluded_families:
+        dropped = [c for f in excluded_families for c in family_columns[f]]
+        absent = [c for c in dropped if c not in feature_names]
+        if absent:
+            raise SystemExit(
+                f"Cannot exclude {absent} — the dataset was built without them. "
+                "Matched-row ablations need one dataset built with BOTH families "
+                "on; rebuild with the flags enabled first."
+            )
+        feature_names = [c for c in feature_names if c not in dropped]
+        print(f"*** MATCHED-ROW ABLATION: excluding {excluded_families} "
+              f"({len(dropped)} columns; rows and folds unchanged). The saved "
+              "artifact is evaluation-only and the live path will refuse it. ***")
     X, y = dataset[feature_names], dataset["label"]
     print(f"Training on {len(X):,} bars, {len(feature_names)} features, "
           f"{cfg.cv.n_splits} walk-forward folds (gap={cfg.cv.gap_bars} bars)")
@@ -180,6 +215,9 @@ def main() -> None:
             "oof_proba": wf.oof_proba,
             "entry_quantile": cfg.backtest.entry_quantile,
             "entry_threshold": float(wf.oof_proba.quantile(cfg.backtest.entry_quantile)),
+            # Non-empty only under --exclude-family; predict.py refuses such
+            # artifacts so an ablation model can never reach the live path.
+            "excluded_families": excluded_families,
         },
         cfg.model_path,
     )

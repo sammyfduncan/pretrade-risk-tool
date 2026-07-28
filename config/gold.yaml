@@ -32,12 +32,31 @@ features:
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
   crossasset: true         # gold/silver ratio — regime, not direction
 
+  # Step-2 alt-data (docs/step2_design.md). OFF until the pre-registered Tier-2
+  # evaluation says otherwise — flipping one on is a ledgered decision (§8).
+  cot: false               # CFTC COT positioning — crowdedness, contrarian hypothesis
+  gdelt: false             # GDELT news tone/attention — safe-haven hypothesis
+
 crossasset:
   # Same block in every metal's config on purpose: the ratio describes the
   # environment both metals sit in, not the asset being modeled. Needs the
   # other leg's candles on disk (scripts/fetch_data.py --config config/silver.yaml).
   numerator_symbol: XAUUSD
   denominator_symbol: XAGUSD
+
+cot:
+  # CFTC Disaggregated Futures-Only, cftc_contract_market_code for this asset.
+  # "GOLD - COMMODITY EXCHANGE INC." — verify with the API before trusting a
+  # code for a new asset. Release schedule / lags are constants in features/cot.py.
+  contract_code: "088691"
+
+gdelt:
+  # Validated 2026-07-28 via fetch_altdata.py --preview: 0/1000 sampled titles
+  # contaminated, Olympic windows included (phrase-matching is why — Olympic
+  # coverage says "gold medal", never "gold price"). Record + rationale in
+  # docs/step2_design.md §4. Changing this string invalidates the pinned
+  # snapshot — the sidecar check will refuse the mismatch.
+  query: '("gold price" OR "gold prices" OR "price of gold" OR bullion OR "gold futures") sourcelang:english'
 
 primary:
   # The rule that picks direction under label.mode: meta. See primary.py — the

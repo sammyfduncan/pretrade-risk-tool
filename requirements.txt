@@ -19,6 +19,8 @@ python-dotenv           # loads IG credentials from .env
 # same indicator API, supports numpy 2.x. Import name: pandas_ta_classic.
 pandas-ta-classic
 pandas-datareader       # FRED macro series (real yields, dollar, VIX) — no API key needed
+requests                # CFTC Socrata + GDELT DOC 2.0 (step 2 alt-data) — plain HTTP,
+                        # snapshots pinned once by scripts/fetch_altdata.py
 
 # Data validation (used to cross-check Dukascopy against an independent feed)
 yfinance

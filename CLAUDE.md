@@ -17,7 +17,9 @@ execution steps interactively, and prefer readable code over clever code.
 1. **[TEMPLATE FROZEN, HOLDOUT UNSPENT — no confirmed edge] Price-only ML pipeline for gold**
    Pipeline validated, no directional signal found. Meta-labeling is a lead, not
    a result (run 5). Frozen at `69f0527`; see `docs/step1_freeze_record.md`.
-2. Sentiment/alt-data layer for gold only + composite scoring
+2. **[IN PROGRESS since 2026-07-28]** Sentiment/alt-data layer for gold only +
+   composite scoring — CFTC COT positioning + GDELT news tone, pre-registered
+   in `docs/step2_design.md` (read it before running or proposing anything)
 3. Generalize to silver → platinum → palladium (one at a time)
 4. Cross-asset ranking, allocation, correlation-aware sizing
 5. Paper-trade full system; live capital only after pre-registered success criteria are met
@@ -301,6 +303,9 @@ Three features: z-score of the ratio and its 30/120-bar log changes. Defined
 canonically as XAU/XAG in *both* configs, so it describes the environment
 rather than the asset. It ranks 3rd and 6th on split importance for gold.
 **Feature work is now closed** — CFTC positioning and ETF flows stay unbuilt.
+*(Step-1 scope rule: no features added to rescue a weak price-only result. Step 2
+reopened feature work on 2026-07-28 under a separate pre-registered program,
+`docs/step2_design.md`; the step-1 freeze and this rule's original meaning stand.)*
 
 **Sample weighting by label uniqueness** (`modeling/sample_weights.py`,
 `model.sample_weighting: uniqueness`). With a 12-bar horizon, consecutive
@@ -499,11 +504,18 @@ freeze record for whenever it *is* spent.
   replication is scope creep and multiplies comparisons). Tuning cannot create
   information that isn't present, and every extra variant tried before the
   holdout is spent makes the holdout weaker evidence.
-- **Step 2 (sentiment):** GDELT GKG filtered per asset (gold: central-bank/monetary
-  themes; PGMs: South Africa/Russia supply + auto demand). Start lexicon-based
-  scoring, upgrade to transformer only if the lexicon baseline shows signal.
-  Composite = weighted sum of ML prob + sentiment z-score, weights validated
-  walk-forward too.
+- **Step 2 (sentiment) — STARTED 2026-07-28, design fixed in
+  `docs/step2_design.md`.** Two independent feature families for gold: CFTC COT
+  positioning (Socrata `72hh-3qpy`, contract 088691, lag 7d, publication-
+  interruption table) and GDELT DOC 2.0 tone/attention (daily timelines,
+  pinned non-point-in-time snapshots, preview-validated query). Exactly six
+  pre-registered features; matched-row ablations via `train.py
+  --exclude-family`; retention gate = ΔAUC ≥ +0.015 AND ≥4/5 folds AND beating
+  the max of 20 circular-shift placebos. RSS dropped (no archive → not
+  backtestable); ETF flows deferred; transformer only if a lexicon-grade
+  baseline shows signal. Composite scoring (weighted ML prob + sentiment z) is
+  GATED on a family surviving — do not build it early. PGM query
+  personalisation (South Africa/Russia supply + auto demand) waits for step 3.
 - **Step 3:** `config/<asset>.yaml` per asset + a thin loop; per-asset feature
   additions (e.g. gold/silver ratio for silver, auto-sector proxy for PGMs).
 - **Step 4:** rank by composite score with hysteresis band (rotate only if
