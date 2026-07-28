@@ -15,8 +15,9 @@ import argparse
 
 import pandas as pd
 
-from commodity_ml.backtest.engine import quantile_sweep, run_backtest
+from commodity_ml.backtest.engine import quantile_sweep, run_backtest, run_rule_backtest
 from commodity_ml.config import bars_per_year, load_config
+from commodity_ml.primary import SIGNAL_COLUMN
 
 
 def fmt_stats(stats: dict) -> str:
@@ -59,7 +60,37 @@ def main() -> None:
 
     strategy_txt = f"=== Strategy (long-only, OOF predictions) ===\n{fmt_stats(result.stats)}"
     bh_txt = f"=== Buy & hold (same window) ===\n{fmt_stats(result.buy_hold_stats)}"
-    print(strategy_txt + "\n\n" + bh_txt)
+    sections = [strategy_txt, bh_txt]
+
+    # The control that decides whether the model earned anything. Printed
+    # unconditionally, not behind a flag: a meta-label that cannot beat its own
+    # primary rule is decoration, and that comparison is too easy to skip.
+    if cfg.label.mode == "meta":
+        dataset = pd.read_parquet(cfg.dataset_path)
+        rule = run_rule_backtest(
+            close, dataset[SIGNAL_COLUMN], barrier_pct, cfg.backtest,
+            cfg.granularity, ppy, cfg.label.horizon_bars,
+            window=result.portfolio.wrapper.index,
+        )
+        sections.insert(1, f"=== Control: primary rule '{cfg.primary.rule}' alone, "
+                           f"no ML filter (same window) ===\n{fmt_stats(rule.stats)}")
+
+        filtered, bare = result.stats, rule.stats
+        kept = filtered.get("n_trades", 0) / max(bare.get("n_trades", 0), 1)
+        sections.insert(2, (
+            "=== Did the filter earn its place? ===\n"
+            f"  trades kept      {kept:>10.1%}  ({filtered.get('n_trades', 0)} of "
+            f"{bare.get('n_trades', 0)})\n"
+            f"  profit factor    {bare.get('profit_factor', 0):.2f} -> "
+            f"{filtered.get('profit_factor', 0):.2f}\n"
+            f"  sharpe           {bare['sharpe']:.2f} -> {filtered['sharpe']:.2f}\n"
+            f"  win rate         {bare.get('win_rate', 0):.1%} -> "
+            f"{filtered.get('win_rate', 0):.1%}\n"
+            f"  total return     {bare['total_return']:.1%} -> "
+            f"{filtered['total_return']:.1%}"
+        ))
+
+    print("\n\n".join(sections))
 
     sweep = quantile_sweep(
         close, proba, barrier_pct, cfg.backtest, cfg.granularity, ppy, cfg.label.horizon_bars
@@ -77,7 +108,7 @@ def main() -> None:
 
     cfg.reports_dir.mkdir(parents=True, exist_ok=True)
     report_path = cfg.reports_dir / f"{cfg.asset}_backtest.txt"
-    report_path.write_text(strategy_txt + "\n\n" + bh_txt + "\n\n" + sweep_txt + "\n")
+    report_path.write_text("\n\n".join(sections + [sweep_txt]) + "\n")
     print(f"\nSaved report -> {report_path}")
 
 

@@ -16,8 +16,12 @@ import argparse
 import pandas as pd
 
 from commodity_ml.config import load_config
-from commodity_ml.features.macro import build_macro_features, fetch_macro, macro_feature_names
-from commodity_ml.features.technical import build_features
+from commodity_ml.features.macro import fetch_macro
+from commodity_ml.features.pipeline import (
+    build_feature_frame,
+    load_partner_candles,
+    partner_symbols,
+)
 from commodity_ml.labels import LABEL_COLUMNS, make_labels
 from commodity_ml.primary import SIGNAL_COLUMN, make_primary_signal
 
@@ -38,29 +42,27 @@ def main() -> None:
     print(f"Loaded {len(raw):,} raw candles from {cfg.data.source} "
           f"({raw.index[0]} -> {raw.index[-1]})")
 
-    frames = []
-    feature_names: list[str] = []
-
-    if cfg.features.technical:
-        technical, technical_names = build_features(raw)
-        frames.append(technical)
-        feature_names += technical_names
-        print(f"  technical features: {len(technical_names)}")
-
+    macro_raw = None
     if cfg.features.macro:
         print("  macro features (FRED, no API key needed):")
         macro_raw = fetch_macro(start=cfg.data.start, end=cfg.data.end)
-        macro = build_macro_features(macro_raw, raw.index)
-        frames.append(macro)
-        feature_names += macro_feature_names()
-        print(f"  macro features: {len(macro_feature_names())}")
+
+    partners = load_partner_candles(cfg)
+    for symbol in partner_symbols(cfg):
+        print(f"  cross-asset leg {symbol}: {len(partners[symbol]):,} candles")
+
+    # One shared assembly path with scripts/predict.py — see features/pipeline.py.
+    features, feature_names = build_feature_frame(
+        cfg, raw, macro=macro_raw, partners=partners
+    )
+    print(f"  features assembled: {len(feature_names)}")
 
     labels = make_labels(raw, cfg.label)
     # Stored as metadata, never as a feature: in meta mode training is filtered
     # to these bars, so the column would be constant and useless anyway.
     primary = make_primary_signal(raw, cfg.primary)
 
-    dataset = pd.concat(frames + [labels, primary, raw["close"]], axis=1)
+    dataset = pd.concat([features, labels, primary, raw["close"]], axis=1)
     n_before = len(dataset)
     dataset = dataset.dropna()
     print(f"\nDropped {n_before - len(dataset):,} rows "

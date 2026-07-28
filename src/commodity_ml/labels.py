@@ -61,7 +61,7 @@ import pandas as pd
 from commodity_ml.config import LabelConfig
 from commodity_ml.features.technical import atr
 
-LABEL_COLUMNS = ["label", "exit_bars", "barrier_pct"]
+LABEL_COLUMNS = ["label", "exit_bars", "barrier_pct", "exit_time"]
 
 
 def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
@@ -74,6 +74,15 @@ def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
                   simulated trade matches the labeled one.
       barrier_pct the +/- barrier width at that bar, as a fraction of price.
                   Feeds the backtest's per-bar stop-loss / take-profit.
+      exit_time   the timestamp `exit_bars` later. Every label owns a forward
+                  window [t, exit_time], and neighbouring windows overlap —
+                  that overlap is what sample weighting corrects for
+                  (modeling/sample_weights.py). Computed here because this is
+                  the only place that sees the full, unfiltered bar timeline:
+                  meta-mode training is a sparse subset of it, so positions
+                  cannot be recovered downstream.
+
+    All four are metadata, never model inputs — they describe the outcome.
     """
     close = df["close"]
     atr_pct = (atr(df, length=14) / close).rename("barrier_pct")
@@ -88,39 +97,52 @@ def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
             k=cfg.atr_mult,
             timeout=cfg.timeout,
         )
-        out = pd.DataFrame(
-            {
-                "label": label,
-                "exit_bars": exit_bars,
-                "barrier_pct": cfg.atr_mult * atr_pct.to_numpy(),
-            },
-            index=df.index,
-        )
-        return out
-
-    fwd_ret = close.shift(-cfg.horizon_bars) / close - 1
-
-    if cfg.mode == "updown":
-        label = (fwd_ret > 0).astype(float)
-    elif cfg.mode == "long_threshold":
-        label = (fwd_ret > cfg.atr_mult * atr_pct).astype(float)
+        barrier_pct = cfg.atr_mult * atr_pct.to_numpy()
     else:
-        raise ValueError(f"Unknown label mode: {cfg.mode!r}")
+        fwd_ret = close.shift(-cfg.horizon_bars) / close - 1
 
-    # astype(float) turned NaN comparisons into 0.0 — restore NaN where the
-    # forward return (or the ATR warmup) is undefined so those rows get dropped.
-    label[fwd_ret.isna()] = np.nan
-    if cfg.mode == "long_threshold":
-        label[atr_pct.isna()] = np.nan
+        if cfg.mode == "updown":
+            label = (fwd_ret > 0).astype(float)
+        elif cfg.mode == "long_threshold":
+            label = (fwd_ret > cfg.atr_mult * atr_pct).astype(float)
+        else:
+            raise ValueError(f"Unknown label mode: {cfg.mode!r}")
+
+        # astype(float) turned NaN comparisons into 0.0 — restore NaN where the
+        # forward return (or the ATR warmup) is undefined so those rows drop.
+        label[fwd_ret.isna()] = np.nan
+        if cfg.mode == "long_threshold":
+            label[atr_pct.isna()] = np.nan
+
+        label = label.to_numpy()
+        exit_bars = np.where(np.isnan(label), np.nan, float(cfg.horizon_bars))
+        barrier_pct = (cfg.atr_mult * atr_pct).to_numpy()
 
     return pd.DataFrame(
         {
             "label": label,
-            "exit_bars": float(cfg.horizon_bars),
-            "barrier_pct": cfg.atr_mult * atr_pct,
+            "exit_bars": exit_bars,
+            "barrier_pct": barrier_pct,
+            "exit_time": _exit_times(df.index, exit_bars),
         },
         index=df.index,
     )
+
+
+def _exit_times(index: pd.DatetimeIndex, exit_bars: np.ndarray) -> np.ndarray:
+    """Timestamp of the bar `exit_bars` ahead, NaT where the label is unknown.
+
+    Works in integer bar positions, not wall-clock arithmetic: metals stop
+    trading over the weekend, so "12 bars later" and "48 hours later" are
+    different instants and only the first one matches the label.
+    """
+    n = len(index)
+    out = np.full(n, np.datetime64("NaT"), dtype="datetime64[ns]")
+    known = ~np.isnan(exit_bars)
+    if known.any():
+        target = (np.flatnonzero(known) + exit_bars[known]).astype(int)
+        out[known] = index.values[np.clip(target, 0, n - 1)]
+    return pd.DatetimeIndex(out, tz="UTC")
 
 
 def _triple_barrier(

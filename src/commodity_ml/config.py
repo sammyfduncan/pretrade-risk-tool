@@ -52,6 +52,21 @@ class LabelConfig:
 class FeatureConfig:
     technical: bool = True
     macro: bool = True
+    crossasset: bool = True
+
+
+@dataclass(frozen=True)
+class CrossAssetConfig:
+    """The gold/silver ratio. See features/crossasset.py.
+
+    Deliberately defined the same way for every precious metal — the ratio
+    describes the *environment* both metals sit in, so gold.yaml and
+    silver.yaml carry an identical block and the transferability control
+    stays a three-line diff.
+    """
+
+    numerator_symbol: str = "XAUUSD"
+    denominator_symbol: str = "XAGUSD"
 
 
 @dataclass(frozen=True)
@@ -72,6 +87,29 @@ class CVConfig:
 @dataclass(frozen=True)
 class ModelConfig:
     type: str = "lightgbm"  # lightgbm | logistic
+
+    # Overlapping labels make consecutive bars near-duplicates of each other.
+    # Weighting each sample by how unique its forward window is stops the model
+    # counting one move as `horizon_bars` independent facts. See
+    # modeling/sample_weights.py.
+    sample_weighting: str = "none"  # none | uniqueness
+
+    # Maps raw scores onto probabilities that mean what they say. Fitted inside
+    # each walk-forward fold on a held-out tail of that fold's *training* data —
+    # fitting it on test data would be leakage. See modeling/calibration.py.
+    calibration: str = "none"  # none | isotonic | sigmoid
+
+    def __post_init__(self) -> None:
+        if self.sample_weighting not in ("none", "uniqueness"):
+            raise ValueError(
+                f"model.sample_weighting must be 'none' or 'uniqueness', "
+                f"got {self.sample_weighting!r}"
+            )
+        if self.calibration not in ("none", "isotonic", "sigmoid"):
+            raise ValueError(
+                f"model.calibration must be 'none', 'isotonic' or 'sigmoid', "
+                f"got {self.calibration!r}"
+            )
 
 
 @dataclass(frozen=True)
@@ -94,6 +132,7 @@ class AssetConfig:
     granularity: str
     data: DataConfig = field(default_factory=DataConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
+    crossasset: CrossAssetConfig = field(default_factory=CrossAssetConfig)
     primary: PrimaryConfig = field(default_factory=PrimaryConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
     cv: CVConfig = field(default_factory=CVConfig)
@@ -109,7 +148,7 @@ class AssetConfig:
             )
         if self.data.source not in ("dukascopy", "ig"):
             raise ValueError(f"Unknown data.source: {self.data.source!r}")
-        if not (self.features.technical or self.features.macro):
+        if not (self.features.technical or self.features.macro or self.features.crossasset):
             raise ValueError("At least one feature family must be enabled.")
 
     # ---- development / holdout split ----
@@ -145,11 +184,16 @@ class AssetConfig:
         return df.loc[df.index >= cutoff]
 
     # ---- artifact paths (all gitignored) ----
-    def raw_path(self, source: str | None = None) -> Path:
+    def raw_path(self, source: str | None = None, symbol: str | None = None) -> Path:
         """Raw candles are namespaced by source so two providers can coexist
-        on disk and be compared (scripts/compare_sources.py)."""
+        on disk and be compared (scripts/compare_sources.py).
+
+        `symbol` overrides the asset's own symbol, which is how cross-asset
+        features reach the partner leg's candles (gold needs silver's file).
+        """
         source = source or self.data.source
-        return PROJECT_ROOT / "data" / "raw" / f"{self.symbol}_{self.granularity}_{source}.parquet"
+        symbol = symbol or self.symbol
+        return PROJECT_ROOT / "data" / "raw" / f"{symbol}_{self.granularity}_{source}.parquet"
 
     @property
     def dataset_path(self) -> Path:
@@ -187,6 +231,7 @@ def load_config(path: str | Path) -> AssetConfig:
         granularity=raw["granularity"],
         data=data,
         features=FeatureConfig(**raw.get("features", {})),
+        crossasset=CrossAssetConfig(**raw.get("crossasset", {})),
         primary=PrimaryConfig(**raw.get("primary", {})),
         label=LabelConfig(**raw.get("label", {})),
         cv=CVConfig(**raw.get("cv", {})),

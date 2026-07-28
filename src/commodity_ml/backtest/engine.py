@@ -119,18 +119,80 @@ def run_backtest(
     periods_per_year: float,
     horizon_bars: int,
 ) -> BacktestResult:
-    # Restrict to the OOF *time range* (rule 1) but keep every bar in it. In meta
-    # mode predictions exist only on primary-signal bars; indexing the price
-    # series by that sparse set would silently compress the timeline and make
-    # barriers and holding periods meaningless.
+    """The ML-filtered strategy: enter on the top slice of model predictions.
+
+    `oof_proba` must be the RAW model score, not the calibrated probability.
+    The entry rule is a quantile, which is a statement about ordering, and
+    calibration is allowed to flatten regions where the score does not
+    discriminate — ranking on it would change the trade set for reasons that
+    have nothing to do with signal.
+    """
+    close, proba, barrier_pct = _align_to_window(close, oof_proba, barrier_pct)
+    raw_entries, threshold = expanding_quantile_entries(proba, cfg.entry_quantile)
+    return _simulate(
+        close, raw_entries, barrier_pct, cfg, granularity, periods_per_year,
+        horizon_bars, threshold,
+    )
+
+
+def run_rule_backtest(
+    close: pd.Series,
+    signal: pd.Series,
+    barrier_pct: pd.Series,
+    cfg: BacktestConfig,
+    granularity: str,
+    periods_per_year: float,
+    horizon_bars: int,
+    window: pd.DatetimeIndex,
+) -> BacktestResult:
+    """The primary rule alone, with no ML filter — the control that decides it.
+
+    README methodology: a strategy that filters a rule must be compared against
+    the bare rule. A filter that removes trades and keeps the same return has
+    earned something; one that merely tracks its own primary signal is
+    decoration wearing a model's clothes. Same barriers, same fees, same
+    debouncing and same window as the filtered version, so the only difference
+    is whether the model got a vote.
+    """
+    close = close.loc[window]
+    entries = signal.reindex(window).fillna(False).astype(bool)
+    barrier_pct = barrier_pct.reindex(window).ffill()
+    return _simulate(
+        close, entries, barrier_pct, cfg, granularity, periods_per_year,
+        horizon_bars, pd.Series(dtype=float),
+    )
+
+
+def _align_to_window(
+    close: pd.Series, oof_proba: pd.Series, barrier_pct: pd.Series
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Restrict to the OOF *time range* (rule 1) but keep every bar in it.
+
+    In meta mode predictions exist only on primary-signal bars; indexing the
+    price series by that sparse set would silently compress the timeline and
+    make barriers and holding periods meaningless.
+    """
     window = close.loc[
         (close.index >= oof_proba.index.min()) & (close.index <= oof_proba.index.max())
     ]
-    close = window
-    proba = oof_proba.reindex(window.index)  # NaN on bars with no prediction
-    barrier_pct = barrier_pct.reindex(window.index).ffill()
+    return (
+        window,
+        oof_proba.reindex(window.index),  # NaN on bars with no prediction
+        barrier_pct.reindex(window.index).ffill(),
+    )
 
-    raw_entries, threshold = expanding_quantile_entries(proba, cfg.entry_quantile)
+
+def _simulate(
+    close: pd.Series,
+    raw_entries: pd.Series,
+    barrier_pct: pd.Series,
+    cfg: BacktestConfig,
+    granularity: str,
+    periods_per_year: float,
+    horizon_bars: int,
+    threshold: pd.Series,
+) -> BacktestResult:
+    """Shared execution model, so the strategy and its control cannot diverge."""
     entries = debounce_entries(raw_entries, horizon_bars).shift(
         SIGNAL_DELAY, fill_value=False
     )

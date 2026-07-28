@@ -53,16 +53,21 @@ src/commodity_ml/         # installed package (pip install -e .)
   data/schema.py          # canonical candle contract + per-source granularity maps
   data/dukascopy.py       # bulk free history -> training data
   data/ig.py              # broker API: epics, recent bars, allowance guard, execution later
+  features/pipeline.py    # THE shared feature path — training and live both call it
   features/technical.py   # pandas-ta-classic indicators + hand-rolled features
   features/macro.py       # FRED real yields/dollar/VIX; publication lags = lookahead risk
+  features/crossasset.py  # gold/silver ratio; needs the partner asset's candles on disk
   labels.py               # label construction — the module most prone to lookahead bugs
   modeling/models.py      # LightGBM factory + LogisticRegression baseline
   modeling/walkforward.py # TimeSeriesSplit walk-forward harness, OOF predictions
+  modeling/sample_weights.py  # label-uniqueness weights (overlapping labels aren't independent)
+  modeling/calibration.py     # per-fold isotonic/Platt + the CalibratedModel artifact
   evaluation/ml_metrics.py       # AUC, Brier, per-fold tables
   evaluation/trading_metrics.py  # Sharpe, profit factor, max drawdown (pure pandas, no vbt dep)
   backtest/engine.py      # vectorbt: OOF probabilities -> simulated long-only trades
 scripts/                  # CLI entry points, run in order:
   fetch_data.py -> build_dataset.py -> train.py -> backtest.py
+  predict.py              # live decision path; groundwork, order placement not wired up
   find_epic.py, compare_sources.py   # IG setup + cross-source validation
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
@@ -76,9 +81,11 @@ pip install -r requirements.txt && pip install -e .
 pytest                               # all tests run offline on synthetic data
 
 python scripts/fetch_data.py    --config config/gold.yaml   # Dukascopy, no credentials
+python scripts/fetch_data.py    --config config/silver.yaml # both legs: the ratio needs them
 python scripts/build_dataset.py --config config/gold.yaml
 python scripts/train.py         --config config/gold.yaml [--baseline]
-python scripts/backtest.py      --config config/gold.yaml
+python scripts/backtest.py      --config config/gold.yaml   # prints the bare-rule control too
+python scripts/predict.py       --config config/gold.yaml   # latest bar -> trade/no-trade
 
 # IG side (needs .env credentials)
 python scripts/find_epic.py --search "spot gold"
@@ -258,6 +265,87 @@ Next test for this hypothesis is platinum/palladium (genuinely different
 drivers, so a real regime-filter effect should survive; a gold-fitted artifact
 should not) — NOT spending the holdout, and NOT tuning the primary rule.
 
+### Run 4 (28 Jul 2026): honesty corrections + gold/silver ratio + live path
+
+Three changes landed together, plus two design bugs they exposed.
+
+**Gold/silver ratio** (`features/crossasset.py`, `features.crossasset: true`).
+Three features: z-score of the ratio and its 30/120-bar log changes. Defined
+canonically as XAU/XAG in *both* configs, so it describes the environment
+rather than the asset. It ranks 3rd and 6th on split importance for gold.
+**Feature work is now closed** — CFTC positioning and ETF flows stay unbuilt.
+
+**Sample weighting by label uniqueness** (`modeling/sample_weights.py`,
+`model.sample_weighting: uniqueness`). With a 12-bar horizon, consecutive
+labels share 11/12 of their future, so the model was counting one move as up
+to twelve independent facts. Kish effective sample size says the last fold's
+4,836 rows are worth **3,595 independent observations (74%)**. Kept as a
+correctness fix regardless of what it does to the numbers.
+
+**Probability calibration** (`modeling/calibration.py`,
+`model.calibration: isotonic`). Fitted per fold on a gapped tail of that
+fold's *training* block. Raw Brier 0.3035 against a 0.2496 no-skill baseline;
+isotonic closes 80% of the gap on gold, 54% on silver. Fold 0 is too small to
+calibrate (needs 250 rows) and is left alone.
+
+Two bugs this turned up, both of the kind that flatter results silently:
+
+1. **Platt scaling inverted the model.** `LogisticRegression` on the score's
+   logit is unconstrained, so on folds where the score/outcome relationship was
+   negative it learned a negative slope and flipped the ranking — turning the
+   logistic baseline's pooled AUC from 0.4820 into 0.5133. Calibrators are now
+   probed for monotonicity and fall back to identity if they would invert.
+   This dataset sets that trap deliberately: several folds genuinely score
+   below 0.50.
+2. **Calibrating changed which bars traded.** Entries rank on a *quantile* of
+   the prediction distribution; isotonic is a step function that collapsed
+   4,845 distinct predictions into ~1,050, moving the trade count 137 -> 71 for
+   reasons unrelated to signal. Fixed structurally: `WalkForwardResult` now
+   carries `oof_proba` (raw — ranking and entries) and `oof_calibrated`
+   (Brier, and position sizing later). The OOF parquet stores both.
+   "Calibration changes meaning, not behaviour" is now true by construction
+   and pinned by a test.
+
+**The bare-rule control is now printed on every meta-mode backtest**, not
+behind a flag — the README rule is too easy to skip, and on these numbers it
+is the only thing that distinguishes the two assets:
+
+| asset | variant | trades | return | Sharpe | PF | win% |
+|---|---|---|---|---|---|---|
+| gold | trend rule alone | 466 | +15.5% | 0.34 | 1.08 | 52.1% |
+| gold | trend + ML filter | 120 | **+22.3%** | **0.91** | **1.54** | **58.3%** |
+| gold | buy & hold | – | +108.5% | 1.01 | – | – |
+| silver | trend rule alone | 434 | **+36.5%** | 0.42 | 1.09 | 52.3% |
+| silver | trend + ML filter | 125 | +20.8% | 0.43 | 1.20 | 53.6% |
+| silver | buy & hold | – | +139.0% | 0.70 | – | – |
+
+AUC (raw scores): gold 0.5291 vs baseline 0.4820 (+0.047); silver 0.5148 vs
+0.4617 (+0.053). LightGBM's edge over the baseline **survives** the uniqueness
+correction on both assets — it was +0.057/+0.052 unweighted.
+
+Read the control column, not the absolute numbers:
+- Both assets clear the 100-trade minimum (120, 125) for the first time.
+- **Gold's filter still behaves like a working meta-label**: a quarter of the
+  trades, more total return, PF 1.08 -> 1.54.
+- **Silver's still does not.** Absolute return improved a lot versus run 3
+  (−6.2% -> +20.8%), which looks like replication until you read the control:
+  the bare rule made +36.5% over the same window, so the filter *removed
+  profit* while leaving Sharpe flat (0.42 -> 0.43). One of two, again.
+- **A caveat that did not exist in run 3:** gold and silver now share a feature
+  computed from both series. Agreement between them is correspondingly weaker
+  evidence than when the two configs were genuinely independent.
+- Both still lose heavily to buy-and-hold.
+
+**Live prediction path** (`scripts/predict.py`, `features/pipeline.py`).
+Training and prediction now share one feature-assembly function, so train/live
+skew cannot arise from two implementations drifting apart.
+`tests/test_predict_parity.py` pins that a feature row built from a trailing
+window equals the row training recorded for that bar, and that poisoning
+future partner-asset data changes nothing. The artifact bundles model +
+calibrator + feature order + entry threshold, so the live path cannot apply
+one without the others. Runs end-to-end offline; only the candle-fetch line
+changes when IG credentials arrive, and order placement is not wired up.
+
 ### What this implies
 
 - **Do not** respond to this by adding model capacity (XGBoost, neural nets) or
@@ -272,22 +360,37 @@ should not) — NOT spending the holdout, and NOT tuning the primary rule.
   direction prediction. Steps 3–4 test a different hypothesis than step 1 did.
 - **The sentiment layer (step 2) is now the main open hypothesis** for
   differentiated information, which is what the README always argued.
-- **Meta-labeling is the one price-only idea still alive** (run 3), because it
-  asks the model a regime question rather than a direction question. Treat it
-  as unproven until it replicates on an asset that isn't a gold proxy.
+- **Meta-labeling is the one price-only idea still alive** (runs 3-4), because
+  it asks the model a regime question rather than a direction question. Treat
+  it as unproven until it replicates on an asset that isn't a gold proxy —
+  after run 4 it is still one-of-two, and it now has *fewer* independent
+  degrees of freedom, not more, because both assets share the ratio feature.
+- **Always read the bare-rule control before the return column.** Run 4 is the
+  cautionary case: silver's return went from −6.2% to +20.8% and looked like a
+  replication, while against its own control the filter was destroying profit.
+- **Corrections that make numbers worse are working.** Sample weighting and
+  calibration exist to remove flattery, not to add signal. Two separate
+  mechanisms in run 4 quietly improved metrics by inverting or re-ranking
+  predictions; both were bugs.
 
 ## Implementation ideas for future steps (not yet built)
 
-- **Step 1 refinements (in rough priority order given the negative result):**
-  a held-out final period never looked at until the template is frozen (the OOF
-  window has now informed design decisions, so it is no longer virgin);
-  a transferability check running the identical config on silver;
-  richer macro (CFTC positioning, ETF flows, gold/silver and gold/copper ratios);
-  meta-labeling — use the predictable volatility to decide *whether* to trade
-  rather than *which way*; probability calibration (isotonic) before thresholding;
-  sample weighting by label uniqueness; hand-rolled Kalman-filter trend feature
-  (user wants to build this one personally for the learning value).
-  Optuna stays deferred — tuning cannot create information that isn't present.
+- **Step 1 — what is left.** Done in runs 3-4: the holdout fence, the silver
+  transferability check, meta-labeling, the gold/silver ratio, sample weighting
+  by label uniqueness, probability calibration, and the live prediction path.
+  Still open, in order:
+  1. **Spend the holdout, once.** The formal step-1 validation. Irreversible —
+     after reading it, no further tuning of anything, on any asset. Do it only
+     when the template is deliberately frozen, and expect the honest answer to
+     be "no confirmed edge".
+  2. Order placement + scheduling on the live path, once IG credentials exist.
+  3. Hand-rolled Kalman-filter trend feature — **the user wants to build this
+     one personally for the learning value**, so leave it to them.
+
+  Deliberately NOT doing: more features (CFTC positioning, ETF flows,
+  gold/copper — feature work closed in run 4), more model capacity, and optuna.
+  Tuning cannot create information that isn't present, and every extra variant
+  tried before the holdout is spent makes the holdout weaker evidence.
 - **Step 2 (sentiment):** GDELT GKG filtered per asset (gold: central-bank/monetary
   themes; PGMs: South Africa/Russia supply + auto demand). Start lexicon-based
   scoring, upgrade to transformer only if the lexicon baseline shows signal.

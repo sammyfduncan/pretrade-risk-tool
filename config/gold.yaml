@@ -30,6 +30,14 @@ data:
 features:
   technical: true          # price-path indicators — strong on volatility, weak on direction
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
+  crossasset: true         # gold/silver ratio — regime, not direction
+
+crossasset:
+  # Same block in every metal's config on purpose: the ratio describes the
+  # environment both metals sit in, not the asset being modeled. Needs the
+  # other leg's candles on disk (scripts/fetch_data.py --config config/silver.yaml).
+  numerator_symbol: XAUUSD
+  denominator_symbol: XAGUSD
 
 primary:
   # The rule that picks direction under label.mode: meta. See primary.py — the
@@ -55,6 +63,24 @@ model:
   type: lightgbm           # lightgbm | logistic (baseline)
   # Still no hyperparameter tuning: the logistic baseline beat LightGBM on the
   # first run, which means the bottleneck is information, not model capacity.
+
+  # Overlapping forward labels make consecutive rows near-duplicates, so the
+  # model counts one move as up to horizon_bars independent facts. Weighting by
+  # label uniqueness corrects that at the source. Expect metrics to get
+  # slightly WORSE and more honest — this removes flattery, it adds no signal.
+  sample_weighting: uniqueness   # none | uniqueness
+
+  # Makes the probability mean what it says. Raw Brier 0.3035 against a 0.2496
+  # no-skill baseline; isotonic closes ~80% of that gap.
+  #
+  # Chosen on Brier alone, which is calibration's own job. Ranking is unaffected
+  # because entries use the RAW score (see walkforward.WalkForwardResult) —
+  # isotonic flattens regions where the score does not discriminate, which is
+  # informative but would otherwise have moved the trade count by ~50% for
+  # reasons unrelated to signal. Isotonic is also the safer of the two here:
+  # Platt is an unconstrained fit and tried to invert folds where the model
+  # scored below chance.
+  calibration: isotonic          # none | isotonic | sigmoid
 
 backtest:
   # Exits now come from the label's own barriers, so the simulated trade is the
