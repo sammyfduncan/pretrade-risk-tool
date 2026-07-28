@@ -35,6 +35,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from commodity_ml.config import load_config
+from commodity_ml.decision import decide
 from commodity_ml.features.macro import fetch_macro
 from commodity_ml.features.pipeline import (
     MIN_HISTORY_BARS,
@@ -81,7 +82,6 @@ def main() -> None:
     cfg = load_config(args.config)
 
     artifact = joblib.load(cfg.model_path)
-    model = artifact["model"]
 
     raw = load_candles(cfg, refresh=args.refresh)
     # Only the trailing window is needed, but keep a wide margin over the
@@ -93,19 +93,12 @@ def main() -> None:
     partners = load_partner_candles(cfg)
 
     features = latest_feature_row(cfg, window, macro=macro_raw, partners=partners)
-    bar_time = features.name
-
-    # Two numbers with two jobs: the raw score decides (it is what the
-    # threshold was derived from), the calibrated one is what the score means.
-    row = features.to_frame().T
-    score = float(model.raw_score(row)[0])
-    proba = float(model.positive_proba(row)[0])
-
-    primary_long = bool(make_primary_signal(window, cfg.primary).iloc[-1])
-    threshold = artifact["entry_threshold"]
-
-    model_agrees = score >= threshold
-    take_trade = primary_long and model_agrees
+    decision = decide(
+        artifact,
+        features,
+        primary_long=bool(make_primary_signal(window, cfg.primary).iloc[-1]),
+    )
+    bar_time = decision.bar_time
 
     print(f"=== {cfg.asset} ({cfg.symbol} {cfg.granularity}) ===")
     print(f"  bar:              {bar_time}  close={window['close'].iloc[-1]:,.2f}")
@@ -121,14 +114,17 @@ def main() -> None:
               "live decision;\n        not a substitute for the single-use holdout "
               "evaluation, and not something\n        to tune against.")
     print()
-    print(f"  primary rule ({cfg.primary.rule}): {'LONG' if primary_long else 'flat'}")
-    print(f"  model score:         {score:.4f}  "
-          f"(entry threshold {threshold:.4f} = OOF q{artifact['entry_quantile']:.2f})")
-    print(f"  calibrated P(win):   {proba:.4f}  (what the score means, not what it ranks)")
-    print(f"  model says:          {'take it' if model_agrees else 'skip'}")
+    print(f"  primary rule ({cfg.primary.rule}): "
+          f"{'LONG' if decision.primary_long else 'flat'}")
+    print(f"  model score:         {decision.score:.4f}  "
+          f"(entry threshold {decision.threshold:.4f} = "
+          f"OOF q{artifact['entry_quantile']:.2f})")
+    print(f"  calibrated P(win):   {decision.calibrated_proba:.4f}  "
+          "(what the score means, not what it ranks)")
+    print(f"  model says:          {'take it' if decision.model_agrees else 'skip'}")
     print()
-    print(f"  DECISION: {'ENTER LONG' if take_trade else 'NO TRADE'}")
-    if take_trade:
+    print(f"  DECISION: {'ENTER LONG' if decision.take_trade else 'NO TRADE'}")
+    if decision.take_trade:
         barrier = cfg.label.atr_mult
         print(f"    exit: +/-{barrier} ATR barriers, or {cfg.label.horizon_bars} bars, "
               "whichever comes first")

@@ -41,6 +41,35 @@ Changing one and then spending the holdout makes the holdout development data.
 Environment: Python 3.13.14, lightgbm 4.7.0, scikit-learn 1.9.0, pandas 2.3.3,
 numpy 2.4.6.
 
+**Reproducibility verified 2026-07-28.** `scripts/train.py` run twice on the same
+data produced bit-identical OOF predictions (`proba` and `proba_calibrated`, max
+absolute difference 0.0 across 4,845 rows). Models are seeded at
+`models.RANDOM_STATE = 42`. Caveat: this was checked on one machine; LightGBM can
+differ across thread counts, so a reproduction on different hardware should
+compare OOF predictions rather than assume them. A freeze that cannot be
+reproduced is not a freeze.
+
+**What the freeze hash covers, and what may change after it.** `69f0527` pins the
+*modelling* code: config, label construction, feature assembly, model, primary
+rule and entry rule. Tests, guards, docs and refactors that do not alter
+predictions are still permitted afterwards — but each must be verified, not
+assumed, by re-running `scripts/train.py` and confirming the OOF predictions are
+bit-identical. The changes made on 2026-07-28 after `69f0527` (the dataset
+contract guard, the extracted decision module, the integration tests) were
+verified this way: pooled OOF AUC 0.5291 before and after, and `predict.py`
+returned an identical score of 0.7591 against the same 0.8494 threshold. If a
+change ever *does* move the numbers, it is not a refactor and the freeze is
+broken.
+
+**Pipeline coverage.** 111 tests, all offline on synthetic data. Added at freeze
+time: `tests/test_pipeline_integration.py` covers the seams between the four
+scripts — previously every test was unit-level, so a column rename could keep the
+whole suite green while changing what the model sees — and
+`tests/test_predict_decision.py` covers the artifact round-trip and the live
+decision rule. The dataset contract now lives in one place,
+`commodity_ml/dataset.py`, and refuses a dataset that does not match the current
+code rather than treating unrecognised columns as features.
+
 ---
 
 ## 2. Ledger of everything tried before the freeze

@@ -16,13 +16,14 @@ import argparse
 import pandas as pd
 
 from commodity_ml.config import load_config
+from commodity_ml.dataset import METADATA_COLUMNS, feature_columns
 from commodity_ml.features.macro import fetch_macro
 from commodity_ml.features.pipeline import (
     build_feature_frame,
     load_partner_candles,
     partner_symbols,
 )
-from commodity_ml.labels import LABEL_COLUMNS, make_labels
+from commodity_ml.labels import make_labels
 from commodity_ml.primary import SIGNAL_COLUMN, make_primary_signal
 
 
@@ -89,10 +90,16 @@ def main() -> None:
               f"rule win rate there = {meta_rows['label'].mean():.1%}")
     print(f"  -> {cfg.dataset_path}")
 
-    metadata = LABEL_COLUMNS + [SIGNAL_COLUMN, "close"]
-    unused = [c for c in dataset.columns if c not in feature_names + metadata]
+    # Both directions of the contract, checked where the file is written:
+    # nothing unaccounted for, and nothing train.py will refuse to read.
+    unused = [c for c in dataset.columns if c not in feature_names + METADATA_COLUMNS]
     if unused:
         raise SystemExit(f"Unexpected columns in dataset (would leak into training): {unused}")
+    if sorted(feature_columns(dataset)) != sorted(feature_names):
+        raise SystemExit(
+            "Feature columns as written disagree with what train.py would infer "
+            "from this file — the dataset contract in commodity_ml/dataset.py is out of sync."
+        )
 
 
 if __name__ == "__main__":

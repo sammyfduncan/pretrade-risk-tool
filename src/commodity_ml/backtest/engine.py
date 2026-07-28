@@ -165,7 +165,9 @@ def run_rule_backtest(
     is whether the model got a vote.
     """
     close = close.loc[window]
-    entries = signal.reindex(window).fillna(False).astype(bool)
+    # fill_value on the reindex rather than a chained fillna: an object-dtype
+    # boolean column downcasts with a FutureWarning under pandas 2.x.
+    entries = signal.reindex(window, fill_value=False).astype(bool)
     barrier_pct = barrier_pct.reindex(window).ffill()
     return _simulate(
         close, entries, barrier_pct, cfg, granularity, periods_per_year,

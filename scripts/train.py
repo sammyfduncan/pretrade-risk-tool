@@ -17,8 +17,8 @@ import joblib
 import pandas as pd
 
 from commodity_ml.config import AssetConfig, load_config
+from commodity_ml.dataset import feature_columns
 from commodity_ml.evaluation.ml_metrics import fold_metrics_table, overall_metrics
-from commodity_ml.labels import LABEL_COLUMNS
 from commodity_ml.modeling.calibration import IdentityCalibrator
 from commodity_ml.modeling.walkforward import fit_final_model, walk_forward
 from commodity_ml.primary import SIGNAL_COLUMN
@@ -100,9 +100,9 @@ def main() -> None:
 
     # exit_bars / barrier_pct describe the label's own outcome, and
     # primary_signal is the rule being judged — all backtest metadata, never
-    # model inputs. Feeding them in would be lookahead.
-    metadata = LABEL_COLUMNS + [SIGNAL_COLUMN, "close"]
-    feature_names = [c for c in dataset.columns if c not in metadata]
+    # model inputs. Feeding them in would be lookahead. dataset.feature_columns
+    # owns that split and refuses a dataset that does not match this code.
+    feature_names = feature_columns(dataset)
     X, y = dataset[feature_names], dataset["label"]
     print(f"Training on {len(X):,} bars, {len(feature_names)} features, "
           f"{cfg.cv.n_splits} walk-forward folds (gap={cfg.cv.gap_bars} bars)")

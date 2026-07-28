@@ -51,6 +51,9 @@ config/gold.yaml          # per-asset config; adding an asset later = new yaml
 config/silver.yaml        # transferability control — differs in 3 lines, do not tune
 src/commodity_ml/         # installed package (pip install -e .)
   config.py               # yaml -> dataclasses; also the development/holdout fence
+  dataset.py              # the build_dataset -> train column contract; refuses a stale
+                          # dataset rather than letting exit_bars/exit_time become features
+  decision.py             # live trade/no-trade rule (rule long AND score >= threshold)
   primary.py              # direction rule for meta-labeling (model only filters it)
   data/schema.py          # canonical candle contract + per-source granularity maps
   data/dukascopy.py       # bulk free history -> training data
@@ -76,6 +79,8 @@ docs/step1_freeze_record.md   # frozen template + holdout pre-registration (COMM
                           # interpretable; read before spending it)
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
+  test_pipeline_integration.py  # the seams between the four scripts — everything else
+                          # is unit-level, so this is what catches a contract drifting
 ```
 
 ## Commands
