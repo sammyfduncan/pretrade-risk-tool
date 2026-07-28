@@ -19,6 +19,7 @@ from commodity_ml.config import load_config
 from commodity_ml.features.macro import build_macro_features, fetch_macro, macro_feature_names
 from commodity_ml.features.technical import build_features
 from commodity_ml.labels import LABEL_COLUMNS, make_labels
+from commodity_ml.primary import SIGNAL_COLUMN, make_primary_signal
 
 
 def main() -> None:
@@ -55,8 +56,11 @@ def main() -> None:
         print(f"  macro features: {len(macro_feature_names())}")
 
     labels = make_labels(raw, cfg.label)
+    # Stored as metadata, never as a feature: in meta mode training is filtered
+    # to these bars, so the column would be constant and useless anyway.
+    primary = make_primary_signal(raw, cfg.primary)
 
-    dataset = pd.concat(frames + [labels, raw["close"]], axis=1)
+    dataset = pd.concat(frames + [labels, primary, raw["close"]], axis=1)
     n_before = len(dataset)
     dataset = dataset.dropna()
     print(f"\nDropped {n_before - len(dataset):,} rows "
@@ -75,9 +79,16 @@ def main() -> None:
               f"{dataset['exit_bars'].median():.0f} of {cfg.label.horizon_bars}")
         timed_out = (dataset["exit_bars"] >= cfg.label.horizon_bars).mean()
         print(f"  trades reaching the time limit without touching a barrier: {timed_out:.1%}")
+    fires = dataset[SIGNAL_COLUMN].mean()
+    print(f"  primary rule ({cfg.primary.rule}): fires on {fires:.1%} of bars")
+    if cfg.label.mode == "meta":
+        meta_rows = dataset[dataset[SIGNAL_COLUMN]]
+        print(f"  meta-labeling trains on those {len(meta_rows):,} bars only; "
+              f"rule win rate there = {meta_rows['label'].mean():.1%}")
     print(f"  -> {cfg.dataset_path}")
 
-    unused = [c for c in dataset.columns if c not in feature_names + LABEL_COLUMNS + ["close"]]
+    metadata = LABEL_COLUMNS + [SIGNAL_COLUMN, "close"]
+    unused = [c for c in dataset.columns if c not in feature_names + metadata]
     if unused:
         raise SystemExit(f"Unexpected columns in dataset (would leak into training): {unused}")
 

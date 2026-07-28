@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import pandas as pd
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -30,13 +31,18 @@ class DataConfig:
     source: str = "dukascopy"  # dukascopy | ig
     start: str = "2019-01-01"
     end: str | None = None
+    # Everything from this date on is fenced off from development. See
+    # AssetConfig.development_slice for why this exists.
+    holdout_start: str | None = None
     dukascopy: DukascopyConfig = field(default_factory=DukascopyConfig)
     ig: IGConfig = field(default_factory=IGConfig)
 
 
 @dataclass(frozen=True)
 class LabelConfig:
-    mode: str = "triple_barrier"  # triple_barrier | updown | long_threshold (legacy)
+    # meta = triple-barrier outcomes, but only on bars where the primary rule
+    # fires; the model then predicts whether obeying the rule pays off.
+    mode: str = "triple_barrier"  # triple_barrier | meta | updown | long_threshold (legacy)
     horizon_bars: int = 12
     atr_mult: float = 1.0
     timeout: str = "sign"  # triple_barrier only: label timeouts by sign, or drop them
@@ -46,6 +52,15 @@ class LabelConfig:
 class FeatureConfig:
     technical: bool = True
     macro: bool = True
+
+
+@dataclass(frozen=True)
+class PrimaryConfig:
+    """The direction rule used when label.mode == 'meta'. See primary.py."""
+
+    rule: str = "trend"  # trend | breakout | always
+    ema_span: int = 50  # trend rule
+    lookback: int = 20  # breakout rule
 
 
 @dataclass(frozen=True)
@@ -79,6 +94,7 @@ class AssetConfig:
     granularity: str
     data: DataConfig = field(default_factory=DataConfig)
     features: FeatureConfig = field(default_factory=FeatureConfig)
+    primary: PrimaryConfig = field(default_factory=PrimaryConfig)
     label: LabelConfig = field(default_factory=LabelConfig)
     cv: CVConfig = field(default_factory=CVConfig)
     model: ModelConfig = field(default_factory=ModelConfig)
@@ -95,6 +111,38 @@ class AssetConfig:
             raise ValueError(f"Unknown data.source: {self.data.source!r}")
         if not (self.features.technical or self.features.macro):
             raise ValueError("At least one feature family must be enabled.")
+
+    # ---- development / holdout split ----
+    #
+    # Walk-forward out-of-fold predictions are honest in the narrow sense that no
+    # model saw its own test bars. They stop being an honest estimate of *future*
+    # performance once a human has read them and changed the design in response —
+    # at that point the choice of label, timeframe and feature set has been fitted
+    # to that period by hand. This is the multiple-comparisons trap in README
+    # section 4, and it is the reason a good backtest is easy to manufacture.
+    #
+    # So a final slice is fenced off and never looked at during development. Every
+    # script defaults to the development slice; touching the holdout takes an
+    # explicit flag. It is a single-use resource — once you have seen it and tuned
+    # against it, it is development data too.
+
+    @property
+    def holdout_ts(self) -> pd.Timestamp | None:
+        if self.data.holdout_start is None:
+            return None
+        return pd.Timestamp(self.data.holdout_start, tz="UTC")
+
+    def development_slice(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Rows available for training, tuning and inspection."""
+        cutoff = self.holdout_ts
+        return df if cutoff is None else df.loc[df.index < cutoff]
+
+    def holdout_slice(self, df: pd.DataFrame) -> pd.DataFrame:
+        """The untouched final period. Do not use during development."""
+        cutoff = self.holdout_ts
+        if cutoff is None:
+            raise ValueError("No data.holdout_start configured, so there is no holdout.")
+        return df.loc[df.index >= cutoff]
 
     # ---- artifact paths (all gitignored) ----
     def raw_path(self, source: str | None = None) -> Path:
@@ -129,6 +177,7 @@ def load_config(path: str | Path) -> AssetConfig:
         source=data_raw.get("source", "dukascopy"),
         start=data_raw.get("start", "2019-01-01"),
         end=data_raw.get("end"),
+        holdout_start=data_raw.get("holdout_start"),
         dukascopy=DukascopyConfig(**(data_raw.get("dukascopy") or {})),
         ig=IGConfig(**(data_raw.get("ig") or {})),
     )
@@ -138,6 +187,7 @@ def load_config(path: str | Path) -> AssetConfig:
         granularity=raw["granularity"],
         data=data,
         features=FeatureConfig(**raw.get("features", {})),
+        primary=PrimaryConfig(**raw.get("primary", {})),
         label=LabelConfig(**raw.get("label", {})),
         cv=CVConfig(**raw.get("cv", {})),
         model=ModelConfig(**raw.get("model", {})),

@@ -1,0 +1,70 @@
+# Per-asset configuration — silver.
+# TRANSFERABILITY TEST: identical to gold.yaml apart from the asset identity.
+# Do not tune this file — its purpose is to show whether the gold template
+# generalizes untouched. Divergent results here mean the template is really a
+# gold-shaped artifact.
+# Adding a new asset later = copy this file, change symbol/epic/instrument.
+
+asset: silver
+symbol: XAGUSD
+granularity: H4            # see CLAUDE.md "Timeframe": macro data updates daily,
+                           # so H1/M15 ask the model to time entries with a
+                           # feature that is constant across 24/96 bars.
+
+data:
+  source: dukascopy        # dukascopy (deep free history, for training) | ig (broker, allowance-capped)
+  start: "2019-01-01"
+  # end omitted -> now
+
+  # Fenced off on 2026-07-28, after the first two runs had already informed the
+  # label/timeframe/feature choices. Nothing from here on is used for training,
+  # tuning or inspection until the template is frozen; then it is spent ONCE.
+  holdout_start: "2025-07-01"
+
+  dukascopy:
+    instrument: "XAG/USD"
+    offer_side: bid        # bid | ask. Spread cost is modeled separately via backtest.fee_pct.
+
+  ig:
+    # IG identifies markets by "epic", not ticker. Epics differ per account region,
+    # so this is left unset deliberately — find yours with:
+    #     python scripts/find_epic.py --search "spot gold"
+    epic: null
+
+features:
+  technical: true          # price-path indicators — strong on volatility, weak on direction
+  macro: true              # FRED real yields / dollar / VIX — the directional candidates
+
+primary:
+  # The rule that picks direction under label.mode: meta. See primary.py — the
+  # model never chooses a side, it only decides whether to obey this rule.
+  rule: trend              # trend | breakout | always
+  ema_span: 50
+  lookback: 20
+
+label:
+  # Symmetric triple barrier: take-profit at +atr_mult*ATR, stop at -atr_mult*ATR,
+  # give up after horizon_bars. Symmetry is the point — it removes the volatility
+  # channel that contaminated the old long_threshold label (see labels.py).
+  mode: meta               # meta | triple_barrier | updown | long_threshold (legacy)
+  horizon_bars: 12         # 12 H4 bars = 2 trading days
+  atr_mult: 1.5            # barrier width in ATRs; must clear costs to be tradeable
+  timeout: sign            # sign (label by direction at horizon) | drop
+
+cv:
+  n_splits: 5
+  gap_bars: 12             # MUST be >= label.horizon_bars (prevents label-overlap leakage)
+
+model:
+  type: lightgbm           # lightgbm | logistic (baseline)
+  # Still no hyperparameter tuning: the logistic baseline beat LightGBM on the
+  # first run, which means the bottleneck is information, not model capacity.
+
+backtest:
+  # Exits now come from the label's own barriers, so the simulated trade is the
+  # trade the model was trained to predict. Entry threshold is a quantile of the
+  # predicted distribution, not an absolute probability — an absolute 0.60 is
+  # unreachable for a calibrated model on a ~35% base rate.
+  entry_quantile: 0.90     # go long on the top decile of predictions
+  fee_pct: 0.0001          # ~half-spread per side as a fraction
+  init_cash: 10000

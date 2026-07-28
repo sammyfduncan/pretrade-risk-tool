@@ -46,8 +46,10 @@ never hardcode.
 
 ```
 config/gold.yaml          # per-asset config; adding an asset later = new yaml
+config/silver.yaml        # transferability control — differs in 3 lines, do not tune
 src/commodity_ml/         # installed package (pip install -e .)
-  config.py               # yaml -> dataclasses
+  config.py               # yaml -> dataclasses; also the development/holdout fence
+  primary.py              # direction rule for meta-labeling (model only filters it)
   data/schema.py          # canonical candle contract + per-source granularity maps
   data/dukascopy.py       # bulk free history -> training data
   data/ig.py              # broker API: epics, recent bars, allowance guard, execution later
@@ -99,6 +101,12 @@ python scripts/compare_sources.py --config config/gold.yaml
   manufactures them. `tests/test_macro.py` pins this.
 - **Entry thresholds must be computed on an expanding window.** A quantile taken
   over the whole backtest lets future predictions set today's entry bar.
+- **The holdout (`data.holdout_start`) is single-use.** Development results are
+  not out-of-sample with respect to design decisions, because those decisions
+  were made after reading them. Do not spend the holdout until the template is
+  frozen, and do not tune anything after spending it.
+- **Any strategy that filters a rule must be compared against the bare rule.**
+  A filter that doesn't beat its own primary signal is decoration.
 - **Backtests use out-of-fold predictions only** — never predictions from a model
   that saw that bar in training.
 - **Min sample before conclusions:** 100+ trades or a multi-month window, whichever
@@ -196,6 +204,60 @@ reporting an honest negative rather than manufacturing a signal. Consistently
 sub-0.50 AUC also hints the fitted relationships invert out-of-sample, i.e. they
 are regime-specific rather than stable.
 
+### Run 3 (28 Jul 2026): holdout frozen, silver transfer test, meta-labeling
+
+**Holdout.** `data.holdout_start: 2025-07-01` is now fenced off in both configs.
+Every script defaults to the development slice; `--use-holdout` is required to
+touch it and prints a warning. It is a single-use resource — spend it once, when
+the template is frozen. Runs below are development-only, so they are NOT
+out-of-sample with respect to design choices.
+
+**Silver transfers.** `config/silver.yaml` differs from gold in exactly three
+lines (asset, symbol, instrument). Run untouched, it reproduces gold's pattern:
+
+| | gold | silver |
+|---|---|---|
+| direction AUC (pre-meta) | 0.4965 | 0.4903 |
+| best feature vs direction | 0.0585 | 0.0888 |
+| best feature vs volatility | 0.5428 | 0.5070 |
+
+So the negative result is **structural across precious metals**, not a gold
+quirk, and the pipeline is a genuine template. Dukascopy also carries platinum
+and palladium (`XPT.CMD/USD`, `XPD.CMD/USD`) — resolves a README open item.
+
+**Meta-labeling** (`label.mode: meta`, `primary.rule: trend`). A trend rule picks
+the side; the model only decides whether to obey it. First result since run 1
+that isn't explicable as an artifact — and the first time LightGBM beats the
+logistic baseline (+0.030 AUC on both assets), consistent with the filtering
+question being genuinely non-linear.
+
+The control that matters is the bare rule with no ML filter:
+
+| asset | variant | trades | return | Sharpe | PF | win% |
+|---|---|---|---|---|---|---|
+| gold | trend rule alone | 428 | +16.6% | 0.37 | 1.09 | 51.9% |
+| gold | trend + ML filter | 137 | +15.7% | **0.62** | **1.31** | **59.1%** |
+| gold | buy & hold | – | +110.1% | 0.95 | – | – |
+| silver | trend rule alone | 399 | +8.7% | 0.18 | 1.03 | 51.1% |
+| silver | trend + ML filter | 129 | −6.2% | −0.07 | 0.94 | 49.6% |
+| silver | buy & hold | – | +153.4% | 0.73 | – | – |
+
+Read this carefully before building on it:
+- On gold the filter behaves exactly as a working meta-label should — removes
+  68% of trades, keeps the same profit, lifts PF 1.09→1.31 and win rate by 7pp.
+  Profit factor also degrades smoothly across neighbouring entry quantiles
+  (1.33/1.33/1.31 at 0.70/0.80/0.90), not knife-edge.
+- **On silver it makes things worse.** One-of-two replication on two highly
+  correlated assets is exactly the pattern noise plus multiple comparisons
+  produces. This is not yet an established effect.
+- **Both still lose heavily to buy-and-hold**, which is the benchmark that
+  matters for a long-only metals strategy.
+- Gold's AUC edge is ~1.1 SE once the 12-bar label overlap is accounted for.
+
+Next test for this hypothesis is platinum/palladium (genuinely different
+drivers, so a real regime-filter effect should survive; a gold-fitted artifact
+should not) — NOT spending the holdout, and NOT tuning the primary rule.
+
 ### What this implies
 
 - **Do not** respond to this by adding model capacity (XGBoost, neural nets) or
@@ -210,6 +272,9 @@ are regime-specific rather than stable.
   direction prediction. Steps 3–4 test a different hypothesis than step 1 did.
 - **The sentiment layer (step 2) is now the main open hypothesis** for
   differentiated information, which is what the README always argued.
+- **Meta-labeling is the one price-only idea still alive** (run 3), because it
+  asks the model a regime question rather than a direction question. Treat it
+  as unproven until it replicates on an asset that isn't a gold proxy.
 
 ## Implementation ideas for future steps (not yet built)
 

@@ -34,6 +34,13 @@ triple_barrier (default):
     If neither is touched within the horizon, the bar is labeled by the sign
     of its return at the horizon (`timeout: sign`) or dropped (`timeout: drop`).
 
+meta:
+    Identical barrier outcomes, but training is restricted to bars where the
+    primary rule (see primary.py) wants to be long. The label then reads
+    "would obeying the rule here have paid off?", turning the model from a
+    direction predictor into a trade filter. Sample restriction happens in
+    scripts/train.py; the label maths is the same.
+
 updown:
     1 if the forward return over `horizon_bars` is positive. Symmetric and
     immune to the volatility channel, but noisier: most bars are chop.
@@ -71,7 +78,7 @@ def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
     close = df["close"]
     atr_pct = (atr(df, length=14) / close).rename("barrier_pct")
 
-    if cfg.mode == "triple_barrier":
+    if cfg.mode in ("triple_barrier", "meta"):
         label, exit_bars = _triple_barrier(
             high=df["high"].to_numpy(),
             low=df["low"].to_numpy(),

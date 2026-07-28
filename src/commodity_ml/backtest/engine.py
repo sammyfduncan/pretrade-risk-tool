@@ -71,9 +71,12 @@ def expanding_quantile_entries(proba: pd.Series, quantile: float) -> tuple[pd.Se
 
     Uses only predictions available up to and including each bar, so the
     threshold at time t never depends on anything after t.
+
+    NaN entries (bars with no prediction, e.g. off-signal bars in meta mode)
+    are skipped by the expanding window and can never produce an entry.
     """
     threshold = proba.expanding(min_periods=QUANTILE_WARMUP).quantile(quantile)
-    entries = (proba >= threshold) & threshold.notna()
+    entries = (proba >= threshold) & threshold.notna() & proba.notna()
     return entries, threshold
 
 
@@ -116,10 +119,18 @@ def run_backtest(
     periods_per_year: float,
     horizon_bars: int,
 ) -> BacktestResult:
-    close = close.loc[oof_proba.index]  # OOF window only — see rule 1
-    barrier_pct = barrier_pct.loc[oof_proba.index]
+    # Restrict to the OOF *time range* (rule 1) but keep every bar in it. In meta
+    # mode predictions exist only on primary-signal bars; indexing the price
+    # series by that sparse set would silently compress the timeline and make
+    # barriers and holding periods meaningless.
+    window = close.loc[
+        (close.index >= oof_proba.index.min()) & (close.index <= oof_proba.index.max())
+    ]
+    close = window
+    proba = oof_proba.reindex(window.index)  # NaN on bars with no prediction
+    barrier_pct = barrier_pct.reindex(window.index).ffill()
 
-    raw_entries, threshold = expanding_quantile_entries(oof_proba, cfg.entry_quantile)
+    raw_entries, threshold = expanding_quantile_entries(proba, cfg.entry_quantile)
     entries = debounce_entries(raw_entries, horizon_bars).shift(
         SIGNAL_DELAY, fill_value=False
     )

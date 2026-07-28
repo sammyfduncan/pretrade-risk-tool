@@ -16,10 +16,26 @@ import argparse
 import joblib
 import pandas as pd
 
-from commodity_ml.config import load_config
+from commodity_ml.config import AssetConfig, load_config
 from commodity_ml.evaluation.ml_metrics import fold_metrics_table, overall_metrics
 from commodity_ml.labels import LABEL_COLUMNS
 from commodity_ml.modeling.walkforward import fit_final_model, walk_forward
+from commodity_ml.primary import SIGNAL_COLUMN
+
+
+def select_slice(cfg: AssetConfig, dataset: pd.DataFrame, use_holdout: bool) -> pd.DataFrame:
+    """Restrict to the development period unless the holdout is explicitly asked for."""
+    if cfg.holdout_ts is None:
+        print("No holdout configured — every result below is in-sample for design choices.")
+        return dataset
+    if use_holdout:
+        print(f"*** USING THE HOLDOUT ({cfg.data.holdout_start} onward). This is a "
+              "single-use out-of-sample test — after this, it is development data. ***")
+        return dataset
+    development = cfg.development_slice(dataset)
+    print(f"Holdout fenced off: {len(dataset) - len(development):,} rows from "
+          f"{cfg.data.holdout_start} excluded (use --use-holdout to include).")
+    return development
 
 
 def report(name: str, y: pd.Series, oof: pd.Series, folds) -> dict:
@@ -39,13 +55,29 @@ def main() -> None:
     parser.add_argument("--config", default="config/gold.yaml")
     parser.add_argument("--baseline", action="store_true",
                         help="also run the LogisticRegression baseline for comparison")
+    parser.add_argument("--use-holdout", action="store_true",
+                        help="INCLUDE the fenced-off final period. Single-use: once you "
+                             "have seen it, it is no longer an out-of-sample test.")
     args = parser.parse_args()
     cfg = load_config(args.config)
 
     dataset = pd.read_parquet(cfg.dataset_path)
-    # exit_bars / barrier_pct describe the label's own outcome — they are
-    # backtest inputs, never model inputs. Feeding them in would be lookahead.
-    feature_names = [c for c in dataset.columns if c not in LABEL_COLUMNS + ["close"]]
+    dataset = select_slice(cfg, dataset, use_holdout=args.use_holdout)
+
+    if cfg.label.mode == "meta":
+        # Meta-labeling: the model only ever judges trades the primary rule
+        # proposes, so it must be trained on exactly those bars.
+        before = len(dataset)
+        dataset = dataset[dataset[SIGNAL_COLUMN]]
+        print(f"Meta-labeling on primary rule '{cfg.primary.rule}': "
+              f"{len(dataset):,} of {before:,} bars where the rule wants to be long "
+              f"(rule's raw win rate: {dataset['label'].mean():.1%})")
+
+    # exit_bars / barrier_pct describe the label's own outcome, and
+    # primary_signal is the rule being judged — all backtest metadata, never
+    # model inputs. Feeding them in would be lookahead.
+    metadata = LABEL_COLUMNS + [SIGNAL_COLUMN, "close"]
+    feature_names = [c for c in dataset.columns if c not in metadata]
     X, y = dataset[feature_names], dataset["label"]
     print(f"Training on {len(X):,} bars, {len(feature_names)} features, "
           f"{cfg.cv.n_splits} walk-forward folds (gap={cfg.cv.gap_bars} bars)")

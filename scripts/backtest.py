@@ -38,9 +38,13 @@ def main() -> None:
     args = parser.parse_args()
     cfg = load_config(args.config)
 
+    # The OOF file already reflects whichever slice train.py ran on, so the
+    # backtest inherits the holdout decision rather than making its own.
     close = pd.read_parquet(cfg.raw_path())["close"]
     oof = pd.read_parquet(cfg.oof_path)
     proba, barrier_pct = oof["proba"], oof["barrier_pct"]
+    if cfg.holdout_ts is not None and proba.index.max() < cfg.holdout_ts:
+        print(f"(Holdout from {cfg.data.holdout_start} is excluded — inherited from train.py)")
     ppy = bars_per_year(cfg.granularity)
 
     print(f"Backtesting {cfg.asset} on OOF window {proba.index[0]} -> {proba.index[-1]}")

@@ -12,6 +12,11 @@ data:
   start: "2019-01-01"
   # end omitted -> now
 
+  # Fenced off on 2026-07-28, after the first two runs had already informed the
+  # label/timeframe/feature choices. Nothing from here on is used for training,
+  # tuning or inspection until the template is frozen; then it is spent ONCE.
+  holdout_start: "2025-07-01"
+
   dukascopy:
     instrument: "XAU/USD"
     offer_side: bid        # bid | ask. Spread cost is modeled separately via backtest.fee_pct.
@@ -26,11 +31,18 @@ features:
   technical: true          # price-path indicators — strong on volatility, weak on direction
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
 
+primary:
+  # The rule that picks direction under label.mode: meta. See primary.py — the
+  # model never chooses a side, it only decides whether to obey this rule.
+  rule: trend              # trend | breakout | always
+  ema_span: 50
+  lookback: 20
+
 label:
   # Symmetric triple barrier: take-profit at +atr_mult*ATR, stop at -atr_mult*ATR,
   # give up after horizon_bars. Symmetry is the point — it removes the volatility
   # channel that contaminated the old long_threshold label (see labels.py).
-  mode: triple_barrier     # triple_barrier | updown | long_threshold (legacy, contaminated)
+  mode: meta               # meta | triple_barrier | updown | long_threshold (legacy)
   horizon_bars: 12         # 12 H4 bars = 2 trading days
   atr_mult: 1.5            # barrier width in ATRs; must clear costs to be tradeable
   timeout: sign            # sign (label by direction at horizon) | drop

@@ -134,3 +134,35 @@ def test_quantile_sweep_shape():
     )
     assert list(sweep.index) == [0.80, 0.90, 0.95]
     assert "sharpe" in sweep.columns and "n_trades" in sweep.columns
+
+
+def test_sparse_predictions_do_not_compress_the_timeline():
+    """Meta-labeling predicts only on primary-signal bars. The backtest must
+    still run on the full bar timeline — indexing prices by the sparse
+    prediction set would make holding periods and barriers meaningless."""
+    close, proba, barrier = synthetic_market()
+    sparse = proba.copy()
+    sparse.iloc[::3] = np.nan  # predictions on only 2 bars in 3
+
+    cfg = BacktestConfig(entry_quantile=0.90)
+    result = run_backtest(
+        close, sparse.dropna(), barrier, cfg, "H4", bars_per_year("H4"), HORIZON
+    )
+
+    # Portfolio must span every bar in the range, not just the predicted ones.
+    predicted_range = close.loc[sparse.dropna().index[0] : sparse.dropna().index[-1]]
+    assert result.stats["n_bars"] == len(predicted_range)
+    assert result.stats["n_bars"] > len(sparse.dropna())
+
+    # And holding periods must still respect the horizon in real time.
+    trades = result.portfolio.trades.records_readable
+    held = pd.to_datetime(trades["Exit Timestamp"]) - pd.to_datetime(trades["Entry Timestamp"])
+    assert (held <= pd.Timedelta(hours=4 * HORIZON)).all()
+
+
+def test_entries_never_fire_on_unpredicted_bars():
+    _, proba, _ = synthetic_market()
+    sparse = proba.copy()
+    sparse.iloc[100:400] = np.nan
+    entries, _ = expanding_quantile_entries(sparse, 0.90)
+    assert not entries.iloc[100:400].any()
