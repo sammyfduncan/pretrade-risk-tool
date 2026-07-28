@@ -95,8 +95,13 @@ def main() -> None:
     sweep = quantile_sweep(
         close, proba, barrier_pct, cfg.backtest, cfg.granularity, ppy, cfg.label.horizon_bars
     )
-    sweep_txt = ("=== Entry-selectivity sensitivity (DIAGNOSTIC — do not cherry-pick "
-                 "the best row) ===\n" + sweep.to_string())
+    sweep_txt = ("=== Entry-selectivity sensitivity (WEAK DIAGNOSTIC — not a robustness "
+                 "test) ===\n"
+                 "Rows are not nested: changing the quantile also changes which bar in "
+                 "each cluster\nsurvives debouncing, so smooth is not robust and jagged "
+                 "is not fragile. Do not\ncherry-pick a row, and do not read this as "
+                 "evidence either way (see engine.py).\n"
+                 + sweep.to_string())
     print("\n" + sweep_txt)
 
     # Entries are debounced (engine.debounce_entries), so trades never overlap

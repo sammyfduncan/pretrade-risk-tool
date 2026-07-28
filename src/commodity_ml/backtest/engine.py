@@ -90,6 +90,16 @@ def debounce_entries(entries: pd.Series, min_gap: int) -> pd.Series:
     time barrier (an exit `min_gap` bars after an entry) lands before the next
     possible entry, so entry and exit signals can never collide on the same bar
     and leave a position open past its horizon.
+
+    NOTE: this keeps the FIRST qualifying bar in each cluster, not the strongest.
+    That is the only causal choice — at bar t you cannot know that t+3 will score
+    higher — but it has a consequence worth understanding (run 5). Kept bars
+    score systematically lower than the pool they are drawn from (0.8909 vs
+    0.8987 at q=0.90 on gold), and lowering the entry threshold makes it worse,
+    because you fire on a mediocre bar and are then locked out of a strong one a
+    few bars later. So trade sets at different thresholds are NOT nested: gold's
+    q=0.90 and q=0.80 sets overlap on only 53 of 120 and 194 entries. Anything
+    that compares across thresholds must account for this.
     """
     kept = np.zeros(len(entries), dtype=bool)
     last = -min_gap - 1
@@ -238,10 +248,19 @@ def quantile_sweep(
 ) -> pd.DataFrame:
     """Sensitivity of results to how selective the entry rule is.
 
-    DIAGNOSTIC ONLY. Picking the best row of this table and reporting it as
+    DIAGNOSTIC ONLY, AND A WEAK ONE. Picking the best row and reporting it as
     'the result' is multiple-comparisons overfitting — the README methodology
-    forbids exactly that. Use it to check the configured quantile isn't a
-    knife-edge fluke: a real effect degrades smoothly across neighbors.
+    forbids exactly that.
+
+    It is also NOT a robustness test, in either direction. Run 3 read a smooth
+    profit-factor curve here as evidence the effect was not knife-edge; run 5
+    retracted that. Changing the quantile changes which bar in each cluster
+    survives `debounce_entries` (see its docstring), so this table varies
+    cluster-entry timing *and* selectivity at once and cannot isolate either.
+    A jagged row is not evidence of fragility and a smooth one is not evidence
+    of robustness. For the signal question, test whether the score ranks label
+    outcomes — deciles of the raw score against the base rate, deflated by
+    effective sample size.
     """
     rows = []
     for q in quantiles:

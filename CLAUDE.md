@@ -14,7 +14,9 @@ execution steps interactively, and prefer readable code over clever code.
 
 ## Build order & current status
 
-1. **[PIPELINE VALIDATED — no directional signal found] Price-only ML pipeline for gold**
+1. **[TEMPLATE FROZEN, HOLDOUT UNSPENT — no confirmed edge] Price-only ML pipeline for gold**
+   Pipeline validated, no directional signal found. Meta-labeling is a lead, not
+   a result (run 5). Frozen at `69f0527`; see `docs/step1_freeze_record.md`.
 2. Sentiment/alt-data layer for gold only + composite scoring
 3. Generalize to silver → platinum → palladium (one at a time)
 4. Cross-asset ranking, allocation, correlation-aware sizing
@@ -69,6 +71,9 @@ scripts/                  # CLI entry points, run in order:
   fetch_data.py -> build_dataset.py -> train.py -> backtest.py
   predict.py              # live decision path; groundwork, order placement not wired up
   find_epic.py, compare_sources.py   # IG setup + cross-source validation
+docs/step1_freeze_record.md   # frozen template + holdout pre-registration (COMMITTED —
+                          # the ledger of what was tried is what makes the holdout
+                          # interpretable; read before spending it)
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
 ```
@@ -118,6 +123,17 @@ python scripts/compare_sources.py --config config/gold.yaml
   that saw that bar in training.
 - **Min sample before conclusions:** 100+ trades or a multi-month window, whichever
   is later. Confirm on a further out-of-sample period before promoting anything.
+- **Significance is computed on effective sample size, never row count.**
+  Overlapping labels are near-duplicates and confident predictions cluster in
+  time, so deflate by mean average-uniqueness (`modeling/sample_weights.py`)
+  before any p-value or standard error. Run 5: 485 top-decile bars were 86
+  independent observations and the naive p-value was 1,800× too small.
+- **Do a power calculation before spending a scarce evaluation window.** Ask how
+  many trades the observed effect would need, and how many the window supplies,
+  *before* running it. Gold's holdout supplies ~24 against ~401 needed.
+- **State the multiple-comparisons ledger with any p-value.** The count of
+  configurations tried lives in `docs/step1_freeze_record.md` §2; a result quoted
+  without it is not interpretable.
 - Report portfolio-quality metrics (Sharpe, PF, maxDD, turnover, time-in-cash), not
   just ML metrics, and check across volatility regimes.
 
@@ -252,8 +268,10 @@ The control that matters is the bare rule with no ML filter:
 Read this carefully before building on it:
 - On gold the filter behaves exactly as a working meta-label should — removes
   68% of trades, keeps the same profit, lifts PF 1.09→1.31 and win rate by 7pp.
-  Profit factor also degrades smoothly across neighbouring entry quantiles
-  (1.33/1.33/1.31 at 0.70/0.80/0.90), not knife-edge.
+  ~~Profit factor also degrades smoothly across neighbouring entry quantiles
+  (1.33/1.33/1.31 at 0.70/0.80/0.90), not knife-edge.~~ **RETRACTED in run 5 —
+  the sweep varies cluster-entry timing as well as selectivity, so smoothness in
+  it is not evidence of robustness. See run 5.**
 - **On silver it makes things worse.** One-of-two replication on two highly
   correlated assets is exactly the pattern noise plus multiple comparisons
   produces. This is not yet an established effect.
@@ -261,9 +279,13 @@ Read this carefully before building on it:
   matters for a long-only metals strategy.
 - Gold's AUC edge is ~1.1 SE once the 12-bar label overlap is accounted for.
 
-Next test for this hypothesis is platinum/palladium (genuinely different
-drivers, so a real regime-filter effect should survive; a gold-fitted artifact
-should not) — NOT spending the holdout, and NOT tuning the primary rule.
+**Scope note (corrected 28 Jul 2026).** An earlier version of this section named
+platinum/palladium as "the next test" of meta-labeling. That is wrong for step 1
+and was read as an instruction. **Work stays on gold until step 1 is validated on
+gold**; silver is the transferability control and the scope goes no wider. PGMs
+are step 3. When a gold result is weak or one-of-two, interrogate that result —
+sample size, sensitivity, the bare-rule control — rather than adding assets,
+which multiplies comparisons and defers the actual question.
 
 ### Run 4 (28 Jul 2026): honesty corrections + gold/silver ratio + live path
 
@@ -346,6 +368,65 @@ calibrator + feature order + entry threshold, so the live path cannot apply
 one without the others. Runs end-to-end offline; only the candle-fetch line
 changes when IG credentials arrive, and order placement is not wired up.
 
+### Run 5 (28 Jul 2026): gold-only diagnosis + template frozen
+
+No new data, no new features, no config change. This run interrogated the run-4
+gold result and **weakened it three times over**. Written up in full, with the
+holdout pre-registration, in `docs/step1_freeze_record.md` — read that before
+touching the holdout.
+
+**1. The entry-quantile sweep is not a robustness test — retract run 3's claim.**
+`debounce_entries` keeps the *first* qualifying bar in each 12-bar window, not
+the strongest. That is correct for live trading (bar *t* cannot know bar *t+3*
+will score higher), but it means moving the threshold changes *which* trades are
+taken, not just how many:
+
+```
+q=0.90: 475 bars qualify -> 103 kept.  mean score qualifying 0.8987, kept 0.8909
+q=0.80: 921 bars qualify -> 158 kept.  mean score qualifying 0.8515, kept 0.8350
+```
+
+Kept bars score *lower* than the pool they came from. The q=0.90 and q=0.80 trade
+sets overlap on only **53 entries** — 67 of the 120 trades at q=0.90 are absent
+at q=0.80. So the run-4 sweep's ugly q=0.80 row (PF 0.87, below the bare rule's
+1.08) is cluster-entry timing, not a signal cliff; and run 3's smooth sweep was
+not evidence of robustness either. **The sweep is evidence in neither direction.**
+It stays in the backtest output as a diagnostic, correctly labelled.
+
+**2. The score does rank trades — consistently, measured within each fold** so
+that pooling cannot manufacture it. Top-scoring decile vs that fold's own base
+rate: +28.8, +5.4, +4.8, +7.3, +10.4 pp. Five of five positive, mean +11.3pp;
+as a sign test on its own, p = 0.031.
+
+**3. Label overlap then removes most of the significance.** The 485 top-decile
+bars are not 485 independent observations — confident bars cluster in time and
+each label looks 12 bars forward, giving a mean average-uniqueness of **0.178**
+(each confident label shares its future with ~5 others).
+
+| | n | z | one-sided p |
+|---|---|---|---|
+| naive | 485 | +4.27 | 0.00002 |
+| overlap-corrected | 86 | +1.80 | 0.036 |
+
+At trade level — the number actually traded — 58.3% vs the bare rule's 52.1% on
+120 trades gives z = +1.36, **p = 0.088**.
+
+**Verdict: not a validated edge.** The effect's direction is consistent across
+all five folds, which is not nothing. But its best framing is p ≈ 0.036 on 86
+effective observations, against ~25 configurations tried (ledger in the freeze
+record), and its trade-level framing is p = 0.088. It also did not replicate on
+silver.
+
+**The holdout is not being spent, and the reason is arithmetic.** Counting bars
+only, no outcomes read: the gold holdout holds 1,700 bars, 984 with the trend
+rule long, giving **93 bare-rule trades** and **~24 filtered trades**. Confirming
+the observed 6.2pp lift at 80% power needs **~401 trades**; on 24 trades the win
+rate would have to reach 68.9% to clear p=0.05. No gold-only change fixes this —
+5.4 years at this trade frequency is what exists. Spending it now would burn a
+single-use resource on a test whose only informative outcome is a negative one.
+The pre-registered protocol, predictions and decision rules are fixed in the
+freeze record for whenever it *is* spent.
+
 ### What this implies
 
 - **Do not** respond to this by adding model capacity (XGBoost, neural nets) or
@@ -360,11 +441,22 @@ changes when IG credentials arrive, and order placement is not wired up.
   direction prediction. Steps 3–4 test a different hypothesis than step 1 did.
 - **The sentiment layer (step 2) is now the main open hypothesis** for
   differentiated information, which is what the README always argued.
-- **Meta-labeling is the one price-only idea still alive** (runs 3-4), because
-  it asks the model a regime question rather than a direction question. Treat
-  it as unproven until it replicates on an asset that isn't a gold proxy —
-  after run 4 it is still one-of-two, and it now has *fewer* independent
-  degrees of freedom, not more, because both assets share the ratio feature.
+- **Meta-labeling is the one price-only idea still alive** (runs 3-5), because
+  it asks the model a regime question rather than a direction question. But
+  after run 5 it is **explicitly not validated**: p ≈ 0.036 on 86 effective
+  observations at best, p = 0.088 at trade level, unreplicated on silver, and
+  unadjusted for ~25 configurations. It is a lead, not a result. Do not build
+  on it, cite it as working, or let its direction-consistency across folds
+  stand in for significance.
+- **Effective sample size, not row count, is the denominator.** Run 5's single
+  most important number: 485 top-decile bars are 86 independent observations,
+  because confident predictions cluster in time and each label looks 12 bars
+  forward. Any significance claim on overlapping labels must be deflated by
+  average uniqueness first — the naive p-value was 1,800× too small.
+- **A sensitivity sweep is only a robustness test if it varies one thing.**
+  The entry-quantile sweep also changes which bar in each cluster the debouncer
+  takes, so both its smooth version (run 3) and its jagged version (run 4) were
+  over-read. Check what else moves before treating a sweep as evidence.
 - **Always read the bare-rule control before the return column.** Run 4 is the
   cautionary case: silver's return went from −6.2% to +20.8% and looked like a
   replication, while against its own control the filter was destroying profit.
@@ -375,22 +467,33 @@ changes when IG credentials arrive, and order placement is not wired up.
 
 ## Implementation ideas for future steps (not yet built)
 
-- **Step 1 — what is left.** Done in runs 3-4: the holdout fence, the silver
+- **Step 1 — what is left.** Done in runs 3-5: the holdout fence, the silver
   transferability check, meta-labeling, the gold/silver ratio, sample weighting
-  by label uniqueness, probability calibration, and the live prediction path.
+  by label uniqueness, probability calibration, the live prediction path, and
+  (run 5) the diagnosis plus **the frozen template and holdout pre-registration
+  in `docs/step1_freeze_record.md`**. The template is frozen at commit `69f0527`:
+  changing the config, label, features, model or entry rule and *then* spending
+  the holdout turns the holdout into development data.
+
   Still open, in order:
-  1. **Spend the holdout, once.** The formal step-1 validation. Irreversible —
-     after reading it, no further tuning of anything, on any asset. Do it only
-     when the template is deliberately frozen, and expect the honest answer to
-     be "no confirmed edge".
+  1. **Spend the holdout, once — but not yet.** Run 5's power analysis says it
+     yields ~24 filtered trades against the ~401 needed to confirm the observed
+     effect, so it cannot answer the question it was reserved for. It can still
+     *falsify* (a filtered PF below the bare rule's would retire the idea for
+     gold). Protocol, point predictions and decision rules are pre-registered in
+     the freeze record — follow them exactly, and do not re-derive the procedure
+     after seeing the answer.
   2. Order placement + scheduling on the live path, once IG credentials exist.
+     This is the only genuinely credential-blocked item.
   3. Hand-rolled Kalman-filter trend feature — **the user wants to build this
      one personally for the learning value**, so leave it to them.
 
   Deliberately NOT doing: more features (CFTC positioning, ETF flows,
-  gold/copper — feature work closed in run 4), more model capacity, and optuna.
-  Tuning cannot create information that isn't present, and every extra variant
-  tried before the holdout is spent makes the holdout weaker evidence.
+  gold/copper — feature work closed in run 4), more model capacity, optuna, and
+  **other assets** (platinum/palladium are step 3; adding an asset to chase a
+  replication is scope creep and multiplies comparisons). Tuning cannot create
+  information that isn't present, and every extra variant tried before the
+  holdout is spent makes the holdout weaker evidence.
 - **Step 2 (sentiment):** GDELT GKG filtered per asset (gold: central-bank/monetary
   themes; PGMs: South Africa/Russia supply + auto demand). Start lexicon-based
   scoring, upgrade to transformer only if the lexicon baseline shows signal.

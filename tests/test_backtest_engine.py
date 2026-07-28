@@ -97,6 +97,48 @@ def test_entries_are_debounced_so_trades_never_overlap():
     assert set(np.flatnonzero(kept.to_numpy())) <= set(np.flatnonzero(raw_entries.to_numpy()))
 
 
+def test_debouncer_takes_the_first_bar_in_a_cluster_not_the_strongest():
+    """Guards against a lookahead 'improvement' that would look like a bug fix.
+
+    Run 5 found that kept entries score lower than the qualifying pool they come
+    from, which reads as the debouncer leaving signal on the table. It is not
+    fixable: choosing the strongest bar in a 12-bar cluster requires knowing, at
+    bar t, that bar t+3 will score higher. First-arrival is the only causal rule.
+    """
+    idx = pd.date_range("2024-01-01", periods=6, freq="4h", tz="UTC")
+    # A cluster where the strongest signal arrives last.
+    entries = pd.Series([True, True, True, False, False, False], index=idx)
+
+    kept = debounce_entries(entries, min_gap=3)
+
+    assert kept.iloc[0], "the first qualifying bar must be taken"
+    assert not kept.iloc[1:].any(), (
+        "later bars in the cluster must be blocked — selecting among them on "
+        "strength would require future information"
+    )
+
+
+def test_debounced_trade_sets_are_not_nested_across_thresholds():
+    """Loosening the entry threshold can *remove* trades, not just add them.
+
+    This is why quantile_sweep is not a robustness test: an earlier weak bar
+    that only qualifies at the looser threshold blocks a later strong one that
+    qualified at the stricter threshold.
+    """
+    idx = pd.date_range("2024-01-01", periods=6, freq="4h", tz="UTC")
+    # Bar 0 is mediocre, bar 2 is strong. Only bar 2 clears the strict bar.
+    proba = pd.Series([0.60, 0.10, 0.95, 0.10, 0.10, 0.10], index=idx)
+
+    strict = debounce_entries(proba >= 0.90, min_gap=3)
+    loose = debounce_entries(proba >= 0.50, min_gap=3)
+
+    assert strict[strict].index.tolist() == [idx[2]]
+    assert loose[loose].index.tolist() == [idx[0]], "the weak early bar blocks the strong one"
+    assert not set(strict[strict].index) <= set(loose[loose].index), (
+        "trade sets across thresholds must not be assumed nested"
+    )
+
+
 def test_positions_close_within_the_label_horizon():
     """Exits come from the label's barriers plus a vertical time barrier, so no
     trade may outlive the horizon the model was trained to predict."""
