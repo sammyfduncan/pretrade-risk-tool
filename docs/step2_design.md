@@ -593,6 +593,71 @@ the *weak* kind (one report, one schedule, correlated flows).
 defined as a useful positive that does *not* retain the family for direction.
 Tier 2 will still test direction, per the pre-registered matrix.
 
+### 5.2 Tier-1 GDELT results — read 2026-07-29 (gold n=1,931, silver n=1,930)
+
+Run after the snapshots were pinned and the pre-registration committed; the
+dirty-tree guard in `diagnose_altdata.py` enforced that order. Newey–West lag =
+forward horizon, Bartlett-weighted. Full tables in
+`reports/step2/tier1_{XAUUSD,XAGUSD}_gdelt.txt`.
+
+**The headline cell, gold — `gdelt_vol_smooth7_z` → forward volatility:**
+
+| horizon | ic | se_nw | z | half 1 | half 2 |
+|---|---|---|---|---|---|
+| 5d | **0.269** | 0.048 | **+5.68** | 0.220 | 0.311 |
+| 20d | **0.277** | 0.081 | **+3.44** | 0.228 | 0.318 |
+
+This is the largest effect step 2 has produced from either family, it is
+stable across both time halves at both horizons, and z = 5.68 clears a
+Bonferroni bar over all 48 cells (|z| > 3.0) rather than merely the
+conventional one. **News attention forecasts volatility on gold.**
+
+**Direction is again nothing.** Every gold return cell is inside |z| < 1.8;
+the largest is `gdelt_tone_z` at 20d (ic −0.069, z −1.75).
+
+**Silver does not replicate the volatility result, and fails in the
+instructive way** — not by shrinking, but by *destabilising*:
+
+| feature / horizon | ic | z | half 1 | half 2 |
+|---|---|---|---|---|
+| `gdelt_vol_smooth7_z` vol 5d | 0.112 | +2.44 | 0.278 | **−0.064** |
+| `gdelt_vol_smooth7_z` vol 20d | 0.153 | +1.99 | 0.420 | **−0.155** |
+
+Both halves flip sign. Gold's equivalent halves are 0.22/0.31 and 0.23/0.32.
+A pooled ic of 0.15 assembled from +0.42 and −0.15 is not a weaker version of
+gold's result; it is a first-half-only effect, the same signature §5.1 flagged
+on `cot_prod_net_z`. **Per §1.1a this remains uninterpretable** between the
+mechanism reason (industrial demand offsets monetary fear) and the measurement
+reason (7.0 stories/day against gold's 28.0) — as pre-registered.
+
+**The one direction cell that agrees across assets:** `gdelt_tone_z` vs 20d
+return is negative on gold (−0.069, z −1.75, halves −0.029/−0.092) *and*
+silver (−0.086, z −2.40, halves −0.043/−0.120) — same sign in all four
+sub-samples. The sign is contrarian: better news tone, lower forward returns.
+That is a coherent story and it is exactly the kind of coherence run 5 warned
+about. Four sub-samples agreeing on a sign is not significance; across 48
+cells, |z| of 1.75 and 2.40 is unremarkable; and no gating follows from Tier 1.
+Logged as the single most interesting direction cell, nothing more.
+
+**§7's prediction was correct and was made in advance.** It said: *"Expected
+outcome, stated now: honest negative on direction for both families;
+GDELT-attention vs volatility is the likeliest positive."* Both halves of that
+came true. The value is that it was committed before the snapshot existed.
+
+**The caveat that decides whether the volatility result is worth anything.**
+`gdelt_vol_smooth7_z` is a 7-day mean lagged one day, and news volume rises
+when markets move; volatility is strongly autocorrelated. So a large part of
+ic = 0.27 is very likely the feature acting as a **proxy for recent realized
+volatility**, which the price features already carry. Tier-1 cannot separate
+the two — it measures each feature alone, against nothing. Only the matched-row
+ablation of §6 asks the question that matters: does it add anything *given*
+the existing features? Do not quote 0.27 as GDELT's contribution.
+
+**Carried forward:** gold `gdelt_vol_smooth7_z` → forward volatility joins
+`cot_mm_net_z` as a **step-4 position-sizing candidate** under §6's
+interpretive note (b) — a useful positive that does not retain the family for
+direction. Retention is still decided only by the §6/§6.1 gate on ΔAUC.
+
 ---
 
 ## 6. Tier-2 protocol and the retention gate
@@ -773,6 +838,7 @@ free second chance to find a positive.
 | 3 | 2026-07-29 | Tier-1 COT, gold + silver, after the fix | 24 cells × 2 assets, n=332 each | §5.1. GDELT not included (no snapshot) |
 | 4 | 2026-07-29 | GDELT re-validation previews under headline matching, gold + silver | none | §4/§4.1. Headlines and syndication counts only; no price series loaded, no forward outcome computed. Not a look — see the §8 note below |
 | 5 | 2026-07-29 | GDELT snapshots fetched + coverage/`PAGE_TITLE` probes | none | §11, §4.3 finding 4. Row counts, date ranges, story densities, partition metadata. Descriptive only |
+| 6 | 2026-07-29 | Tier-1 GDELT, gold + silver | 24 cells × 2 assets, n≈1,931 each | §5.2. Ran only after the pre-registration was committed — the dirty-tree guard refused the first attempt. **Running total: 48 COT + 48 GDELT = 96 Tier-1 cells** |
 
 **Look 2 was void — the bug, recorded because it is the instructive part.**
 `diagnose_altdata.forward_outcomes` located each observation's forward window
