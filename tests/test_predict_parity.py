@@ -33,7 +33,7 @@ from commodity_ml.features.pipeline import (
     partner_symbols,
 )
 
-from commodity_ml.config import GDELTConfig
+from commodity_ml.config import COTConfig, GDELTConfig
 from conftest import make_cot, make_gdelt, make_ohlcv
 
 GOLD, SILVER = "XAUUSD", "XAGUSD"
@@ -181,6 +181,7 @@ def altdata_cfg(cfg) -> AssetConfig:
             technical=True, macro=False, crossasset=True, cot=True, gdelt=True
         ),
         crossasset=CrossAssetConfig(numerator_symbol=GOLD, denominator_symbol=SILVER),
+        cot=COTConfig(contract_code="088691"),
         gdelt=GDELTConfig(query='"gold price" OR bullion'),
         label=LabelConfig(horizon_bars=12),
         cv=CVConfig(gap_bars=12),

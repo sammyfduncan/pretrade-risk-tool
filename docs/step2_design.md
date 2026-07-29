@@ -117,6 +117,17 @@ informs interpretation but gates nothing.
   *[TO VERIFY — Phase 2]*. The **Oct/Nov 2025 government-shutdown gap falls in
   the holdout** — whenever the holdout is spent with COT enabled, the table
   must cover it first.
+- **Extending to another asset (verified 2026-07-29, no code changes needed).**
+  A new metal needs exactly two yaml lines: `features.cot: true` and its own
+  `cot.contract_code`. Codes confirmed live against the API — gold `088691`,
+  silver `084691`, platinum `076651`, palladium `075651`, all four current
+  through the 2026-07-21 report on the same dataset. Proven end-to-end by
+  fetching silver's history and building its features through the unmodified
+  gold code path (1,050 reports; features well-scaled; identical 141-bar
+  Feb-2023 gap, as expected for a CFTC-wide outage). `contract_code` has **no
+  default**: a default would be one asset's code silently inherited by every
+  other config, so a new asset that enables COT without setting it is refused
+  rather than trained on the wrong market's positioning.
 - **Corrections-in-place caveat (accepted).** CFTC occasionally amends
   published figures; the Socrata dataset reflects amended values, not the
   first print. Same class of problem as GDELT's non-point-in-time index but

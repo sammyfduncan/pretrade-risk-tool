@@ -44,6 +44,31 @@ def test_snapshot_paths_are_symbol_keyed():
     assert cfg.cot_snapshot_path.parent == cfg.raw_path().parent
 
 
+def test_cot_enabled_without_contract_code_is_refused():
+    """A default code would be one asset's, inherited by every other config —
+    enabling COT on silver without setting it would train silver on gold's
+    positioning silently. Extending to a new asset must be a decision."""
+    with pytest.raises(ValueError, match="cot.contract_code is empty"):
+        AssetConfig(
+            asset="silver",
+            symbol="XAGUSD",
+            granularity="H4",
+            features=FeatureConfig(cot=True),
+        )
+
+
+def test_cot_enabled_with_contract_code_is_accepted():
+    cfg = AssetConfig(
+        asset="silver",
+        symbol="XAGUSD",
+        granularity="H4",
+        features=FeatureConfig(cot=True),
+        cot=COTConfig(contract_code="084691"),
+    )
+    assert cfg.cot.contract_code == "084691"
+    assert cfg.cot_snapshot_path.name == "XAGUSD_cot.parquet"
+
+
 def test_gdelt_enabled_without_query_is_refused():
     """The query is a validated, per-asset judgment call (--preview first).
     Enabling the family with no query means that step was skipped."""

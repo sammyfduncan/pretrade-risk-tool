@@ -124,7 +124,7 @@ def test_altdata_columns_join_the_feature_contract():
     """Step-2 families must flow through the build_dataset -> train contract
     untouched: their columns are features (not metadata), and train.py's
     inference from the file agrees with what the builder wrote."""
-    from commodity_ml.config import GDELTConfig
+    from commodity_ml.config import COTConfig, GDELTConfig
 
     base, raw = cfg_for_tests(), make_ohlcv(n=3000)
     cfg = AssetConfig(
@@ -134,6 +134,7 @@ def test_altdata_columns_join_the_feature_contract():
         features=FeatureConfig(
             technical=True, macro=False, crossasset=False, cot=True, gdelt=True
         ),
+        cot=COTConfig(contract_code="088691"),
         gdelt=GDELTConfig(query="synthetic"),
         primary=base.primary,
         label=base.label,

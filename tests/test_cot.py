@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from conftest import make_cot
 
-from commodity_ml.config import AssetConfig
+from commodity_ml.config import AssetConfig, COTConfig
 from commodity_ml.features.cot import (
     FIELDS,
     Z_WINDOW_WEEKS,
@@ -206,7 +206,10 @@ def test_duplicate_report_dates_are_refused():
 
 
 def test_sidecar_contract_mismatch_is_refused():
-    cfg = AssetConfig(asset="gold", symbol="XAUUSD", granularity="H4")
+    cfg = AssetConfig(
+        asset="gold", symbol="XAUUSD", granularity="H4",
+        cot=COTConfig(contract_code="088691"),
+    )
 
     _check_cot_sidecar({"contract_code": "088691"}, cfg)  # matching: no raise
     with pytest.raises(ValueError, match="084691.*088691"):

@@ -81,11 +81,16 @@ class COTConfig:
     Only the contract code is per-asset; the release schedule, publication lag
     and staleness tolerance are properties of the CFTC's publishing process and
     live as constants in features/cot.py, exactly as FRED lags live in macro.py.
+
+    No default code on purpose. A default would be *one asset's* code inherited
+    by every other config, so enabling features.cot on a new asset without
+    setting this would silently train it on gold's positioning — wrong data,
+    no error, plausible-looking numbers. Verified codes (checked against the
+    API 2026-07-29): gold 088691, silver 084691, platinum 076651,
+    palladium 075651.
     """
 
-    # Disaggregated Futures-Only dataset, cftc_contract_market_code.
-    # Gold = "GOLD - COMMODITY EXCHANGE INC.". Silver later: "084691".
-    contract_code: str = "088691"
+    contract_code: str = ""
 
 
 @dataclass(frozen=True)
@@ -186,6 +191,14 @@ class AssetConfig:
             raise ValueError(f"Unknown data.source: {self.data.source!r}")
         if not (self.features.technical or self.features.macro or self.features.crossasset):
             raise ValueError("At least one feature family must be enabled.")
+        if self.features.cot and not self.cot.contract_code:
+            raise ValueError(
+                "features.cot is enabled but cot.contract_code is empty. Every asset "
+                "needs its own CFTC contract code — inheriting another asset's would "
+                "silently train on the wrong market's positioning. Gold 088691, "
+                "silver 084691, platinum 076651, palladium 075651; verify a new one "
+                "with the API before trusting it."
+            )
         if self.features.gdelt and not self.gdelt.query:
             raise ValueError(
                 "features.gdelt is enabled but gdelt.query is empty. The query must "
