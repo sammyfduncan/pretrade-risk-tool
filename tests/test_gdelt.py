@@ -5,6 +5,8 @@ failure modes daily news data adds: the tone-0.0-vs-no-articles ambiguity and
 the current UTC day being incomplete at fetch time.
 """
 
+import re
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -16,12 +18,13 @@ from commodity_ml.features.gdelt import (
     TONE_CHANGE_DAYS,
     VOL_SMOOTH_DAYS,
     Z_WINDOW_DAYS,
-    _check_daily_resolution,
     _check_gdelt_sidecar,
     _drop_incomplete_day,
     _mask_zero_article_days,
-    _parse_timeline,
+    _matched_stories_sql,
+    assemble_snapshot,
     build_gdelt_features,
+    build_title_regex,
     gdelt_feature_names,
 )
 
@@ -129,51 +132,100 @@ def test_drought_beyond_staleness_is_nan(gdelt):
 # Offline parsing, fetch post-processing, provenance
 # --------------------------------------------------------------------------
 
-def test_timeline_json_parses_offline():
-    payload = {
-        "timeline": [
-            {
-                "series": "Average Tone",
-                "data": [
-                    {"date": "20210101T000000Z", "value": -1.5},
-                    {"date": "20210102000000", "value": -1.0},  # both formats occur
-                ],
-            }
-        ]
-    }
-    series = _parse_timeline(payload, "tone")
+def test_title_regex_anchors_to_the_headline_tag():
+    """Extras also holds page links, author bylines and AMP URLs. A bare
+    substring search would match 'silver' in an author's surname or a related-
+    links URL; anchoring inside <page_title> is what makes this an entity
+    filter rather than a keyword grep over a blob."""
+    regex = build_title_regex(["silver price"])
+    assert regex.startswith("<page_title>")
 
-    assert list(series.index) == [pd.Timestamp("2021-01-01"), pd.Timestamp("2021-01-02")]
-    assert series.tolist() == [-1.5, -1.0]
+    body = "<page_title>silver price hits high</page_title>"
+    byline = "<page_authors>Nate Silver</page_authors><page_title>elections</page_title>"
+    assert re.search(regex, body)
+    assert not re.search(regex, byline)
 
 
-def test_malformed_timeline_is_refused():
-    with pytest.raises(ValueError, match="no timeline data"):
-        _parse_timeline({}, "tone")
-    with pytest.raises(ValueError, match="no timeline data"):
-        _parse_timeline({"timeline": []}, "tone")
+def test_title_regex_escapes_phrases_and_refuses_an_empty_list():
+    """Phrases are data, not pattern syntax — an unescaped '.' would widen the
+    match, and an empty list would match every article ever indexed."""
+    assert re.search(build_title_regex(["u.s. gold"]), "<page_title>u.s. gold</page_title>")
+    assert not re.search(build_title_regex(["u.s. gold"]), "<page_title>uxsx gold</page_title>")
+
+    with pytest.raises(ValueError, match="match every article"):
+        build_title_regex([])
 
 
-def test_downsampled_chunk_is_refused():
-    """Asking for a multi-year range lets GDELT answer at weekly resolution
-    instead of daily. That does not error — it returns a shorter, smoother
-    series that the daily reindex pads with NaNs, silently changing what the
-    features measure. Widening CHUNK_YEARS is only safe because of this check.
-    """
-    start, end = pd.Timestamp("2018-01-01"), pd.Timestamp("2020-12-31")
-    daily = pd.Series(1.0, index=pd.date_range(start, end, freq="D"))
-    _check_daily_resolution(daily, "tone", start, end)  # no raise
+def test_sql_deduplicates_by_title_before_counting():
+    """The failure this guards is silent and was measured on real data: raw GKG
+    stores one row per outlet that ran a wire story, duplication correlates
+    +0.51 with news volume, and it moved a month's mean tone by 55%. The daily
+    aggregate must therefore run over distinct titles, never raw rows."""
+    sql = _matched_stories_sql({"gold": "<page_title>[^<]*(gold price)"},
+                               "2018-01-01", "2026-07-01")
 
-    # Sparse days may legitimately be absent — median spacing is still ~1 day.
-    gappy = daily.drop(daily.index[[5, 6, 40, 41, 42]])
-    _check_daily_resolution(gappy, "tone", start, end)  # no raise
+    per_story = sql.split("per_story AS")[1]
+    assert "GROUP BY day, title" in per_story, "stories must collapse per title first"
+    assert "AVG(tone)" in per_story, "copies of one story average to one tone"
+    # And the daily aggregate counts those collapsed rows, not the raw ones.
+    assert "COUNT(*) AS n_articles" in sql.split("FROM per_story")[0]
 
-    weekly = pd.Series(1.0, index=pd.date_range(start, end, freq="7D"))
-    with pytest.raises(ValueError, match="downsampled"):
-        _check_daily_resolution(weekly, "tone", start, end)
 
-    with pytest.raises(ValueError, match="effectively nothing"):
-        _check_daily_resolution(daily.iloc[:1], "tone", start, end)
+def test_one_scan_covers_every_asset():
+    """Cost is bytes scanned, and the 8.5y pull is ~54% of the monthly free
+    tier — so a per-asset scan would exhaust it. Both assets must come out of
+    a single pass over the table."""
+    sql = _matched_stories_sql(
+        {"gold": "<page_title>[^<]*(gold price)",
+         "silver": "<page_title>[^<]*(silver price)"},
+        "2018-01-01", "2026-07-01",
+    )
+
+    assert sql.count("FROM `gdelt-bq.gdeltv2.gkg_partitioned`") == 1
+    assert "'gold' AS asset" in sql and "'silver' AS asset" in sql
+
+
+def test_assemble_refuses_a_missing_volume_denominator():
+    """vol is stories/total. A day present in the numerator but absent from the
+    denominator would divide by NaN and zero out attention on that day."""
+    stories = pd.DataFrame({
+        "day": pd.to_datetime(["2021-01-01", "2021-01-02"]),
+        "asset": ["gold", "gold"], "n_articles": [10, 12], "tone": [1.0, -0.5],
+    })
+    totals = pd.DataFrame({"day": pd.to_datetime(["2021-01-01"]), "total": [1000]})
+
+    with pytest.raises(ValueError, match="no total-volume denominator"):
+        assemble_snapshot(stories, totals, "gold")
+
+
+def test_assemble_builds_the_snapshot_contract():
+    stories = pd.DataFrame({
+        "day": pd.to_datetime(["2021-01-01", "2021-01-03"]),  # note the gap
+        "asset": ["gold", "gold"], "n_articles": [10, 20], "tone": [1.0, -0.5],
+    })
+    totals = pd.DataFrame({
+        "day": pd.to_datetime(["2021-01-01", "2021-01-02", "2021-01-03"]),
+        "total": [1000, 1000, 1000],
+    })
+    frame = assemble_snapshot(stories, totals, "gold")
+
+    assert list(frame.columns) == ["tone", "vol", "n_articles"]
+    assert frame["vol"].iloc[0] == pytest.approx(0.01)
+    # The absent day becomes an explicit NaN row, not a missing index entry,
+    # so the zero-article mask and the staleness tolerance both see it.
+    assert len(frame) == 3
+    assert frame.loc[pd.Timestamp("2021-01-02")].isna().all()
+
+
+def test_assemble_refuses_an_asset_with_no_rows():
+    stories = pd.DataFrame({
+        "day": pd.to_datetime(["2021-01-01"]),
+        "asset": ["gold"], "n_articles": [10], "tone": [1.0],
+    })
+    totals = pd.DataFrame({"day": pd.to_datetime(["2021-01-01"]), "total": [1000]})
+
+    with pytest.raises(ValueError, match="no matching stories"):
+        assemble_snapshot(stories, totals, "silver")
 
 
 def test_current_partial_day_is_dropped(gdelt):
@@ -184,12 +236,16 @@ def test_current_partial_day_is_dropped(gdelt):
     assert gdelt.index.max() == pd.Timestamp("2022-06-18"), "fixture should end today"
 
 
-def test_sidecar_query_mismatch_is_refused():
+def test_sidecar_phrase_mismatch_is_refused():
     cfg = AssetConfig(
         asset="gold", symbol="XAUUSD", granularity="H4",
-        gdelt=GDELTConfig(query='"gold price" OR bullion'),
+        gdelt=GDELTConfig(title_phrases=("gold price", "gold bullion")),
     )
 
-    _check_gdelt_sidecar({"query": '"gold price" OR bullion'}, cfg)  # matching: no raise
+    _check_gdelt_sidecar({"title_phrases": ["gold price", "gold bullion"]}, cfg)
     with pytest.raises(ValueError, match="snapshot IS the sample"):
-        _check_gdelt_sidecar({"query": "gold"}, cfg)
+        _check_gdelt_sidecar({"title_phrases": ["gold price"]}, cfg)
+    # Order is part of the identity: a reordered list is a different regex
+    # alternation, so it may not silently pass as the same sample.
+    with pytest.raises(ValueError, match="snapshot IS the sample"):
+        _check_gdelt_sidecar({"title_phrases": ["gold bullion", "gold price"]}, cfg)

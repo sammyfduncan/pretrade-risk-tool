@@ -19,8 +19,16 @@ python-dotenv           # loads IG credentials from .env
 # same indicator API, supports numpy 2.x. Import name: pandas_ta_classic.
 pandas-ta-classic
 pandas-datareader       # FRED macro series (real yields, dollar, VIX) — no API key needed
-requests                # CFTC Socrata + GDELT DOC 2.0 (step 2 alt-data) — plain HTTP,
-                        # snapshots pinned once by scripts/fetch_altdata.py
+requests                # CFTC Socrata (step 2 alt-data) — plain HTTP, snapshot pinned
+                        # once by scripts/fetch_altdata.py
+# GDELT moved from the DOC 2.0 REST API to the BigQuery public dataset on
+# 2026-07-29. The REST API's binding limit is request COUNT over a multi-hour
+# window, and it 429'd on the first request after a 45-minute idle wait — not
+# survivable for an 8-year backfill. BigQuery serves the same corpus with no
+# throttling and a 1TB/month free tier. Auth is Application Default Credentials
+# (gcloud auth application-default login), NOT an API key — nothing in .env.
+google-cloud-bigquery
+db-dtypes               # BigQuery DATE/TIME columns -> pandas dtypes
 
 # Data validation (used to cross-check Dukascopy against an independent feed)
 yfinance

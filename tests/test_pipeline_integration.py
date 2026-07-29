@@ -135,7 +135,7 @@ def test_altdata_columns_join_the_feature_contract():
             technical=True, macro=False, crossasset=False, cot=True, gdelt=True
         ),
         cot=COTConfig(contract_code="088691"),
-        gdelt=GDELTConfig(query="synthetic"),
+        gdelt=GDELTConfig(title_phrases=("synthetic",)),
         primary=base.primary,
         label=base.label,
         cv=base.cv,

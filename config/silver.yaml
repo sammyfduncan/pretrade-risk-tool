@@ -66,18 +66,29 @@ cot:
   contract_code: "084691"
 
 gdelt:
-  # CANDIDATE — preview validation still outstanding (GDELT rate limiting,
-  # 2026-07-29). Do NOT set features.gdelt: true for silver until
-  # docs/step2_design.md §4.1 records a clean preview. Nothing can silently
-  # use it meanwhile: no XAGUSD_gdelt.parquet exists, and the snapshot loader
-  # refuses a missing file rather than fetching one.
+  # CANDIDATE — preview validation still outstanding. Do NOT set
+  # features.gdelt: true for silver until docs/step2_design.md §4.1 records a
+  # clean preview. Nothing can silently use it meanwhile: no
+  # XAGUSD_gdelt.parquet exists, and the snapshot loader refuses a missing
+  # file rather than fetching one.
   #
-  # Mirrors gold's structure with one deliberate change: gold uses bare
-  # `bullion`, silver uses the phrase "silver bullion". Bare `bullion` in
-  # English news is dominated by GOLD bullion coverage, so inheriting it would
-  # pipe gold's news series into silver's features — wrong data for the asset,
-  # and it would destroy the independence that makes silver a control (§6.1).
-  query: '("silver price" OR "silver prices" OR "price of silver" OR "silver bullion" OR "silver futures") sourcelang:english'
+  # Exactly parallel to gold's list — same four phrase shapes, differing only
+  # in the metal's name. Under the BigQuery/headline mechanism there is no
+  # longer any reason for the two to differ structurally, which makes silver a
+  # cleaner transferability control than it was under DOC 2.0 (§6.1).
+  #
+  # KNOWN CONFOUND, measured 2026-07-29 before any outcome was read: over 2022
+  # these phrases returned 5.3 distinct stories/day for silver against 20.9 for
+  # gold, so silver's daily mean tone is ~2x noisier by sampling alone. §1.1
+  # already predicted a weaker silver GDELT result for a MECHANISM reason
+  # (industrial demand offsets monetary fear); density gives the same
+  # prediction for a boring measurement reason. The two are confounded and the
+  # features were deliberately not changed to paper over it — see §1.1.
+  title_phrases:
+    - "silver price"
+    - "price of silver"
+    - "silver futures"
+    - "silver bullion"
 
 primary:
   # The rule that picks direction under label.mode: meta. See primary.py — the

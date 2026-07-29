@@ -122,6 +122,49 @@ result. Directional expectations, recorded before any silver number is read:
 This asymmetry is why §6.1's joint rule is written in terms of *both* assets
 passing, rather than treating silver as a straight replication test.
 
+#### 1.1a A confound in H-GDELT-on-silver, measured 2026-07-29 before any outcome
+
+The BigQuery migration (§4.3) made article counts directly measurable, and the
+first thing they showed is that **the H-GDELT silver prediction above is
+confounded**. Over calendar 2022, with the pinned phrase lists:
+
+| asset | distinct stories/day | days with zero coverage |
+|---|---|---|
+| gold | **20.9** | 0 of 365 |
+| silver | **5.3** | 17 of 365 |
+
+A daily mean tone over ~5 articles is roughly **2× noisier** than one over ~21,
+by sampling alone. So there are now two independent reasons to expect a weaker
+silver GDELT result — the industrial/monetary cancellation above (mechanism)
+and thin sampling (measurement) — and **this design cannot distinguish them.**
+
+Recorded as a confound rather than repaired, deliberately. Three options were
+considered and rejected on 2026-07-29, before any Tier-1 or Tier-2 GDELT number
+existed:
+
+1. *Minimum-articles mask* — introduces a new threshold chosen after seeing the
+   data, and thins silver further.
+2. *Smooth tone before z-scoring* — changes a §3 feature definition post-hoc.
+3. *Broaden silver's phrases* — the density gap is not query breadth, it is that
+   the world writes 4× more about gold; widening it buys contamination
+   (§4.1's trap list) rather than coverage.
+
+The reasoning for leaving it alone: **noise costs power, it cannot manufacture
+signal.** A noisy feature that still clears the §6 gate is a *stronger* result,
+not a weaker one. This is the same call as run 5's holdout decision — state the
+power problem, do not redesign the test around it.
+
+**Consequence for §6.1, accepted in advance:** if GDELT passes on gold and fails
+on silver, the joint rule still returns *not retained* — but the write-up must
+report that silver's failure is **uninterpretable** between mechanism and
+measurement, rather than claiming it as evidence against the gold result. The
+threshold is not relaxed; the interpretation is qualified. A negative on gold is
+unaffected by any of this.
+
+Which features this touches: counting is unaffected at 5 stories/day, averaging
+is. So `gdelt_vol_smooth7_z` carries its full weight on both assets;
+`gdelt_tone_z` and `gdelt_tone_chg_5d` are the compromised pair on silver only.
+
 ---
 
 ## 2. Data sources and point-in-time caveats
@@ -343,14 +386,71 @@ then 429'd again after ~5 requests spaced 10 s apart. The binding constraint
 is therefore **request count over a long window**, not request rate, and
 retrying during a penalty extends it.
 
-Consequence for the snapshot fetch: yearly chunking cost 24 requests per asset
-for no benefit, since the API serves multi-year ranges. `fetch_gdelt` now uses
-`CHUNK_YEARS = 3` (~9 requests per asset) at 60 s spacing. The risk that
-buys — GDELT answering a wide range at weekly resolution, which would return a
-smoother series that the daily reindex pads with NaNs and *would not error* —
-is closed by `_check_daily_resolution`, which refuses any chunk whose median
-point spacing exceeds 1.5 days. Chunk width is thus a request-budget knob with
-a correctness guard, not a silent quality trade.
+Mitigations tried: chunk width raised to `CHUNK_YEARS = 3` (~9 requests/asset)
+at 60 s spacing, with a daily-resolution guard so a wider chunk could not
+silently coarsen the series. **These were not enough.** On 2026-07-29 a preview
+run that had idled 45 minutes was 429'd on its *first* request. The REST API is
+not usable for an 8.5-year backfill from a single IP, and no amount of patience
+demonstrably fixes it. Superseded by §4.3.
+
+### 4.3 Migration to BigQuery — 2026-07-29
+
+The same corpus is a Google BigQuery public dataset
+(`gdelt-bq.gdeltv2.gkg_partitioned`), unthrottled, with a 1 TB/month free tier.
+The REST path was removed rather than kept alongside: a dead import path that
+still runs is a trap. Auth is Application Default Credentials, not an API key,
+so nothing enters `.env`.
+
+**This changes the sample, and the changes are not cosmetic.** All three were
+discovered by probing the table *before* any feature was built, and none of
+them would have raised an error if ported naively:
+
+1. **No full text → matching moved to headlines.** DOC 2.0 searched article
+   bodies; GKG stores the headline in `Extras` as `<PAGE_TITLE>` (populated in
+   10/10 sampled rows; `V2Themes` was `None` in 6/10 and is unusable). Title
+   matching is *tighter* than full text — it selects articles **about** the
+   metal rather than ones mentioning it in passing, which is the entity
+   filtering the README argued for. The config representation changed
+   accordingly: `gdelt.query` (a DOC 2.0 string) → `gdelt.title_phrases` (a
+   list), and the phrase lists were made **exactly parallel** between gold and
+   silver, removing the old bare-`bullion`-vs-`"silver bullion"` asymmetry.
+   **Both assets' §4/§4.1 validation records must be redone under this
+   mechanism** — the 2026-07-28 gold preview does not carry over.
+
+2. **No deduplication → aggregates run over distinct titles.** DOC 2.0 clusters
+   syndicated copies; raw GKG stores one row per outlet. In a 10-row sample,
+   8 were the same Associated Press story. Measured over Nov 2020–Apr 2021 this
+   is **not** a constant offset a z-score would absorb:
+
+   | | value |
+   |---|---|
+   | median copies/story | 1.00 |
+   | p90 / max copies/story | 1.12 / 2.61 |
+   | corr(copies-per-story, stories/day) | **+0.514** |
+   | corr(copies-per-story, mean tone) | −0.312 |
+   | mean tone, Feb 2021: raw vs deduped | 0.999 vs **1.549** |
+
+   Duplication spikes precisely on the highest-attention days — Feb 1–3 2021,
+   the silver squeeze, ran at 2.0–2.6× — i.e. exactly the days a sentiment
+   feature is supposed to fire on, and it moved one month's mean tone by 55%.
+   Every aggregate therefore collapses to one row per (day, asset, title)
+   *before* the daily mean, pinned by
+   `test_sql_deduplicates_by_title_before_counting`.
+
+3. **Cost, not rate, is now the constraint → one scan for all assets.** The
+   8.5-year pull scans ~536 GB (54% of the monthly free tier), because billing
+   is on bytes scanned in the columns touched and `Extras` is large. A per-asset
+   scan would exhaust the quota, so `fetch_gdelt_bq` takes a mapping of assets
+   and writes every snapshot from a single pass. Better provenance as a side
+   effect: gold and silver demonstrably come from the same scan of the same
+   index, which matters because §6.1 compares them. The daily-total denominator
+   is a separate query and is free (`COUNT(*)` over partition metadata).
+
+Unchanged by the migration: the six features and their formulas (§3), the
+publication lag and staleness rules (§2.2), the Tier-1 and Tier-2 protocols
+(§5, §6), and the retention gate (§6, §6.1). **This is a data-source
+substitution, not a change to the hypothesis or the decision rule.** The
+density confound it exposed is recorded in §1.1a.
 
 ---
 
@@ -509,11 +609,25 @@ again. PGMs remain step 3.
 **How much is silver replication actually worth?** Less than two independent
 assets, and the two families differ in how much less:
 
-- **GDELT replication is the stronger evidence of the two.** After the §4.1
-  decision to use `"silver bullion"` rather than bare `bullion`, the gold and
-  silver queries share no terms, so the two news series are close to
-  independent as *inputs* — much more so than the gold/silver ratio feature,
-  which CLAUDE.md already flags as weakening cross-asset agreement.
+- **GDELT replication is the stronger evidence of the two — but by less than
+  this section originally claimed.** The first version argued that because the
+  two phrase lists share no terms, the news series are near-independent inputs.
+  Sharing no *terms* does not mean matching no *articles*: precious-metals
+  coverage routinely reports both metals in one headline ("Gold and Silver
+  Prices Plummet"). Measured over 2022 (2026-07-29, before any GDELT outcome):
+
+  | | stories | shared with the other asset |
+  |---|---|---|
+  | gold | 7,624 | 334 (**4.4%**) |
+  | silver | 1,831 | 334 (**18.2%**) |
+
+  So the input overlap is real, asymmetric, and falls on silver — the same
+  direction as the §1.1a density confound, and for a related reason (silver's
+  corpus is smaller, so a fixed pool of joint stories is a larger share of it).
+  The ordering still holds: **82% of silver's stories are silver-only**, which
+  is far more independence than COT offers. But "close to independent" was
+  wrong and is withdrawn; the correct statement is *substantially but not
+  wholly independent, with silver the more contaminated leg*.
 - **COT replication is the weaker.** Both codes come from the same weekly
   report on the same release schedule, so availability is perfectly correlated
   (the Feb-2023 ION outage blanks identical bars on both assets), and
@@ -597,6 +711,18 @@ Fixed both ends (an out-of-range date returns NaN; the observation filter now
 bounds the head as well as the tail) and pinned by `tests/test_diagnostics.py`,
 including a test that the Newey–West SE must *exceed* the naive SE under
 overlap — the direction of that inequality is what keeps z-scores honest.
+
+**Not looks: the 2026-07-29 BigQuery probes.** Four queries were run against
+the GKG table while designing the migration (§4.3) — table schema, sample rows,
+syndication ratios over Nov 2020–Apr 2021, and article density over 2022. They
+are recorded here for completeness but are **not entries in this ledger**,
+because none of them touched a price, a return or a label: they measure how
+many articles exist and how often the same story is duplicated. That is
+data-quality inspection of the kind §11 exists for, and it is the reason the
+dedup rule and the §1.1a confound could both be fixed *before* any outcome was
+readable. The distinction that matters: looking at **the data** costs nothing;
+looking at **the relationship between the data and returns** is what this
+ledger counts.
 
 ---
 

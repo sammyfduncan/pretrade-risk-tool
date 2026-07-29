@@ -51,12 +51,25 @@ cot:
   contract_code: "088691"
 
 gdelt:
-  # Validated 2026-07-28 via fetch_altdata.py --preview: 0/1000 sampled titles
-  # contaminated, Olympic windows included (phrase-matching is why — Olympic
-  # coverage says "gold medal", never "gold price"). Record + rationale in
-  # docs/step2_design.md §4. Changing this string invalidates the pinned
-  # snapshot — the sidecar check will refuse the mismatch.
-  query: '("gold price" OR "gold prices" OR "price of gold" OR bullion OR "gold futures") sourcelang:english'
+  # CANDIDATE under the new matching mechanism — RE-VALIDATION OUTSTANDING.
+  # The 2026-07-28 DOC 2.0 validation (0/1000 titles contaminated) does NOT
+  # carry over: that API searched article full text, BigQuery's GKG has none,
+  # so these phrases are matched against HEADLINES instead. Different
+  # mechanism, different sample — §4.1 needs a fresh preview record before
+  # features.gdelt goes true. See features/gdelt.py for why we migrated.
+  #
+  # Two changes the migration allowed, both improvements:
+  #   * "gold prices" dropped — matching is substring, so "gold price" already
+  #     covers the plural.
+  #   * bare `bullion` replaced by "gold bullion", making this list EXACTLY
+  #     parallel to silver's. The old asymmetry (gold had bare `bullion`,
+  #     silver needed the qualified phrase) weakened the transferability
+  #     control; the two lists now differ only in the metal's name.
+  title_phrases:
+    - "gold price"
+    - "price of gold"
+    - "gold futures"
+    - "gold bullion"
 
 primary:
   # The rule that picks direction under label.mode: meta. See primary.py — the

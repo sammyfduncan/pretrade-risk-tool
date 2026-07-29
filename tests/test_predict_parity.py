@@ -182,7 +182,7 @@ def altdata_cfg(cfg) -> AssetConfig:
         ),
         crossasset=CrossAssetConfig(numerator_symbol=GOLD, denominator_symbol=SILVER),
         cot=COTConfig(contract_code="088691"),
-        gdelt=GDELTConfig(query='"gold price" OR bullion'),
+        gdelt=GDELTConfig(title_phrases=("gold price", "gold bullion")),
         label=LabelConfig(horizon_bars=12),
         cv=CVConfig(gap_bars=12),
     )

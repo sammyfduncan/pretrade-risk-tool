@@ -95,17 +95,23 @@ class COTConfig:
 
 @dataclass(frozen=True)
 class GDELTConfig:
-    """GDELT DOC 2.0 news query — the per-asset entity/theme filter.
+    """GDELT headline filter — the per-asset entity filter.
 
-    The query is the one genuinely per-asset judgment call in the alt-data
-    layer (README: a blended 'commodities sentiment' is rejected as too
-    diffuse). It must be validated by eyeballing article previews BEFORE any
-    timeline data is fetched — see scripts/fetch_altdata.py --preview and
-    docs/step2_design.md §4 — so an empty query with the family enabled is a
-    refusal, not a default.
+    These phrases are matched against article TITLES (<PAGE_TITLE> in the GKG
+    Extras field). Since the 2026-07-29 move from the DOC 2.0 REST API to
+    BigQuery there is no article full text to search, so the filter is a list
+    of headline phrases rather than a DOC 2.0 query string — tighter, because
+    it selects articles ABOUT the metal rather than ones mentioning it in
+    passing. See features/gdelt.py and docs/step2_design.md §4.1.
+
+    This is the one genuinely per-asset judgment call in the alt-data layer
+    (README: a blended 'commodities sentiment' is rejected as too diffuse). It
+    must be validated by eyeballing sample headlines BEFORE any snapshot is
+    fetched — scripts/fetch_altdata.py --preview — so an empty list with the
+    family enabled is a refusal, not a default.
     """
 
-    query: str = ""
+    title_phrases: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -199,12 +205,12 @@ class AssetConfig:
                 "silver 084691, platinum 076651, palladium 075651; verify a new one "
                 "with the API before trusting it."
             )
-        if self.features.gdelt and not self.gdelt.query:
+        if self.features.gdelt and not self.gdelt.title_phrases:
             raise ValueError(
-                "features.gdelt is enabled but gdelt.query is empty. The query must "
-                "be validated first — run scripts/fetch_altdata.py --preview, eyeball "
-                "the article list, and record the final query in the yaml and in "
-                "docs/step2_design.md §4."
+                "features.gdelt is enabled but gdelt.title_phrases is empty. The "
+                "phrases must be validated first — run scripts/fetch_altdata.py "
+                "--preview, eyeball the headlines, and record the final list in the "
+                "yaml and in docs/step2_design.md §4."
             )
 
     # ---- development / holdout split ----
@@ -282,6 +288,23 @@ class AssetConfig:
         return PROJECT_ROOT / "reports"
 
 
+def _gdelt_config(raw: dict) -> GDELTConfig:
+    """YAML gives a list; the dataclass is frozen and holds a tuple, so that a
+    config cannot be mutated after the snapshot sidecar has been checked
+    against it."""
+    fields = dict(raw)
+    if "title_phrases" in fields:
+        phrases = fields["title_phrases"]
+        if isinstance(phrases, str):
+            raise ValueError(
+                "gdelt.title_phrases must be a LIST of headline phrases, not a "
+                f"single string ({phrases!r}). A bare string would be iterated "
+                "character by character and match essentially every article."
+            )
+        fields["title_phrases"] = tuple(phrases)
+    return GDELTConfig(**fields)
+
+
 def load_config(path: str | Path) -> AssetConfig:
     with open(path) as f:
         raw = yaml.safe_load(f)
@@ -303,7 +326,7 @@ def load_config(path: str | Path) -> AssetConfig:
         features=FeatureConfig(**raw.get("features", {})),
         crossasset=CrossAssetConfig(**raw.get("crossasset", {})),
         cot=COTConfig(**raw.get("cot", {})),
-        gdelt=GDELTConfig(**raw.get("gdelt", {})),
+        gdelt=_gdelt_config(raw.get("gdelt", {})),
         primary=PrimaryConfig(**raw.get("primary", {})),
         label=LabelConfig(**raw.get("label", {})),
         cv=CVConfig(**raw.get("cv", {})),

@@ -32,7 +32,7 @@ def test_unknown_yaml_keys_fail_loudly():
     with pytest.raises(TypeError):
         COTConfig(**{"contract": "088691"})  # should be contract_code
     with pytest.raises(TypeError):
-        GDELTConfig(**{"search": "gold"})  # should be query
+        GDELTConfig(**{"search": "gold"})  # should be title_phrases
 
 
 def test_snapshot_paths_are_symbol_keyed():
@@ -72,7 +72,7 @@ def test_cot_enabled_with_contract_code_is_accepted():
 def test_gdelt_enabled_without_query_is_refused():
     """The query is a validated, per-asset judgment call (--preview first).
     Enabling the family with no query means that step was skipped."""
-    with pytest.raises(ValueError, match="gdelt.query is empty"):
+    with pytest.raises(ValueError, match="gdelt.title_phrases is empty"):
         AssetConfig(
             asset="gold",
             symbol="XAUUSD",
@@ -87,7 +87,7 @@ def test_gdelt_enabled_with_query_is_accepted():
         symbol="XAUUSD",
         granularity="H4",
         features=FeatureConfig(gdelt=True),
-        gdelt=GDELTConfig(query='"gold price" OR bullion'),
+        gdelt=GDELTConfig(title_phrases=("gold price", "gold bullion")),
     )
     assert cfg.features.gdelt is True
 
@@ -107,7 +107,10 @@ def test_checked_in_yaml_parses_with_the_new_blocks(name, code, asset_word, othe
     cfg = load_config(CONFIG_DIR / name)
 
     assert cfg.cot.contract_code == code
-    assert isinstance(cfg.gdelt.query, str) and cfg.gdelt.query
+    # A tuple, not a list: the config is frozen, so a snapshot sidecar checked
+    # against it cannot then be invalidated by mutating the phrases in place.
+    assert isinstance(cfg.gdelt.title_phrases, tuple) and cfg.gdelt.title_phrases
+    assert all(isinstance(p, str) and p for p in cfg.gdelt.title_phrases)
 
 
 def test_each_config_names_its_own_asset_in_the_altdata_identifiers():
@@ -125,9 +128,16 @@ def test_each_config_names_its_own_asset_in_the_altdata_identifiers():
     silver = load_config(CONFIG_DIR / "silver.yaml")
 
     assert gold.cot.contract_code != silver.cot.contract_code
-    assert gold.gdelt.query != silver.gdelt.query
-    assert "silver" not in gold.gdelt.query.lower()
-    assert "gold" not in silver.gdelt.query.lower()
+    assert gold.gdelt.title_phrases != silver.gdelt.title_phrases
+    assert not any("silver" in p.lower() for p in gold.gdelt.title_phrases)
+    assert not any("gold" in p.lower() for p in silver.gdelt.title_phrases)
+    # Structurally parallel, differing only in the metal's name — which is what
+    # makes silver a transferability control rather than a second experiment.
+    # (Under DOC 2.0 gold used bare `bullion` and silver the qualified phrase;
+    # the BigQuery/headline mechanism removed the need for that asymmetry.)
+    assert len(gold.gdelt.title_phrases) == len(silver.gdelt.title_phrases)
+    assert [p.replace("gold", "M") for p in gold.gdelt.title_phrases] == \
+           [p.replace("silver", "M") for p in silver.gdelt.title_phrases]
     # Snapshots are symbol-keyed, so two assets can never share a pinned file.
     assert gold.cot_snapshot_path != silver.cot_snapshot_path
     assert gold.gdelt_snapshot_path != silver.gdelt_snapshot_path
