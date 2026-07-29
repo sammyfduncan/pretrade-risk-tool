@@ -66,24 +66,27 @@ cot:
   contract_code: "084691"
 
 gdelt:
-  # CANDIDATE — preview validation still outstanding. Do NOT set
-  # features.gdelt: true for silver until docs/step2_design.md §4.1 records a
-  # clean preview. Nothing can silently use it meanwhile: no
-  # XAGUSD_gdelt.parquet exists, and the snapshot loader refuses a missing
-  # file rather than fetching one.
+  # VALIDATED 2026-07-29; record in docs/step2_design.md §4.1. 0/720 titles
+  # contaminated across five windows (no Nate Silver, no Adam Silver, no
+  # Silver Lake, no silver linings), AND the positive control fired — the
+  # Jan/Feb 2021 window returned the retail silver-squeeze coverage, so the
+  # list is neither too broad nor too narrow. Both failure directions tested,
+  # which a contamination grep alone cannot do.
   #
   # Exactly parallel to gold's list — same four phrase shapes, differing only
   # in the metal's name. Under the BigQuery/headline mechanism there is no
   # longer any reason for the two to differ structurally, which makes silver a
   # cleaner transferability control than it was under DOC 2.0 (§6.1).
   #
-  # KNOWN CONFOUND, measured 2026-07-29 before any outcome was read: over 2022
-  # these phrases returned 5.3 distinct stories/day for silver against 20.9 for
-  # gold, so silver's daily mean tone is ~2x noisier by sampling alone. §1.1
-  # already predicted a weaker silver GDELT result for a MECHANISM reason
-  # (industrial demand offsets monetary fear); density gives the same
-  # prediction for a boring measurement reason. The two are confounded and the
-  # features were deliberately not changed to paper over it — see §1.1.
+  # KNOWN CONFOUND, measured 2026-07-29 before any outcome was read. On the
+  # full pinned snapshot: median 7.0 stories/day for silver against 28.0 for
+  # gold, and 137 zero-story days against 17. (A 2022-only preview sample had
+  # said 5.3 vs 20.9 — same 4x ratio.) Silver's daily mean tone is therefore
+  # ~2x noisier by sampling alone. §1.1 already predicted a weaker silver
+  # GDELT result for a MECHANISM reason (industrial demand offsets monetary
+  # fear); density predicts the same thing for a boring measurement reason.
+  # The two are confounded, and the features were deliberately NOT changed to
+  # paper over it — see §1.1a for the three repairs considered and rejected.
   title_phrases:
     - "silver price"
     - "price of silver"

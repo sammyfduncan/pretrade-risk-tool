@@ -79,9 +79,17 @@ import pandas as pd
 
 BQ_TABLE = "gdelt-bq.gdeltv2.gkg_partitioned"
 
-# Warms the 252-day z-window well before the first dataset row (2019-03-27,
-# itself set by the crossasset warmup). The GKG v2 archive reaches back to 2015.
-SNAPSHOT_START = "2018-01-01"
+# The earliest date this mechanism can see, not a choice. The GKG v2 archive
+# reaches back to 2015-02-17, but GDELT only began writing <PAGE_TITLE> into
+# Extras between 2019-09-15 and 2019-09-25 — verified by partition sampling:
+# zero titles on 2019-09-15, all 517,812 rows titled on 2019-09-25. Since
+# matching is title-anchored, earlier partitions cannot match anything, and
+# scanning them costs ~100 GB of the monthly tier to return no rows.
+#
+# Consequence, recorded in docs/step2_design.md §4.3 and §7: the 252-day
+# z-window does NOT warm up before the first dataset row (2019-03-27), so
+# GDELT features begin 2020-02-02 and the first ~1,775 dev bars carry NaNs.
+SNAPSHOT_START = "2019-09-22"
 
 PUBLICATION_LAG_DAYS = 1
 MAX_STALENESS = pd.Timedelta(days=3)

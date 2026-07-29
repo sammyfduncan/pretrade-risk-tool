@@ -133,7 +133,13 @@ confounded**. Over calendar 2022, with the pinned phrase lists:
 | gold | **20.9** | 0 of 365 |
 | silver | **5.3** | 17 of 365 |
 
-A daily mean tone over ~5 articles is roughly **2× noisier** than one over ~21,
+**Confirmed on the full snapshot (2026-07-29, §11), which is worse:** median
+28.0 stories/day for gold against **7.0** for silver over 2019-09 → 2026-07,
+and **137 zero-story days against 17**. The 4× ratio is stable across both
+measurements, so this is a structural property of coverage rather than an
+artifact of the 2022 sample.
+
+A daily mean tone over ~7 articles is roughly **2× noisier** than one over ~28,
 by sampling alone. So there are now two independent reasons to expect a weaker
 silver GDELT result — the industrial/monetary cancellation above (mechanism)
 and thin sampling (measurement) — and **this design cannot distinguish them.**
@@ -298,26 +304,39 @@ future-data poisoning.
 
 ## 4. GDELT query validation record
 
-**Validated 2026-07-28, before any timeline data was fetched.** One iteration
-was sufficient.
+**Re-validated 2026-07-29 under headline matching.** The BigQuery migration
+(§4.3) moved matching from article bodies to `<PAGE_TITLE>`, so the 2026-07-28
+DOC 2.0 record does not carry over; it is preserved at the end of this section
+as superseded. Both assets were re-previewed from scratch before either
+snapshot was fetched. One iteration was sufficient for each.
 
-Final query, verbatim (matches `config/gold.yaml` and the snapshot sidecar):
+Phrases, verbatim (match `config/gold.yaml` and the snapshot sidecar):
 
+```yaml
+title_phrases: ["gold price", "price of gold", "gold futures", "gold bullion"]
 ```
-("gold price" OR "gold prices" OR "price of gold" OR bullion OR "gold futures") sourcelang:english
-```
 
-Preview protocol: `fetch_altdata.py --preview` sampled 250 articles from each
-of four fixed windows — Tokyo Olympics (2021-07-23→08-08), Beijing Olympics
-(2022-02-04→02-20), COVID stress (2020-03), calm (2023-06) — chosen before any
-preview was run, with the Olympic windows included deliberately as the known
-contamination trap for the word "gold".
+compiled to `<page_title>[^<]*(gold\ price|price\ of\ gold|gold\ futures|gold\ bullion)`.
 
-Result: **0 of 1,000 sampled titles** matched contamination terms (olympic,
-medal, gold coast, golden globe, gold cup, golden retriever), and manual
-reading of the samples found only gold-market coverage in all four windows,
-including both Olympic ones. Phrase-matching is why: Olympic articles say
-"gold medal", never "gold price".
+Preview protocol, fixed before any preview ran and unchanged from 2026-07-28:
+four windows — Tokyo Olympics (2021-07-23→08-08), Beijing Olympics
+(2022-02-04→02-20), COVID stress (2020-03), calm (2023-06) — with the Olympic
+windows included deliberately as the known contamination trap for the word
+"gold". Each window returned **250 distinct stories** (the preview cap).
+
+Result: **no contamination term appeared in either Olympic window**, and
+manual reading of all four samples found gold-market coverage throughout.
+Phrase-matching is why, and it is strictly stronger here than under full text:
+Olympic coverage says "gold medal", never "gold price" — and a passing mention
+of the gold price *inside the body* of an Olympics report can no longer pull
+the article in at all, because only the headline is searched.
+
+**One false positive, recorded rather than fixed:** *"Black Diamond Ice Cream
+23 Karat Gold Price in Dubai"* — gold-leaf ice cream; one story in 250. No
+phrase was changed to exclude it. A filter written to remove a specific
+headline someone has already read is a decision made after seeing the data,
+and one story cannot move a daily mean over ~28 stories/day. Leaving it in
+costs a little noise; removing it would cost the pre-registration.
 
 Known characteristic, accepted: the sample skews toward high-frequency retail
 price coverage (Indian/Pakistani "gold rate today" dailies). These are
@@ -331,34 +350,54 @@ that mention price/bullion, previewed clean on the first attempt, and each
 additional variant is design surface. Revisit only as a pre-registered
 addendum if step 2 produces a reason to.
 
+**Superseded — the 2026-07-28 DOC 2.0 record**, kept because the ledger is
+append-only and because it is the baseline the headline mechanism replaced.
+Query: `("gold price" OR "gold prices" OR "price of gold" OR bullion OR "gold
+futures") sourcelang:english`. Same four windows, 250 articles each; result
+**0 of 1,000 sampled titles** matched contamination terms (olympic, medal,
+gold coast, golden globe, gold cup, golden retriever). No snapshot was ever
+fetched under this query, so nothing downstream depends on it.
+
 ### 4.1 Silver — query and validation record
 
-**Status 2026-07-29: candidate fixed, preview OUTSTANDING** (GDELT rate
-limiting, see §4.2). The query below is recorded *before* validation so that
-the reasoning cannot be adjusted after seeing headlines; the preview either
-clears it or sends it back for one iteration, and either outcome is logged
-here. `features.gdelt` stays false for silver until then, and no silver GDELT
-snapshot exists.
+**Status 2026-07-29: VALIDATED.** The candidate below was recorded *before*
+validation, so the reasoning could not be adjusted after seeing headlines; the
+preview cleared it on the first attempt. (It had been blocked for two days by
+DOC 2.0 rate limiting, §4.2 — the BigQuery migration is what unblocked it.)
 
+Phrases, verbatim (match `config/silver.yaml` and the snapshot sidecar):
+
+```yaml
+title_phrases: ["silver price", "price of silver", "silver futures", "silver bullion"]
 ```
-("silver price" OR "silver prices" OR "price of silver" OR "silver bullion" OR "silver futures") sourcelang:english
-```
 
-**Structural rule applied:** `(<price phrases> OR <physical form> OR
-<futures>) sourcelang:english` — gold's pattern, instantiated for silver.
-Phrase-matching is doing the same work it did for gold.
+**Structural rule applied:** the phrase list is gold's, with the metal's name
+substituted and nothing else changed — pinned as an assertion in
+`tests/test_config_altdata.py`. Under DOC 2.0 the two lists could not be made
+parallel: bare `bullion` in English news is dominated by *gold* bullion
+coverage, so silver had to use the qualified `"silver bullion"` while gold kept
+the bare term, and §4.1 recorded that asymmetry as accepted-but-regrettable.
+**The migration removed the need for it** — headline matching made
+`"gold bullion"` a viable phrase for gold, so both lists are now exactly
+parallel and the asymmetry is gone. This is the one place where the forced
+re-validation improved the design rather than merely repeating it.
 
-**The one deliberate departure: bare `bullion` → `"silver bullion"`.** Bare
-`bullion` in English news is dominated by *gold* bullion coverage. Inheriting
-it would pipe a substantially gold-driven tone series into silver's features —
-wrong data for the asset, and it would collapse the independence that makes
-silver a control (§6.1). This is a structural decision made before any silver
-result exists, not a tuning knob.
+**Result: 0/720 titles matched contamination terms**, across five windows —
+Tokyo Olympics, Beijing Olympics (143 stories between them), silver squeeze
+(196), COVID stress (161), calm month (220). Manual reading found no Nate
+Silver, no Adam Silver, no Silver Lake, no silver linings.
 
-*Accepted asymmetry:* gold's query keeps bare `bullion` and therefore admits
-some silver-bullion coverage. Gold's snapshot and §4 record are already
-pinned; re-cutting them now would be a post-hoc change to a validated
-artifact for a second-order effect. Noted, not fixed.
+**The positive control fired**, which is the half of the test that a clean
+contamination grep cannot give you: the Jan/Feb 2021 window returned *"Reddit
+Day-Trader Frenzy Sends Silver Prices Soaring"* and *"Silver price surges as
+GameStop traders move into precious metals"*. So the query is neither too
+broad (no contamination) nor too narrow (it catches the biggest retail silver
+event in the sample). Both failure directions are excluded, not just one.
+
+Note the window counts against gold's flat 250/250/250/250: only the calm
+month approaches the cap. That is the density confound of §1.1a visible in the
+preview itself — silver simply has less coverage, and it is a property of the
+world, not of the query.
 
 **Why silver needs a bigger trap list than gold.** Gold's contamination was
 one word in one context (Olympic medals), and phrase-matching killed it
@@ -374,7 +413,7 @@ nothing.
 Silver's windows add a **positive control** the gold set did not need: the
 retail "silver squeeze" of late Jan/early Feb 2021 is real silver-market news,
 so a query that *misses* it is too narrow, not too clean. Gold's four windows
-are unchanged, so §4's record still stands as written.
+are unchanged and were simply re-run under the new mechanism (§4).
 
 ### 4.2 GDELT rate limiting — an operational constraint on the design
 
@@ -446,11 +485,41 @@ them would have raised an error if ported naively:
    index, which matters because §6.1 compares them. The daily-total denominator
    is a separate query and is free (`COUNT(*)` over partition metadata).
 
+4. **History is 21 months shorter — `<PAGE_TITLE>` does not exist before
+   2019-09-22.** Discovered when the snapshot fetch, asked for 2018-01-01,
+   returned data starting 2019-09-22 on *both* assets. Verified directly
+   (0.68 GB, five sampled partitions) rather than assumed, because "my query
+   returned nothing" and "the field is empty" are different problems:
+
+   | partition | rows | non-empty `Extras` | contains `<PAGE_TITLE>` |
+   |---|---|---|---|
+   | 2018-06-01 | 621,870 | 549,011 | **0** |
+   | 2019-06-01 | 333,269 | 255,397 | **0** |
+   | 2019-09-15 | 285,005 | 220,957 | **0** |
+   | 2019-09-25 | 517,812 | 517,812 | **517,812** |
+   | 2020-06-01 | 405,580 | 405,580 | **405,580** |
+
+   The table itself is partitioned from 2015-02-17, so the articles are there;
+   GDELT simply began populating the page title between 15 and 25 Sept 2019,
+   as a step change from 0% to 100% rather than a ramp. **The headline
+   mechanism therefore has a hard floor at 2019-09-22 and no query can move
+   it.** DOC 2.0's full-text search reached back to 2017; this is a real cost
+   of the migration, paid for the tighter entity filtering in (1).
+
+   Consequence for the evaluation, stated before any outcome is read: with the
+   252-day z-window (min_periods 126) the first usable GDELT bar is
+   **2020-02-02**, against H4 candles that begin 2019-01-01. That removes
+   1,775 development bars — **8,615 of 10,390 dev bars survive (82.9%)**,
+   identically on both assets. The loss falls entirely at the *head* of the
+   window, so it shortens fold 0 rather than punching a hole in the middle.
+   §7's power analysis is restated on these counts.
+
 Unchanged by the migration: the six features and their formulas (§3), the
 publication lag and staleness rules (§2.2), the Tier-1 and Tier-2 protocols
 (§5, §6), and the retention gate (§6, §6.1). **This is a data-source
 substitution, not a change to the hypothesis or the decision rule.** The
-density confound it exposed is recorded in §1.1a.
+density confound it exposed is recorded in §1.1a; the shortened window is
+finding 4 above and costs power, which the gate does not compensate for.
 
 ---
 
@@ -641,17 +710,28 @@ assets, and the two families differ in how much less:
 
 ## 7. Power analysis — stated before evaluation
 
-Dev window 2019-03-27 → 2025-06-30 ≈ 6.26 years.
+Dev window 2019-03-27 → 2025-06-30 ≈ 6.26 years for COT. **GDELT's window is
+shorter and was not known to be until the snapshot was fetched** — the
+`<PAGE_TITLE>` floor plus z-warmup puts its first usable bar at 2020-02-02
+(§4.3 finding 4), giving 5.4 years.
 
-| source | native obs | detectable |r| at 80% power, α=0.05 |
+| source | native obs | detectable \|r\| at 80% power, α=0.05 |
 |---|---|---|
 | COT | ~327 weekly | ≈ 0.155 |
-| GDELT vs 5d horizon | ~2,290 daily, n_eff ≈ n/5 ≈ 460 | ≈ 0.13 |
-| GDELT vs 20d horizon | n_eff ≈ n/20 ≈ 115 | ≈ 0.26 |
+| GDELT vs 5d horizon | 1,960 gold / 1,856 silver daily, n_eff ≈ n/5 ≈ 392 / 371 | ≈ 0.14 |
+| GDELT vs 20d horizon | n_eff ≈ n/20 ≈ 98 / 93 | ≈ 0.28 |
 
 (2.8/√n rule; GDELT effective n deflated for overlapping forward windows —
 persistent features like `gdelt_tone_z` deflate further, toward the 20d row.
 Empirical Newey–West SEs in Tier 1 supersede these planning numbers.)
+
+**These are worse than the numbers this section carried before the fetch**
+(≈0.13 and ≈0.26 on ~2,290 daily observations). The shortfall is the 21 months
+of history that `<PAGE_TITLE>` does not cover, and it is recorded here rather
+than quietly re-based, because a power analysis revised *downward* after the
+data arrives is the honest direction and the one that is easy to omit.
+Silver's daily count is a further 5% below gold's — the 137 zero-story days of
+§1.1a — so silver is the weaker leg on sample size as well as on density.
 
 **Silver's power is the same, and does not add to gold's.** Identical dev
 window, identical native frequencies — silver's COT snapshot is 1,050 reports
@@ -691,6 +771,8 @@ free second chance to find a positive.
 | 1 | 2026-07-29 | scope amended to include silver; §1.1 expectations, §4.1 query rule and §6.1 joint gate fixed | none | no outcome computed; COT snapshot sanity in §11 is feature distributions only, no forward return touched |
 | 2 | 2026-07-29 | Tier-1 COT, gold + silver — **VOID, discarded** | 24 cells × 2 assets | ran with the `forward_outcomes` clamping bug (below). Numbers were wrong, not merely noisy; recorded here because the ledger is append-only and the run happened |
 | 3 | 2026-07-29 | Tier-1 COT, gold + silver, after the fix | 24 cells × 2 assets, n=332 each | §5.1. GDELT not included (no snapshot) |
+| 4 | 2026-07-29 | GDELT re-validation previews under headline matching, gold + silver | none | §4/§4.1. Headlines and syndication counts only; no price series loaded, no forward outcome computed. Not a look — see the §8 note below |
+| 5 | 2026-07-29 | GDELT snapshots fetched + coverage/`PAGE_TITLE` probes | none | §11, §4.3 finding 4. Row counts, date ranges, story densities, partition metadata. Descriptive only |
 
 **Look 2 was void — the bug, recorded because it is the instructive part.**
 `diagnose_altdata.forward_outcomes` located each observation's forward window
@@ -751,6 +833,45 @@ Snapshots are pinned artifacts; a GDELT re-fetch is a new sample.
 |---|---|---|---|---|
 | 2026-07-28 | `XAUUSD_cot.parquet` | initial fetch | contract 088691, full history | 1,050 weekly reports, 2006-06-13 → 2026-07-21; median cadence 7d, 11 gaps > 7d (holidays + known interruptions) |
 | 2026-07-29 | `XAGUSD_cot.parquet` | initial fetch | contract 084691, full history | 1,050 weekly reports, 2006-06-13 → 2026-07-21; median cadence 7d, 11 gaps > 7d — identical shape to gold, as expected for one CFTC-wide release schedule |
+| 2026-07-29 | `XAUUSD_gdelt.parquet` | initial fetch | BigQuery `gkg_partitioned`, 4 title phrases, dedup by title, requested 2018-01-01 → now | 2,502 days, 2019-09-22 → 2026-07-28; median 28.0 stories/day; 17 zero-story/missing days |
+| 2026-07-29 | `XAGUSD_gdelt.parquet` | initial fetch | same scan, same params, silver's 4 phrases | 2,501 days, 2019-09-23 → 2026-07-28; median 7.0 stories/day; 137 zero-story/missing days |
+
+**Both GDELT snapshots came from one scan** (540 GB, 54% of the monthly free
+tier), so the sidecars cross-reference each other via `co_fetched_with`. §6.1
+compares the two assets, and this is the strongest provenance available for
+that comparison: same index, same query date, same dedup, same code path.
+
+**GDELT snapshot sanity (descriptive only — no forward outcome touched):**
+
+| | gold | silver |
+|---|---|---|
+| first / last day | 2019-09-22 → 2026-07-28 | 2019-09-23 → 2026-07-28 |
+| stories/day, median (mean) | 28.0 (28.4) | 7.0 (8.5) |
+| zero-story or missing days | 17 (0.7%) | 137 (5.5%) |
+| longest gap | 17d, 2025-06-15 → 2025-07-01 | 17d, **same dates** |
+| usable dev H4 bars | 8,615 / 10,390 (82.9%) | 8,615 / 10,390 (82.9%) |
+| first usable bar | 2020-02-02 | 2020-02-02 |
+
+Three things to read off this table:
+
+1. **The 17-day gap is identical on both assets**, so it is a GDELT-side
+   outage, not a news drought in either metal — two queries sharing no terms
+   do not go quiet on the same seventeen days by coincidence. It ends on
+   2025-07-01, i.e. it occupies the final fortnight of the development window
+   and touches the holdout boundary exactly. Nothing is done about it; it is
+   ~0.7% of the sample and `MAX_STALENESS` already turns it into honest NaNs
+   rather than three-week-old tone presented as current.
+2. **Silver has 8× gold's count of blank days** (137 vs 17), which is §1.1a's
+   density confound in its most concrete form: at ~7 stories/day a zero-story
+   day is an ordinary occurrence, at ~28 it is not. Most are singletons that
+   `ffill(limit=3)` bridges, which is why silver still ends with the same
+   8,615 usable bars — but a bridged day is a repeated observation, not a
+   fresh one, so silver's *effective* sample is smaller than the shared count
+   implies. Read this alongside §7.
+3. **The identical 82.9% is the head-truncation of §4.3 finding 4**, not a
+   coincidence between the assets: both are clipped by the same
+   `<PAGE_TITLE>` floor and the same 126-day warmup, and both feature sets
+   start on the same bar.
 
 **Snapshot sanity, both COT assets (descriptive only — no forward outcome
 touched, so not a §8 look).** Built through the pinned snapshots and the

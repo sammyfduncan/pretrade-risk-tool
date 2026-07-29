@@ -51,12 +51,16 @@ cot:
   contract_code: "088691"
 
 gdelt:
-  # CANDIDATE under the new matching mechanism — RE-VALIDATION OUTSTANDING.
-  # The 2026-07-28 DOC 2.0 validation (0/1000 titles contaminated) does NOT
-  # carry over: that API searched article full text, BigQuery's GKG has none,
-  # so these phrases are matched against HEADLINES instead. Different
-  # mechanism, different sample — §4.1 needs a fresh preview record before
-  # features.gdelt goes true. See features/gdelt.py for why we migrated.
+  # VALIDATED 2026-07-29 under headline matching; record in §4. Four preview
+  # windows x 250 distinct stories: no contamination term in either Olympic
+  # window ("gold medal" never contains "gold price"), plus one accepted false
+  # positive (gold-leaf ice cream, 1 in 250) left in deliberately rather than
+  # filtered out after someone had already read it.
+  #
+  # The 2026-07-28 DOC 2.0 validation did NOT carry over: that API searched
+  # article full text, BigQuery's GKG has none, so these phrases match
+  # HEADLINES. Changing this list invalidates the pinned snapshot — the
+  # sidecar check refuses the mismatch. Why we migrated: features/gdelt.py.
   #
   # Two changes the migration allowed, both improvements:
   #   * "gold prices" dropped — matching is substring, so "gold price" already
