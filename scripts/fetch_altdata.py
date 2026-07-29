@@ -169,9 +169,13 @@ def preview_gdelt(query: str, asset: str) -> None:
     print("docs/step2_design.md §4, then fetch the timeline snapshot (no --preview).")
 
 
-def fetch_gdelt_snapshot(cfg, query: str, start: str, end: str | None, force: bool) -> None:
+def fetch_gdelt_snapshot(
+    cfg, query: str, start: str, end: str | None, force: bool, chunk_years: int
+) -> None:
     print("=== GDELT timelines (tone / vol / volraw) ===")
-    frame = gdelt_module.fetch_gdelt(query, start=start, end=end)
+    print(f"  chunk size {chunk_years}y -> ~3 requests per chunk, "
+          f"{gdelt_module._REQUEST_PAUSE_S:.0f}s apart")
+    frame = gdelt_module.fetch_gdelt(query, start=start, end=end, chunk_years=chunk_years)
 
     dead = int((frame["n_articles"].isna() | (frame["n_articles"] == 0)).sum())
     observed = frame["tone"].notna()
@@ -211,6 +215,11 @@ def main() -> None:
     parser.add_argument("--end", default=None)
     parser.add_argument("--force", action="store_true",
                         help="overwrite an existing snapshot (ledger it)")
+    parser.add_argument("--chunk-years", type=int, default=gdelt_module.CHUNK_YEARS,
+                        help="GDELT only: years per request-triple. Bigger = fewer "
+                             "requests against GDELT's request-count quota; a chunk "
+                             "that comes back coarser than daily is refused, not "
+                             "silently accepted (features/gdelt.py).")
     args = parser.parse_args()
     cfg = load_config(args.config)
 
@@ -231,7 +240,8 @@ def main() -> None:
                 f"    python scripts/fetch_altdata.py --config {args.config} "
                 "--source gdelt --preview --query '...'"
             )
-        fetch_gdelt_snapshot(cfg, query, start=args.start, end=args.end, force=args.force)
+        fetch_gdelt_snapshot(cfg, query, start=args.start, end=args.end,
+                             force=args.force, chunk_years=args.chunk_years)
 
 
 if __name__ == "__main__":
