@@ -16,6 +16,7 @@ from commodity_ml.features.gdelt import (
     TONE_CHANGE_DAYS,
     VOL_SMOOTH_DAYS,
     Z_WINDOW_DAYS,
+    _check_daily_resolution,
     _check_gdelt_sidecar,
     _drop_incomplete_day,
     _mask_zero_article_days,
@@ -151,6 +152,28 @@ def test_malformed_timeline_is_refused():
         _parse_timeline({}, "tone")
     with pytest.raises(ValueError, match="no timeline data"):
         _parse_timeline({"timeline": []}, "tone")
+
+
+def test_downsampled_chunk_is_refused():
+    """Asking for a multi-year range lets GDELT answer at weekly resolution
+    instead of daily. That does not error — it returns a shorter, smoother
+    series that the daily reindex pads with NaNs, silently changing what the
+    features measure. Widening CHUNK_YEARS is only safe because of this check.
+    """
+    start, end = pd.Timestamp("2018-01-01"), pd.Timestamp("2020-12-31")
+    daily = pd.Series(1.0, index=pd.date_range(start, end, freq="D"))
+    _check_daily_resolution(daily, "tone", start, end)  # no raise
+
+    # Sparse days may legitimately be absent — median spacing is still ~1 day.
+    gappy = daily.drop(daily.index[[5, 6, 40, 41, 42]])
+    _check_daily_resolution(gappy, "tone", start, end)  # no raise
+
+    weekly = pd.Series(1.0, index=pd.date_range(start, end, freq="7D"))
+    with pytest.raises(ValueError, match="downsampled"):
+        _check_daily_resolution(weekly, "tone", start, end)
+
+    with pytest.raises(ValueError, match="effectively nothing"):
+        _check_daily_resolution(daily.iloc[:1], "tone", start, end)
 
 
 def test_current_partial_day_is_dropped(gdelt):

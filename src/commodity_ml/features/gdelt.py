@@ -60,23 +60,40 @@ FFILL_LIMIT_DAYS = 3
 
 TIMELINE_MODES = {"tone": "timelinetone", "vol": "timelinevol", "n_articles": "timelinevolraw"}
 
-# GDELT throttling, learned the hard way (2026-07-28): the stated limit is one
-# request per 5 seconds, but the penalty box is STICKY — once 429'd, further
-# requests keep re-arming it (an 8-minute exponential-backoff ladder never got
-# out). So: pace well under the limit, and on a 429 go completely silent for
-# minutes before trying again, few times, rather than retrying quickly.
-_REQUEST_PAUSE_S = 10.0
-_BACKOFF_S = (300, 420, 600)
+# GDELT throttling, learned the hard way over 2026-07-28/29. The documented
+# limit is one request per 5 seconds, but the observed behaviour is a longer-
+# horizon quota per IP plus a STICKY penalty box: once 429'd, further requests
+# re-arm it (an 8-minute exponential ladder never escaped; a 9-minute silent
+# probe still got 429). A day later the API answered immediately, then 429'd
+# again after ~5 requests spaced 10s apart — i.e. the binding constraint is
+# request COUNT over a long window, not request RATE.
+#
+# Two consequences, both of which shape the fetch:
+#   1. Pace far below the documented rate (60s, not 5s).
+#   2. Spend requests, not politeness. Chunking an 8-year pull into yearly
+#      pieces cost 24 requests per asset for no benefit — the API serves
+#      multi-year ranges fine. CHUNK_YEARS trades request count against
+#      per-request size; each chunk is still verified to come back at daily
+#      resolution, so a bigger chunk cannot silently downsample the series.
+_REQUEST_PAUSE_S = 60.0
+_BACKOFF_S = (900, 1800)
+CHUNK_YEARS = 3
 
 
 def fetch_gdelt(
-    query: str, start: str = SNAPSHOT_START, end: str | None = None, verbose: bool = True
+    query: str,
+    start: str = SNAPSHOT_START,
+    end: str | None = None,
+    verbose: bool = True,
+    chunk_years: int = CHUNK_YEARS,
 ) -> pd.DataFrame:
-    """Download the three daily timelines for one query, in yearly chunks.
+    """Download the three daily timelines for one query, in multi-year chunks.
 
-    Chunking is politeness, not necessity — the API serves multi-year ranges,
-    but GDELT is a free public service and a failed 8-year request restarts
-    from zero. Each chunk is retried with backoff.
+    Chunk size is a request-budget decision, not a correctness one (see the
+    throttling note above): a failed chunk restarts only that chunk, but every
+    extra chunk is three more requests against a quota that turns out to be
+    counted in requests. Each chunk is verified to arrive at daily resolution,
+    so widening it cannot quietly coarsen the series.
     """
     start_ts = pd.Timestamp(start)
     end_ts = pd.Timestamp(end) if end else pd.Timestamp.utcnow().tz_localize(None)
@@ -84,16 +101,20 @@ def fetch_gdelt(
     pieces = []
     chunk_start = start_ts
     while chunk_start <= end_ts:
-        chunk_end = min(pd.Timestamp(chunk_start.year, 12, 31), end_ts)
+        chunk_end = min(
+            pd.Timestamp(chunk_start.year + chunk_years - 1, 12, 31), end_ts
+        )
         if verbose:
-            print(f"  GDELT {chunk_start.date()} -> {chunk_end.date()}")
+            print(f"  GDELT {chunk_start.date()} -> {chunk_end.date()}", flush=True)
 
         columns = {}
         for name, mode in TIMELINE_MODES.items():
             payload = _request_with_retries(
                 query, mode, chunk_start, chunk_end + pd.Timedelta(hours=23, minutes=59)
             )
-            columns[name] = _parse_timeline(payload, name)
+            series = _parse_timeline(payload, name)
+            _check_daily_resolution(series, name, chunk_start, chunk_end)
+            columns[name] = series
             time.sleep(_REQUEST_PAUSE_S)
         pieces.append(pd.DataFrame(columns))
         chunk_start = chunk_end + pd.Timedelta(days=1)
@@ -146,6 +167,33 @@ def _request_with_retries(
     raise ConnectionError(
         f"GDELT {mode} request failed after {len(_BACKOFF_S)} attempts: {last_error}"
     )
+
+
+def _check_daily_resolution(
+    series: pd.Series, name: str, start: pd.Timestamp, end: pd.Timestamp
+) -> None:
+    """Refuse a chunk that came back coarser than daily.
+
+    The one risk in asking for a wide date range: GDELT is free to answer a
+    long timeline request at weekly or monthly resolution. That would not
+    error — it would return a shorter, smoother series that the daily reindex
+    then pads with NaNs, quietly changing what the features measure. Median
+    spacing is the test rather than completeness, because genuinely
+    zero-article days may legitimately be absent.
+    """
+    if len(series) < 2:
+        raise ValueError(
+            f"GDELT {name}: {len(series)} points for {start.date()}..{end.date()} — "
+            "expected one per day. Query returned effectively nothing."
+        )
+    spacing = pd.Series(series.index).diff().dt.total_seconds().median() / 86400
+    if spacing > 1.5:
+        raise ValueError(
+            f"GDELT {name}: median spacing {spacing:.1f} days over "
+            f"{start.date()}..{end.date()} — the API downsampled this range "
+            f"instead of serving daily points. Lower CHUNK_YEARS (currently "
+            f"{CHUNK_YEARS}) and re-fetch; do not reindex over it."
+        )
 
 
 def _parse_timeline(payload: dict, name: str) -> pd.Series:

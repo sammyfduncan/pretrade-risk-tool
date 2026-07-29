@@ -17,10 +17,12 @@ execution steps interactively, and prefer readable code over clever code.
 1. **[TEMPLATE FROZEN, HOLDOUT UNSPENT — no confirmed edge] Price-only ML pipeline for gold**
    Pipeline validated, no directional signal found. Meta-labeling is a lead, not
    a result (run 5). Frozen at `69f0527`; see `docs/step1_freeze_record.md`.
-2. **[IN PROGRESS since 2026-07-28]** Sentiment/alt-data layer for gold only +
-   composite scoring — CFTC COT positioning + GDELT news tone, pre-registered
-   in `docs/step2_design.md` (read it before running or proposing anything)
-3. Generalize to silver → platinum → palladium (one at a time)
+2. **[IN PROGRESS since 2026-07-28]** Sentiment/alt-data layer + composite
+   scoring — CFTC COT positioning + GDELT news tone, pre-registered in
+   `docs/step2_design.md` (read it before running or proposing anything).
+   **Gold is the hypothesis, silver the transferability control** (scope
+   amended 2026-07-29, decision rule fixed first — design §6.1). No PGMs.
+3. Generalize to platinum → palladium (one at a time)
 4. Cross-asset ranking, allocation, correlation-aware sizing
 5. Paper-trade full system; live capital only after pre-registered success criteria are met
 
@@ -505,10 +507,10 @@ freeze record for whenever it *is* spent.
   information that isn't present, and every extra variant tried before the
   holdout is spent makes the holdout weaker evidence.
 - **Step 2 (sentiment) — STARTED 2026-07-28, design fixed in
-  `docs/step2_design.md`.** Two independent feature families for gold: CFTC COT
-  positioning (Socrata `72hh-3qpy`, contract 088691, lag 7d, publication-
-  interruption table) and GDELT DOC 2.0 tone/attention (daily timelines,
-  pinned non-point-in-time snapshots, preview-validated query). Exactly six
+  `docs/step2_design.md`.** Two independent feature families: CFTC COT
+  positioning (Socrata `72hh-3qpy`, lag 7d, publication-interruption table)
+  and GDELT DOC 2.0 tone/attention (daily timelines, pinned
+  non-point-in-time snapshots, preview-validated query). Exactly six
   pre-registered features; matched-row ablations via `train.py
   --exclude-family`; retention gate = ΔAUC ≥ +0.015 AND ≥4/5 folds AND beating
   the max of 20 circular-shift placebos. RSS dropped (no archive → not
@@ -516,6 +518,37 @@ freeze record for whenever it *is* spent.
   baseline shows signal. Composite scoring (weighted ML prob + sentiment z) is
   GATED on a family surviving — do not build it early. PGM query
   personalisation (South Africa/Russia supply + auto demand) waits for step 3.
+- **Step 2 on silver (added 2026-07-29).** Silver is the transferability
+  control, same six features and same gate. An asset costs **two yaml
+  identifiers and no code**: `cot.contract_code` (gold 088691, silver 084691,
+  platinum 076651, palladium 075651 — all verified live) and `gdelt.query`.
+  Neither has a default, because inheriting one would silently train an asset
+  on another's positioning or another's news. Three things fixed *before* any
+  silver number was read, and they are the point of the exercise:
+  1. **The joint rule (§6.1): a family is retained only if it passes on
+     BOTH.** Gold-only or silver-only = a lead, not a result — meta-labeling's
+     exact status. Thresholds are not relaxed for one-of-two, and a third
+     asset may not be added to break a tie.
+  2. **Silver replication is worth less than a second independent asset**, and
+     the two families differ: gold/silver COT comes from one report on one
+     release schedule (the Feb-2023 ION outage blanks identical bars on both),
+     so COT agreement is nearly one observation seen twice; the GDELT queries
+     share no terms, so news agreement is stronger. Underneath both, the two
+     assets' returns correlate ~0.8. Never pool them to manufacture sample size.
+  3. **H-GDELT is expected to be WEAKER on silver** — silver is ~half
+     industrial demand, so a fear shock lifts its monetary leg and depresses
+     its industrial leg. A weaker silver result is consistent with the
+     mechanism, not a failed replication; a *stronger* one is the surprise
+     that would count against the safe-haven story. H-COT is expected
+     *stronger* on silver (smaller, more speculative market — and its
+     `cot_mm_net_chg_4w` is indeed ~30% more volatile than gold's).
+- **GDELT rate limiting is a real operational constraint** (design §4.2), not
+  a transient. The binding limit is request *count* over a long window, not
+  the documented 1-per-5s rate, and retrying during a 429 extends the penalty.
+  Hence 3-year chunks (~9 requests/asset) at 60s spacing, and
+  `_check_daily_resolution` to catch the risk that buys — GDELT answering a
+  wide range at weekly resolution returns a smoother series that the daily
+  reindex pads with NaNs and *would not error*.
 - **Step 3:** `config/<asset>.yaml` per asset + a thin loop; per-asset feature
   additions (e.g. gold/silver ratio for silver, auto-sector proxy for PGMs).
 - **Step 4:** rank by composite score with hysteresis band (rotate only if

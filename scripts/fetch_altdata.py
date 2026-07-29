@@ -14,11 +14,12 @@ records its provenance, and overwriting one requires --force plus a row in
 docs/step2_design.md §11.
 
 --preview (GDELT only) is the query-validation step and writes NOTHING: it
-prints sample headlines over fixed windows — deliberately including Olympic
-months, the known contamination trap for the word "gold" — so the query can
-be eyeballed and iterated (--query overrides the yaml while iterating) before
-any timeline data is committed to. The validated query is then recorded in
-the yaml and in docs/step2_design.md §4.
+prints sample headlines over fixed windows — including that metal's known
+homonym traps, e.g. Olympic months for gold and silver — so the query can be
+eyeballed and iterated (--query overrides the yaml while iterating) before any
+timeline data is committed to. The validated query is then recorded in the
+yaml and in docs/step2_design.md §4. Each asset needs its own query and its
+own trap list; see preview_plan().
 """
 
 import argparse
@@ -32,19 +33,66 @@ from commodity_ml.config import load_config
 from commodity_ml.features import cot as cot_module
 from commodity_ml.features import gdelt as gdelt_module
 
-# Fixed preview windows: two Olympic months (the "gold" contamination trap),
-# one stress month, one calm month. Fixed so every query iteration is judged
-# against the same evidence.
-PREVIEW_WINDOWS = (
-    ("Tokyo Olympics", "2021-07-23", "2021-08-08"),
-    ("Beijing Olympics", "2022-02-04", "2022-02-20"),
+# Preview windows, fixed before any preview is run so every query iteration is
+# judged against the same evidence. Two are shared — a stress month and a calm
+# month, testing that the query returns sensible market coverage at all — and
+# the rest are per-asset traps for that metal's specific homonyms.
+SHARED_PREVIEW_WINDOWS = (
     ("COVID stress", "2020-03-01", "2020-03-31"),
     ("calm month", "2023-06-01", "2023-06-30"),
 )
-CONTAMINATION_TERMS = (
-    "olympic", "medal", "gold coast", "golden globe", "gold cup", "golden retriever",
-)
+ASSET_PREVIEW_WINDOWS = {
+    "gold": (
+        ("Tokyo Olympics", "2021-07-23", "2021-08-08"),
+        ("Beijing Olympics", "2022-02-04", "2022-02-20"),
+    ),
+    # Silver gets the Olympic windows too ("silver medal"), plus a positive
+    # control: the Jan/Feb-2021 retail "silver squeeze" is real silver-market
+    # news, so a query that misses it is too narrow rather than too broad.
+    "silver": (
+        ("Tokyo Olympics", "2021-07-23", "2021-08-08"),
+        ("Beijing Olympics", "2022-02-04", "2022-02-20"),
+        ("silver squeeze (positive control)", "2021-01-28", "2021-02-05"),
+    ),
+}
+
+# Per-asset, because the homonyms are. Gold's trap is essentially one word in
+# one context (Olympic medals); "silver" is also a surname (Nate, and the NBA's
+# Adam Silver), a private-equity firm, two US towns, a missing-person alert, a
+# restaurant chain, a racetrack and a dozen idioms.
+ASSET_CONTAMINATION_TERMS = {
+    "gold": (
+        "olympic", "medal", "gold coast", "golden globe", "gold cup",
+        "golden retriever",
+    ),
+    "silver": (
+        "olympic", "medal", "adam silver", "nate silver", "silver lake",
+        "silver spring", "silver alert", "long john silver", "silverstone",
+        "silverware", "silver screen", "silver lining", "silver bullet",
+        "silver anniversary", "silverado", "quicksilver",
+    ),
+}
 _ARTICLES_SHOWN = 12
+
+
+def preview_plan(asset: str) -> tuple[tuple, tuple]:
+    """Windows and contamination terms for one asset.
+
+    No fallback for an unknown asset, for the same reason cot.contract_code has
+    no default: silently screening platinum's query against gold's trap words
+    would report a clean preview that validated nothing.
+    """
+    if asset not in ASSET_PREVIEW_WINDOWS:
+        raise SystemExit(
+            f"No preview plan for asset '{asset}'. Before validating a query for a "
+            "new metal, add its windows to ASSET_PREVIEW_WINDOWS and its homonyms "
+            "to ASSET_CONTAMINATION_TERMS in this file — screening a new asset "
+            "against another's trap words would pass without testing anything."
+        )
+    return (
+        ASSET_PREVIEW_WINDOWS[asset] + SHARED_PREVIEW_WINDOWS,
+        ASSET_CONTAMINATION_TERMS[asset],
+    )
 
 
 def write_snapshot(path: Path, frame: pd.DataFrame, meta: dict, force: bool) -> None:
@@ -89,17 +137,18 @@ def fetch_cot_snapshot(cfg, force: bool) -> None:
     )
 
 
-def preview_gdelt(query: str) -> None:
-    print(f"=== GDELT preview (writes nothing) ===\nquery: {query}\n")
+def preview_gdelt(query: str, asset: str) -> None:
+    windows, terms = preview_plan(asset)
+    print(f"=== GDELT preview for {asset} (writes nothing) ===\nquery: {query}\n")
     total, contaminated = 0, 0
-    for i, (label, start, end) in enumerate(PREVIEW_WINDOWS):
+    for i, (label, start, end) in enumerate(windows):
         if i:
             time.sleep(gdelt_module._REQUEST_PAUSE_S)
         articles = gdelt_module.preview_articles(query, start, end)
         total += len(articles)
         hits = [
             a for a in articles
-            if any(t in a.get("title", "").lower() for t in CONTAMINATION_TERMS)
+            if any(t in a.get("title", "").lower() for t in terms)
         ]
         contaminated += len(hits)
 
@@ -169,7 +218,7 @@ def main() -> None:
         query = args.query or cfg.gdelt.query
         if not query:
             raise SystemExit("No query: pass --query or set gdelt.query in the yaml.")
-        preview_gdelt(query)
+        preview_gdelt(query, cfg.asset)
         return
 
     if args.source in ("cot", "all"):

@@ -92,12 +92,61 @@ def test_gdelt_enabled_with_query_is_accepted():
     assert cfg.features.gdelt is True
 
 
-def test_checked_in_gold_yaml_parses_with_the_new_blocks():
-    """Round-trip the real config file: the cot/gdelt blocks must map onto the
+CONFIG_DIR = Path(__file__).resolve().parents[1] / "config"
+
+
+@pytest.mark.parametrize(
+    "name,code,asset_word,other_word",
+    [("gold.yaml", "088691", "gold", "silver"),
+     ("silver.yaml", "084691", "silver", "gold")],
+)
+def test_checked_in_yaml_parses_with_the_new_blocks(name, code, asset_word, other_word):
+    """Round-trip the real config files: the cot/gdelt blocks must map onto the
     dataclasses (this catches a yaml/dataclass drift the unit tests above,
     which construct dataclasses directly, would miss)."""
-    path = Path(__file__).resolve().parents[1] / "config" / "gold.yaml"
-    cfg = load_config(path)
+    cfg = load_config(CONFIG_DIR / name)
 
-    assert cfg.cot.contract_code == "088691"
-    assert isinstance(cfg.gdelt.query, str)
+    assert cfg.cot.contract_code == code
+    assert isinstance(cfg.gdelt.query, str) and cfg.gdelt.query
+
+
+def test_each_config_names_its_own_asset_in_the_altdata_identifiers():
+    """The copy-paste failure a new asset invites, and the reason both
+    identifiers exist: a config cloned from gold's keeps gold's contract code
+    and gold's GDELT query, and then trains on gold's positioning and gold's
+    news under a silver name. Nothing downstream would raise — the shapes are
+    identical and the numbers look plausible.
+
+    The contract-code half is already refused at construction (a missing code
+    is an error, so a *wrong* one is the only way through); this pins the
+    per-asset distinctness that guard cannot check.
+    """
+    gold = load_config(CONFIG_DIR / "gold.yaml")
+    silver = load_config(CONFIG_DIR / "silver.yaml")
+
+    assert gold.cot.contract_code != silver.cot.contract_code
+    assert gold.gdelt.query != silver.gdelt.query
+    assert "silver" not in gold.gdelt.query.lower()
+    assert "gold" not in silver.gdelt.query.lower()
+    # Snapshots are symbol-keyed, so two assets can never share a pinned file.
+    assert gold.cot_snapshot_path != silver.cot_snapshot_path
+    assert gold.gdelt_snapshot_path != silver.gdelt_snapshot_path
+
+
+def test_silver_differs_from_gold_only_in_asset_identity():
+    """silver.yaml is a transferability control: every window, threshold, lag
+    and gate must match gold's, or a divergent result is just a divergent
+    config. Step 2 widened 'identity' from 3 fields to 5 — this pins that it
+    did not widen further."""
+    gold = load_config(CONFIG_DIR / "gold.yaml")
+    silver = load_config(CONFIG_DIR / "silver.yaml")
+
+    assert gold.features == silver.features
+    assert gold.label == silver.label
+    assert gold.cv == silver.cv
+    assert gold.model == silver.model
+    assert gold.backtest == silver.backtest
+    assert gold.primary == silver.primary
+    assert gold.granularity == silver.granularity
+    # The ratio describes the environment, so it is deliberately identical.
+    assert gold.crossasset == silver.crossasset

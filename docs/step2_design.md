@@ -10,10 +10,16 @@ number is only evidence relative to what was specified *before* it was read —
 the hypotheses, the exact features, the decision rules, and the count of looks.
 All of those are fixed here first.
 
-Asset scope: **gold (XAUUSD)** only. Per-asset personalisation of queries and
-contract codes is deliberately config-driven so silver/PGMs later are
-yaml-only changes — but nothing beyond gold is fetched, built or evaluated in
-step 2.
+Asset scope: **gold (XAUUSD) and silver (XAGUSD)**. Gold is the hypothesis;
+silver is the transferability control it was in step 1, run with identical
+windows, lags, thresholds and gates. *(Scope amended 2026-07-29 — this
+document originally said gold only. Silver's role, its per-asset expectations
+and the joint decision rule were fixed in §1.1 and §6.1 before any silver
+outcome was computed; the COT snapshot pinned that day is descriptive only,
+§11.)* Per-asset personalisation is config-driven, so a metal costs two yaml
+identifiers — its CFTC contract code and its GDELT query — and no code.
+**PGMs remain step 3** and are not fetched, built or evaluated here, including
+as a tie-break if gold and silver disagree (§6.1).
 
 ---
 
@@ -46,8 +52,15 @@ step 2.
 
 | freeze check | when | result |
 |---|---|---|
-| train.py bit-identical OOF on existing dataset, flags off | Phase 1 | *pending* |
-| back-to-back build_dataset comparison, flags off | Phase 4 | *pending* |
+| train.py bit-identical OOF on existing dataset, flags off | Phase 1 (config plumbing) | **pass** — max\|diff\| 0.0, AUC 0.5291 |
+| back-to-back build_dataset comparison, flags off | Phase 4 (wiring) | **pass** — max\|diff\| 0.0, AUC 0.5291; predict.py 0.7591 / thr 0.8494 / NO TRADE |
+| train.py bit-identical OOF, after removing COTConfig's default code | 2026-07-29 | **pass** — max\|diff\| 0.0, AUC 0.5291 |
+| train.py bit-identical OOF, after GDELT chunking/pacing + `_check_daily_resolution` | 2026-07-29 (silver generalisation) | **pass** — max\|diff\| 0.0 on all 4 columns × 4,845 rows, AUC 0.5291 |
+
+The last row is why the fetch-layer rewrite in §4.2 was safe to make mid-step:
+the changed code is reachable only during a network fetch, and gold's flags are
+off, so the frozen path could not move — but "could not move" is checked, not
+asserted.
 
 ---
 
@@ -80,6 +93,34 @@ volatility is the predictable quantity here (best feature vs forward vol:
 
 What would retire each hypothesis is defined in §6 (Tier-2 gate); Tier 1 (§5)
 informs interpretation but gates nothing.
+
+### 1.1 Extension to silver — expectations fixed 2026-07-29
+
+Silver joins step 2 in the role it held in step 1: a **transferability
+control**, run with the same six features, windows, lags and gates, differing
+only in the two identifiers that name the asset in an external dataset (§4.1).
+Nothing about silver's configuration may be adjusted to improve a silver
+result. Directional expectations, recorded before any silver number is read:
+
+- **H-COT is *more* plausible on silver than on gold.** Silver's futures market
+  is far smaller and more speculative, with a well-documented history of
+  crowded positioning; if managed-money crowdedness carries information
+  anywhere in the metals, silver is where it should be largest. Sample size is
+  unchanged (~327 weekly dev observations), so this remains exploratory
+  regardless of outcome.
+- **H-GDELT is *weaker and directionally ambiguous* on silver.** Gold's version
+  is a pure safe-haven story: fear up, gold up. Silver is roughly half
+  industrial demand (solar PV, electronics, brazing), so a fear shock pushes
+  its monetary leg up and its industrial leg down at the same time. The two
+  effects partially cancel. **Therefore: a weaker GDELT result on silver than
+  on gold is consistent with the mechanism and must not be read as the gold
+  result failing to replicate.** The converse is the informative surprise — a
+  *stronger* safe-haven signal on silver than gold would be evidence against
+  the safe-haven story as stated, and would need explaining before anything
+  built on it.
+
+This asymmetry is why §6.1's joint rule is written in terms of *both* assets
+passing, rather than treating silver as a straight replication test.
 
 ---
 
@@ -247,6 +288,70 @@ that mention price/bullion, previewed clean on the first attempt, and each
 additional variant is design surface. Revisit only as a pre-registered
 addendum if step 2 produces a reason to.
 
+### 4.1 Silver — query and validation record
+
+**Status 2026-07-29: candidate fixed, preview OUTSTANDING** (GDELT rate
+limiting, see §4.2). The query below is recorded *before* validation so that
+the reasoning cannot be adjusted after seeing headlines; the preview either
+clears it or sends it back for one iteration, and either outcome is logged
+here. `features.gdelt` stays false for silver until then, and no silver GDELT
+snapshot exists.
+
+```
+("silver price" OR "silver prices" OR "price of silver" OR "silver bullion" OR "silver futures") sourcelang:english
+```
+
+**Structural rule applied:** `(<price phrases> OR <physical form> OR
+<futures>) sourcelang:english` — gold's pattern, instantiated for silver.
+Phrase-matching is doing the same work it did for gold.
+
+**The one deliberate departure: bare `bullion` → `"silver bullion"`.** Bare
+`bullion` in English news is dominated by *gold* bullion coverage. Inheriting
+it would pipe a substantially gold-driven tone series into silver's features —
+wrong data for the asset, and it would collapse the independence that makes
+silver a control (§6.1). This is a structural decision made before any silver
+result exists, not a tuning knob.
+
+*Accepted asymmetry:* gold's query keeps bare `bullion` and therefore admits
+some silver-bullion coverage. Gold's snapshot and §4 record are already
+pinned; re-cutting them now would be a post-hoc change to a validated
+artifact for a second-order effect. Noted, not fixed.
+
+**Why silver needs a bigger trap list than gold.** Gold's contamination was
+one word in one context (Olympic medals), and phrase-matching killed it
+outright. "Silver" is also a surname (Nate Silver; the NBA's Adam Silver), a
+private-equity firm (Silver Lake), two US towns, a US missing-person alert, a
+restaurant chain, a racetrack, and a dozen idioms (silver lining, silver
+bullet, silver screen, silverware). `scripts/fetch_altdata.py` therefore
+carries per-asset `ASSET_CONTAMINATION_TERMS` and `ASSET_PREVIEW_WINDOWS`,
+with **no fallback** for an unregistered asset — screening a new metal's query
+against another metal's trap words would report a clean preview that validated
+nothing.
+
+Silver's windows add a **positive control** the gold set did not need: the
+retail "silver squeeze" of late Jan/early Feb 2021 is real silver-market news,
+so a query that *misses* it is too narrow, not too clean. Gold's four windows
+are unchanged, so §4's record still stands as written.
+
+### 4.2 GDELT rate limiting — an operational constraint on the design
+
+Recorded because it changed the fetch code, not just the schedule. The
+documented limit is one request per 5 seconds. Observed behaviour across
+2026-07-28/29: an 8-minute exponential-backoff ladder never escaped a 429; a
+9-minute silent probe still got 429; a day later the API answered immediately,
+then 429'd again after ~5 requests spaced 10 s apart. The binding constraint
+is therefore **request count over a long window**, not request rate, and
+retrying during a penalty extends it.
+
+Consequence for the snapshot fetch: yearly chunking cost 24 requests per asset
+for no benefit, since the API serves multi-year ranges. `fetch_gdelt` now uses
+`CHUNK_YEARS = 3` (~9 requests per asset) at 60 s spacing. The risk that
+buys — GDELT answering a wide range at weekly resolution, which would return a
+smoother series that the daily reindex pads with NaNs and *would not error* —
+is closed by `_check_daily_resolution`, which refuses any chunk whose median
+point spacing exceeds 1.5 days. Chunk width is thus a request-budget knob with
+a correctness guard, not a silent quality trade.
+
 ---
 
 ## 5. Tier-1 protocol — diagnostics, not gates
@@ -329,6 +434,47 @@ records it as a candidate input for step-4 sizing. (c) Nothing in step 2
 touches the meta-label hypothesis itself — it remains "a lead, not a result"
 regardless of what happens here.
 
+### 6.1 Joint rule across gold and silver — fixed 2026-07-29, before any silver result
+
+Running the same evaluation on a second asset **doubles the comparison count**
+against the same single holdout. That cost buys something only if the decision
+rule is fixed first — otherwise "it worked on one of them" is available after
+the fact, which is precisely the pattern that left meta-labeling as a lead
+rather than a result in step 1 (run 3: gold yes, silver no).
+
+The gate in §6 is evaluated **per asset, unchanged**. The program-level
+decision is then:
+
+| gold | silver | decision |
+|---|---|---|
+| pass | pass | **Retained.** Family goes live in both yamls; Phase D (§10) opens. |
+| pass | fail | **Not retained.** Logged as a lead, exactly meta-labeling's status. |
+| fail | pass | **Not retained.** Same treatment — the rule is symmetric, and was written that way before either number existed. |
+| fail | fail | Retired. Honest negative to §9 and CLAUDE.md. |
+
+**Thresholds are not relaxed to accommodate a one-of-two outcome**, and a
+one-of-two outcome does not license a third asset to break the tie — adding
+platinum to resolve a gold/silver disagreement would be the scope creep
+CLAUDE.md's asset-scope rule exists to prevent, and would multiply comparisons
+again. PGMs remain step 3.
+
+**How much is silver replication actually worth?** Less than two independent
+assets, and the two families differ in how much less:
+
+- **GDELT replication is the stronger evidence of the two.** After the §4.1
+  decision to use `"silver bullion"` rather than bare `bullion`, the gold and
+  silver queries share no terms, so the two news series are close to
+  independent as *inputs* — much more so than the gold/silver ratio feature,
+  which CLAUDE.md already flags as weakening cross-asset agreement.
+- **COT replication is the weaker.** Both codes come from the same weekly
+  report on the same release schedule, so availability is perfectly correlated
+  (the Feb-2023 ION outage blanks identical bars on both assets), and
+  managed-money flows across the two metals are themselves correlated. Silver
+  agreeing with gold on COT is close to one observation seen twice.
+- Underneath both: gold and silver **returns** correlate ~0.8, so the
+  *outcome* side is shared no matter how independent the inputs are. Neither
+  family's replication is worth two clean assets.
+
 ---
 
 ## 7. Power analysis — stated before evaluation
@@ -344,6 +490,14 @@ Dev window 2019-03-27 → 2025-06-30 ≈ 6.26 years.
 (2.8/√n rule; GDELT effective n deflated for overlapping forward windows —
 persistent features like `gdelt_tone_z` deflate further, toward the 20d row.
 Empirical Newey–West SEs in Tier 1 supersede these planning numbers.)
+
+**Silver's power is the same, and does not add to gold's.** Identical dev
+window, identical native frequencies — silver's COT snapshot is 1,050 reports
+over the same dates as gold's (§11). Because the two assets' returns correlate
+~0.8, pooling them would *not* give ~654 independent weekly observations; the
+combined evidence is much closer to gold's alone than to twice it. Silver is
+therefore run as a replication check under §6.1, never pooled with gold to
+manufacture sample size.
 
 Realistic ICs in this domain are 0.02–0.05. **The honest statement, made in
 advance: this development window cannot *confirm* an effect of realistic size
@@ -363,9 +517,16 @@ positive.**
 Every number read on real (non-synthetic) data is a row. A p-value quoted
 without this table is not interpretable.
 
+**Running a second asset doubles the ledger.** Every Tier-1 and Tier-2 look
+below is taken once per asset, so silver's inclusion doubles the comparison
+count charged against the one holdout. That cost is accepted because §6.1
+fixes the joint decision rule in advance; it would not be acceptable as a
+free second chance to find a positive.
+
 | # | date | action | numbers read | notes |
 |---|---|---|---|---|
 | 0 | 2026-07-28 | pre-registration written | none | this document, before any fetch |
+| 1 | 2026-07-29 | scope amended to include silver; §1.1 expectations, §4.1 query rule and §6.1 joint gate fixed | none | no outcome computed; COT snapshot sanity in §11 is feature distributions only, no forward return touched |
 
 ---
 
@@ -393,3 +554,22 @@ Snapshots are pinned artifacts; a GDELT re-fetch is a new sample.
 | date | snapshot | action | query/params | reason |
 |---|---|---|---|---|
 | 2026-07-28 | `XAUUSD_cot.parquet` | initial fetch | contract 088691, full history | 1,050 weekly reports, 2006-06-13 → 2026-07-21; median cadence 7d, 11 gaps > 7d (holidays + known interruptions) |
+| 2026-07-29 | `XAGUSD_cot.parquet` | initial fetch | contract 084691, full history | 1,050 weekly reports, 2006-06-13 → 2026-07-21; median cadence 7d, 11 gaps > 7d — identical shape to gold, as expected for one CFTC-wide release schedule |
+
+**Snapshot sanity, both COT assets (descriptive only — no forward outcome
+touched, so not a §8 look).** Built through the pinned snapshots and the
+sidecar contract check onto 10,391 development H4 bars each:
+
+| | gold | silver |
+|---|---|---|
+| NaN bars | 141 (1.36%) | 141 (1.36%) |
+| NaN span | 2023-02-15 → 2023-03-17 | 2023-02-15 → 2023-03-17 |
+| `cot_mm_net_z` mean / std | 0.122 / 1.164 | 0.185 / 1.111 |
+| `cot_prod_net_z` mean / std | 0.280 / 1.165 | −0.052 / 1.057 |
+| `cot_mm_net_chg_4w` std | 0.068 | 0.088 |
+
+The identical 141-bar hole is the ION outage on both assets — one release
+schedule, one interruption, and the reason §6.1 treats COT replication as the
+weaker of the two. Silver's 4-week positioning change is ~30% more volatile
+than gold's, consistent with §1.1's expectation that crowdedness effects
+should be larger in the smaller, more speculative market.

@@ -4,6 +4,13 @@
 # generalizes untouched. Divergent results here mean the template is really a
 # gold-shaped artifact.
 # Adding a new asset later = copy this file, change symbol/epic/instrument.
+#
+# Step 2 widened "asset identity" from three lines to five. The alt-data layer
+# needs two more identifiers that cannot be inherited — the CFTC contract code
+# and the GDELT query — because each one *names this asset* in an external
+# dataset. They are identity, not tuning: no window, threshold, lag or gate in
+# this file differs from gold's, and none may be adjusted to improve a silver
+# result. See docs/step2_design.md §4.1 for the query's validation record.
 
 asset: silver
 symbol: XAGUSD
@@ -36,12 +43,41 @@ features:
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
   crossasset: true         # gold/silver ratio — regime, not direction
 
+  # Step-2 alt-data (docs/step2_design.md). OFF until the pre-registered Tier-2
+  # evaluation says otherwise — flipping one on is a ledgered decision (§8).
+  cot: false               # CFTC COT positioning — crowdedness, contrarian hypothesis
+  gdelt: false             # GDELT news tone/attention — safe-haven hypothesis
+
 crossasset:
   # Same block in every metal's config on purpose: the ratio describes the
   # environment both metals sit in, not the asset being modeled. Needs the
   # other leg's candles on disk (scripts/fetch_data.py --config config/gold.yaml).
   numerator_symbol: XAUUSD
   denominator_symbol: XAGUSD
+
+cot:
+  # CFTC Disaggregated Futures-Only, cftc_contract_market_code for this asset.
+  # "SILVER - COMMODITY EXCHANGE INC." — verified live against the API
+  # 2026-07-29, current through the 2026-07-21 report. There is deliberately no
+  # default: inheriting gold's 088691 here would train silver on gold's
+  # positioning, silently and plausibly. Release schedule / lags are constants
+  # in features/cot.py and are CFTC-wide, so they are shared with gold — the
+  # Feb-2023 ION outage blanks the same bars on both assets.
+  contract_code: "084691"
+
+gdelt:
+  # CANDIDATE — preview validation still outstanding (GDELT rate limiting,
+  # 2026-07-29). Do NOT set features.gdelt: true for silver until
+  # docs/step2_design.md §4.1 records a clean preview. Nothing can silently
+  # use it meanwhile: no XAGUSD_gdelt.parquet exists, and the snapshot loader
+  # refuses a missing file rather than fetching one.
+  #
+  # Mirrors gold's structure with one deliberate change: gold uses bare
+  # `bullion`, silver uses the phrase "silver bullion". Bare `bullion` in
+  # English news is dominated by GOLD bullion coverage, so inheriting it would
+  # pipe gold's news series into silver's features — wrong data for the asset,
+  # and it would destroy the independence that makes silver a control (§6.1).
+  query: '("silver price" OR "silver prices" OR "price of silver" OR "silver bullion" OR "silver futures") sourcelang:english'
 
 primary:
   # The rule that picks direction under label.mode: meta. See primary.py — the
