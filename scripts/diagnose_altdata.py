@@ -74,8 +74,19 @@ def _standardized_ranks(series: pd.Series) -> pd.Series:
 
 def forward_outcomes(daily_close: pd.Series, t0: pd.Timestamp, horizon: int) -> tuple:
     """(forward log return, forward realized vol) over `horizon` trading days
-    strictly after the knowable moment t0."""
+    strictly after the knowable moment t0.
+
+    An observation older than the price series has no forward outcome and must
+    be NaN. Without the lower guard, searchsorted clamps to 0 and every such
+    observation silently receives the *same* window — the first `horizon` days
+    of the candle history. The COT snapshot starts in 2006 and the candles in
+    2019, so that was ~600 of 936 observations sharing one outcome: n inflated
+    by 2.9x, Newey-West SEs shrunk by ~1.7x, every z inflated to match, and the
+    rank correlation itself distorted by a large block of tied y-values.
+    """
     idx = daily_close.index
+    if t0 < idx[0]:
+        return np.nan, np.nan
     start = idx.searchsorted(t0, side="left")
     end = start + horizon
     if end >= len(idx):
@@ -138,6 +149,12 @@ def refuse_dirty_preregistration(allow: bool) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config/gold.yaml")
+    parser.add_argument("--source", choices=("cot", "gdelt", "all"), default="all",
+                        help="diagnose one family without the other. The families "
+                             "are independent by design, so a missing snapshot for "
+                             "one should not block Tier-1 on the other. Narrowing "
+                             "this does not narrow what counts as a look — record "
+                             "whichever tables were printed in §8.")
     parser.add_argument("--allow-dirty-preregistration", action="store_true")
     args = parser.parse_args()
     cfg = load_config(args.config)
@@ -153,28 +170,33 @@ def main() -> None:
     sections = []
 
     # --- COT: weekly observations, knowable per the lag + interruption table
-    cot_raw = cot_module.load_cot_snapshot(cfg)
-    derived = cot_module.derive_weekly(cot_raw).dropna()
-    knowable = cot_module.knowable_index(derived.index)
-    keep = knowable < dev_end - pd.Timedelta(days=45)  # room for the 20d window
-    derived, knowable = derived.loc[keep], knowable[keep]
-    # Weekly obs vs a 5-trading-day horizon barely overlap; vs 20 days each
-    # observation shares its future with ~3 neighbours.
-    table = ic_table(derived, knowable, daily_close,
-                     lambda h: max(1, round(h / 5)))
-    sections.append(("COT (weekly, n≈%d — EXPLORATORY: detectable |ic|≈0.155)"
-                     % len(derived), table))
+    if args.source in ("cot", "all"):
+        cot_raw = cot_module.load_cot_snapshot(cfg)
+        derived = cot_module.derive_weekly(cot_raw).dropna()
+        knowable = cot_module.knowable_index(derived.index)
+        # Both ends: the tail needs room for the 20d window, and the head must
+        # not precede the candles (see forward_outcomes). COT history starts in
+        # 2006, candles in 2019 — most of the snapshot is unusable here.
+        keep = (knowable < dev_end - pd.Timedelta(days=45)) & (knowable >= daily_close.index[0])
+        derived, knowable = derived.loc[keep], knowable[keep]
+        # Weekly obs vs a 5-trading-day horizon barely overlap; vs 20 days each
+        # observation shares its future with ~3 neighbours.
+        table = ic_table(derived, knowable, daily_close,
+                         lambda h: max(1, round(h / 5)))
+        sections.append(("COT (weekly, n≈%d — EXPLORATORY: detectable |ic|≈0.155)"
+                         % len(derived), table))
 
     # --- GDELT: daily observations, knowable next UTC midnight
-    gdelt_raw = gdelt_module.load_gdelt_snapshot(cfg)
-    derived = gdelt_module.derive_daily(gdelt_raw).dropna()
-    if derived.index.tz is None:
-        derived.index = derived.index.tz_localize("UTC")
-    knowable = derived.index + pd.Timedelta(days=gdelt_module.PUBLICATION_LAG_DAYS)
-    keep = knowable < dev_end - pd.Timedelta(days=45)
-    derived, knowable = derived.loc[keep], knowable[keep]
-    table = ic_table(derived, knowable, daily_close, lambda h: h)
-    sections.append(("GDELT (daily, n≈%d)" % len(derived), table))
+    if args.source in ("gdelt", "all"):
+        gdelt_raw = gdelt_module.load_gdelt_snapshot(cfg)
+        derived = gdelt_module.derive_daily(gdelt_raw).dropna()
+        if derived.index.tz is None:
+            derived.index = derived.index.tz_localize("UTC")
+        knowable = derived.index + pd.Timedelta(days=gdelt_module.PUBLICATION_LAG_DAYS)
+        keep = knowable < dev_end - pd.Timedelta(days=45)
+        derived, knowable = derived.loc[keep], knowable[keep]
+        table = ic_table(derived, knowable, daily_close, lambda h: h)
+        sections.append(("GDELT (daily, n≈%d)" % len(derived), table))
 
     report_lines = []
     for title, table in sections:
@@ -187,10 +209,16 @@ def main() -> None:
           "is a step-4 sizing candidate, not a direction signal. Ledger this run\n"
           "in docs/step2_design.md §8.")
 
-    out = cfg.reports_dir / "step2" / "tier1_diagnostics.txt"
+    # Keyed by symbol AND source: reports_dir is shared across assets, so a
+    # fixed filename meant silver's run silently overwrote gold's — and the two
+    # are compared against each other under the §6.1 joint rule, so losing one
+    # is losing half the decision.
+    suffix = "" if args.source == "all" else f"_{args.source}"
+    out = cfg.reports_dir / "step2" / f"tier1_{cfg.symbol}{suffix}.txt"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
-        f"Tier-1 diagnostics, run {pd.Timestamp.utcnow().isoformat()}\n"
+        f"Tier-1 diagnostics — {cfg.asset} ({cfg.symbol}), source={args.source}\n"
+        f"run {pd.Timestamp.utcnow().isoformat()}\n"
         f"dev slice through {dev_end.date()}\n\n" + "\n".join(report_lines)
     )
     print(f"\n-> {out}")

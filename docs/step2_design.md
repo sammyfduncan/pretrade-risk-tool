@@ -376,6 +376,54 @@ For each of the six features, on the development slice only:
 
 Every number read is a look and goes in §8.
 
+### 5.1 Tier-1 COT results — read 2026-07-29 (gold + silver, n = 332 each)
+
+GDELT is absent (no snapshot yet), so this is half the Tier-1 picture.
+Reminder from §5: **nothing is retained or retired on these numbers.**
+
+**Direction: nothing, on either metal.** `cot_mm_net_z` vs forward return is
+−0.003 (5d) / +0.086 (20d) on gold — sign flips — and −0.079 / −0.123 on
+silver. Silver's are at least *contrarian-signed*, as H-COT predicted, but at
+z = −1.40 and −1.53 they are indistinguishable from noise. This matches the
+pre-registered expectation and step 1's finding.
+
+**Volatility: one consistent candidate.** Managed-money crowdedness precedes
+higher realized volatility, positive in **4 of 4** asset × horizon cells:
+
+| | gold | silver |
+|---|---|---|
+| `cot_mm_net_z` vs vol, 5d | +0.130 (z 2.38) | +0.136 (z 2.27) |
+| `cot_mm_net_z` vs vol, 20d | +0.124 (z 1.47) | +0.199 (z 1.98) |
+| half-sample signs | +/+ , +/+ | +/+ , +/+ |
+
+Every half is same-signed, which the unstable cells below are not. The
+mechanism is plausible without any story-fitting: crowded positioning is
+unwind risk, and unwinds are large moves. It also lands exactly where §7 said
+a positive was most likely — volatility, not direction — and where step 1 put
+the only genuinely predictable quantity (best feature vs forward vol: 0.62).
+
+**Discount these, despite large |z|:** gold `cot_prod_net_z` vs 20d return
+(−0.188, z −2.27) has halves **+0.023 / −0.324**, a full sign flip; gold
+`cot_prod_net_z` vs vol (z −2.81, −2.70) has halves −0.308/−0.023 and
+−0.407/−0.057, i.e. almost entirely first-half. These are the regime-
+instability signature §5 was written to expose.
+
+**Multiple comparisons:** 24 cells per asset, 48 total. At |z| > 2 roughly
+2–3 cells are expected by chance alone, and about that many appeared — so no
+single cell is evidence. The `cot_mm_net_z`-vs-volatility pattern is
+interesting because of its *consistency across two assets, two horizons and
+both halves*, not because of any one z.
+
+**Underpowered, as pre-registered.** §7 put the detectable |ic| at ~0.155 for
+n ≈ 327; the observed vol ICs are 0.12–0.20, straddling that line. Suggestive,
+not established — and per §6.1 the COT replication between gold and silver is
+the *weak* kind (one report, one schedule, correlated flows).
+
+**Carried forward:** `cot_mm_net_z` → forward volatility is logged as a
+**step-4 position-sizing candidate**, which §6's interpretive note (b) already
+defined as a useful positive that does *not* retain the family for direction.
+Tier 2 will still test direction, per the pre-registered matrix.
+
 ---
 
 ## 6. Tier-2 protocol and the retention gate
@@ -527,6 +575,28 @@ free second chance to find a positive.
 |---|---|---|---|---|
 | 0 | 2026-07-28 | pre-registration written | none | this document, before any fetch |
 | 1 | 2026-07-29 | scope amended to include silver; §1.1 expectations, §4.1 query rule and §6.1 joint gate fixed | none | no outcome computed; COT snapshot sanity in §11 is feature distributions only, no forward return touched |
+| 2 | 2026-07-29 | Tier-1 COT, gold + silver — **VOID, discarded** | 24 cells × 2 assets | ran with the `forward_outcomes` clamping bug (below). Numbers were wrong, not merely noisy; recorded here because the ledger is append-only and the run happened |
+| 3 | 2026-07-29 | Tier-1 COT, gold + silver, after the fix | 24 cells × 2 assets, n=332 each | §5.1. GDELT not included (no snapshot) |
+
+**Look 2 was void — the bug, recorded because it is the instructive part.**
+`diagnose_altdata.forward_outcomes` located each observation's forward window
+with `searchsorted`, which **clamps to index 0** for any date before the price
+series. The COT snapshot starts 2006-06 and the candles 2019-03, so ~600 of
+936 observations were matched to *the same* March-2019 window. Effects: n
+inflated 332 → 936, Newey–West SEs shrunk ~1.7×, every z inflated to match,
+and the rank correlation distorted by a large block of tied outcomes. It threw
+no error and produced a completely plausible table with three cells at |z| > 2.
+
+The tell was the **stability column**: `ic_half1` was NaN in all 24 rows,
+because that half's outcomes were constant and rank correlation against a
+constant is undefined. The half-sample split was added to detect regime
+instability and caught a data bug instead — an argument for reporting
+diagnostics you do not strictly need.
+
+Fixed both ends (an out-of-range date returns NaN; the observation filter now
+bounds the head as well as the tail) and pinned by `tests/test_diagnostics.py`,
+including a test that the Newey–West SE must *exceed* the naive SE under
+overlap — the direction of that inequality is what keeps z-scores honest.
 
 ---
 
