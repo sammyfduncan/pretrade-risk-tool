@@ -109,16 +109,27 @@ def daily_realized_vol(h4_close: pd.Series) -> pd.Series:
 def build_b0(h4_close: pd.Series, grid: pd.DatetimeIndex) -> pd.DataFrame:
     """log trailing mean RV over the HAR windows, aligned to the grid.
 
+    The windows roll over COMPLETED trading days — `daily_realized_vol` NaNs
+    the 1–2 bar Sunday-evening stubs Dukascopy opens the week with, and
+    rolling over the raw series would let one such stub void every 22-day
+    window it touches (measured on real gold: the 22d rung had zero valid
+    rows). Dropping incomplete days first means "the last 5 days of vol"
+    means the last 5 days that HAD a day's worth of trading.
+
     Trailing windows end on the observation day itself (knowable at its
-    close). min_periods equals the window so a half-empty ladder rung is NaN
-    rather than quietly averaged over fewer days.
+    close); min_periods equals the window so a half-warm rung is NaN rather
+    than quietly averaged over fewer days. The reindex ffill (limit 2) only
+    bridges grid rows that have no completed-day RV of their own — a Sunday
+    row seeing Friday's trailing vol is exactly what was knowable that
+    evening.
     """
-    rv = daily_realized_vol(h4_close)
+    rv = daily_realized_vol(h4_close).dropna()
     out = pd.DataFrame(index=grid)
     for window in HAR_WINDOWS:
         mean_rv = rv.rolling(window, min_periods=window).mean()
         with np.errstate(divide="ignore"):
-            out[f"har_log_rv_{window}d"] = np.log(mean_rv).reindex(grid).to_numpy()
+            logged = np.log(mean_rv)
+        out[f"har_log_rv_{window}d"] = logged.reindex(grid).ffill(limit=2).to_numpy()
     return out
 
 

@@ -142,7 +142,143 @@ exist to prevent.
 | # | date | action | numbers read | notes |
 |---|---|---|---|---|
 | 0 | 2026-07-30 | this document written; GVZ/VXSLV availability verified (dates only) | none | VXSLV splice discovered and excluded before any outcome existed |
+| 1 | 2026-07-30 | B0 bug fixed in `vol_layer.build_b0` | none — NaN counts only | The 22d HAR rung had **zero** valid rows on real data: Dukascopy's 1–2 bar Sunday stubs are correctly NaN'd, and rolling over the raw daily series let one stub void every window touching it, so `dropna()` emptied the dataset and the gate crashed. Fixed to roll over *completed* trading days. Disclosure: this is a harness change made after §§0–6 were committed. It was made **before any ΔR² was read** (the only numbers inspected were per-column non-NaN counts), and it did not alter the §3 specification — three rungs, trailing 1/5/22 days, log. Pinned by `test_b0_survives_interleaved_sunday_stubs`. **Guard limitation now known:** `vol_gate.py`'s dirty-tree check covers only this document, not the harness, so it could not have caught a post-outcome harness edit. Future programs should hash the harness too. |
+| 2 | 2026-07-30 | **the §4 gate, both assets** | 14 observed ΔR² + 280 placebo ΔR² | §7 below. Gold 4 families × 2 horizons = 8 cells; silver 3 × 2 = 6 |
 
 ## 7. Outcomes
 
-*[Written after the gate runs. Nothing here yet.]*
+**Verdict, 2026-07-30: F-IV and F-CAL qualify as step-4 sizing inputs; F-COT
+and F-ATTN do not.** The first pre-registered gate this project has run that
+anything passed. Nothing here is a direction signal, nothing trades, and the
+one qualification that relied on the joint rule is weaker than the rule makes
+it look — see §7.3, which is the part to read.
+
+### 7.1 The gate, all 14 cells
+
+Baselines per §3: **B1** (price + implied vol) for COT/ATTN/CAL on gold;
+**B0** (price only) for F-IV itself, and for every silver family since silver
+has no clean IV series (§2). c1 = Δ>0 and ≥4/5 folds; c2 = Δ > max of 20
+placebos.
+
+**Gold**
+
+| family | horizon | ΔR² | R² without → with | folds | placebo max | emp. p | c1 | c2 |
+|---|---|---|---|---|---|---|---|---|
+| **IV** | 5d | **+0.0634** | 0.0906 → 0.1540 | 4/5 | +0.0015 | 0.048 | PASS | **PASS** |
+| IV | 20d | +0.0998 | 0.0111 → 0.1108 | 3/5 | +0.0151 | 0.048 | FAIL | PASS |
+| COT | 5d | −0.0429 | 0.1540 → 0.1111 | 2/5 | +0.0117 | 0.238 | FAIL | FAIL |
+| COT | 20d | −0.0932 | 0.1108 → 0.0177 | 2/5 | −0.0605 | 0.238 | FAIL | FAIL |
+| ATTN | 5d | +0.0112 | 0.1540 → 0.1651 | 3/5 | +0.0033 | 0.048 | FAIL | PASS |
+| ATTN | 20d | +0.0307 | 0.1108 → 0.1415 | 4/5 | +0.0514 | 0.286 | PASS | FAIL |
+| **CAL** | 5d | **+0.0207** | 0.1540 → 0.1747 | 4/5 | +0.0076 | 0.048 | PASS | **PASS** |
+| CAL | 20d | −0.0172 | 0.1108 → 0.0937 | 2/5 | +0.0123 | 0.714 | FAIL | FAIL |
+
+**Silver** (no IV family, so baseline is B0 throughout)
+
+| family | horizon | ΔR² | R² without → with | folds | placebo max | emp. p | c1 | c2 |
+|---|---|---|---|---|---|---|---|---|
+| COT | 5d | −0.0780 | 0.0555 → −0.0225 | 1/5 | +0.0000 | 0.429 | FAIL | FAIL |
+| COT | 20d | −0.4354 | 0.0152 → −0.4203 | 1/5 | +0.2525 | 0.667 | FAIL | FAIL |
+| ATTN | 5d | +0.0060 | 0.0555 → 0.0616 | 2/5 | +0.0308 | 0.143 | FAIL | FAIL |
+| ATTN | 20d | +0.0641 | 0.0152 → 0.0793 | 2/5 | +0.1371 | 0.095 | FAIL | FAIL |
+| **CAL** | 5d | **+0.0241** | 0.0555 → 0.0797 | **5/5** | +0.0098 | 0.048 | PASS | **PASS** |
+| CAL | 20d | −0.0002 | 0.0152 → 0.0150 | 3/5 | +0.0080 | 0.190 | FAIL | FAIL |
+
+Applying §4: **F-IV qualifies** (gold, 5d; gold-only and joint-rule-exempt by
+§2). **F-CAL qualifies** (5d, passing on both assets). **F-COT and F-ATTN do
+not qualify** at any horizon on either asset.
+
+### 7.2 All four §1 predictions were correct, including the open one
+
+Written before the harness existed:
+
+| prediction (§1) | outcome |
+|---|---|
+| "IV passes, and by the largest margin" | correct — +0.063 at 5d, the largest passing Δ; +0.100 at 20d is larger still but fails fold consistency |
+| "calendar passes at 5d, ≈ nothing at 20d" | correct, precisely — 5d +0.021/+0.024 both pass; 20d −0.017/−0.000 both fail |
+| "GDELT-attention adds ≈ nothing beyond the baseline" | correct — no cell passes both conditions; §5.2's caveat that its ic 0.27 was largely realized-vol proxy is now confirmed by direct test |
+| "COT is the genuinely open cell" | resolved **negative**, and emphatically: all four cells negative (−0.043, −0.093, −0.078, −0.435) |
+
+The GDELT one is the substantive result. Tier-1 measured attention → forward
+vol at ic 0.269 (z 5.68), the largest effect step 2 produced, and §5.2 warned
+in advance that most of it was probably a proxy for recent realized
+volatility. The matched-row test against a HAR baseline confirms it: once the
+model already knows trailing 1/5/22-day realized vol, news attention adds
++0.011 (3/5 folds) at 5d. **An ic of 0.27 became a ΔR² of 0.011.** That gap
+is the entire reason Tier-1 is labelled "diagnostics, not gates."
+
+### 7.3 The F-CAL qualification is weaker than the joint rule implies
+
+**A design gap, stated plainly.** §4 condition 3 requires a family to pass on
+both assets, and its justification — inherited from step 2 §6.1 — is that two
+assets are two chances to be fooled. That logic assumes the family has
+**per-asset inputs**: COT has a different contract code per metal, GDELT a
+different query. **F-CAL has no per-asset component at all** — gold and silver
+receive the *identical* two columns, built from the same FOMC/CPI/NFP dates.
+Since the two metals' returns correlate ~0.8 and their vol co-moves harder
+still, "passes on both" is close to **one observation reported twice**, not a
+replication.
+
+So F-CAL's honest status is: **one cell, p = 0.048, on a mechanism that is
+independently well documented** (scheduled macro events raise near-term vol)
+and that cannot be lookahead by construction. It qualifies under the letter of
+the pre-registered rule, and I am not relaxing or re-writing that rule after
+the fact. But the joint rule did no work here, and any future family without
+per-asset inputs should have that noted *before* it is run.
+
+F-IV never claimed joint support — §2 exempted it in advance for the VXSLV
+splice — so its single-asset status is a documented design fact rather than a
+shortfall.
+
+### 7.4 The placebo nulls are centred well below zero, unlike run 6's
+
+| cell | placebo mean | sd | max |
+|---|---|---|---|
+| gold IV 5d | −0.033 | 0.022 | +0.002 |
+| gold CAL 5d | −0.005 | 0.006 | +0.008 |
+| gold COT 20d | −0.680 | 1.676 | −0.061 |
+| silver COT 20d | −0.507 | 0.537 | +0.253 |
+
+Run 6's ΔAUC placebos averaged ≈0.000; these average strongly negative. The
+reason is the model, not a bug: **OLS with R²_OOS punishes uninformative
+columns** — they add fitting variance with no signal, and out-of-sample R²
+charges for that — whereas LightGBM ranking by AUC can largely ignore a junk
+feature. So the null distribution here answers "what does adding noise columns
+to an OLS do?" and the answer is "it hurts."
+
+Consequences, both directions:
+
+- The empirical p remains **valid and distribution-free** — it asks whether
+  the observed Δ falls in the tail of the no-information distribution, and
+  p = 1/21 = 0.048 is the strongest statement 20 placebos can make (0 of 20
+  exceeded). Three cells hit exactly that floor.
+- But the **margin looks more impressive than the evidence is**. "+0.063
+  versus a placebo max of +0.002" is partly "signal helps" versus "noise
+  hurts", which is a weaker contrast than "signal helps more than noise
+  appears to help". Read the empirical p, not the gap.
+- COT's 20d nulls have sd 1.68 (gold) and 0.54 (silver), and its observed
+  silver R² is **−0.42** — far worse than predicting the training mean. At
+  this horizon the COT arm is unstable enough that its point estimate carries
+  little information beyond "not helping". The verdict does not depend on the
+  magnitude: all four cells are negative and 1–2 of 5 folds improve.
+
+### 7.5 Multiple comparisons, and what is NOT claimed
+
+14 cells were run. At a 0.048 threshold roughly 0.7 false passes are expected
+by chance; three cells passed both conditions (gold IV 5d, gold CAL 5d, silver
+CAL 5d), of which the two CAL cells are near-duplicates per §7.3. This is
+consistent with two real effects, both of which have independent
+well-documented mechanisms — but it is not strong evidence on its own, and the
+step-4 addendum must treat both as candidates to be re-tested, not as
+established inputs.
+
+Not claimed: any direction edge (none was tested); any holdout result (none
+touched); that F-IV or F-CAL improves *trading* outcomes (a vol forecast is
+not a P&L); that COT or GDELT are useless for vol in general — only that they
+add nothing once a HAR baseline, and on gold implied vol, are already present.
+
+**Step-2 §9's carried-forward candidates are now resolved:** `cot_mm_net_z`
+and gold's `gdelt_vol_smooth7_z` were logged there as step-4 sizing
+candidates on Tier-1 evidence. This program tested exactly that and **retires
+both**. The surviving sizing candidates are implied vol (gold) and the event
+calendar (both), at the 5-day horizon only.

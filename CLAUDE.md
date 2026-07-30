@@ -25,6 +25,12 @@ execution steps interactively, and prefer readable code over clever code.
    disk. **Composite scoring (§10) never opened** — it was gated on a family
    surviving. Turning either family back on is a NEW pre-registered
    experiment, not a revert.
+2b. **[COMPLETE 2026-07-30 — two families PASS, for volatility not direction]**
+   `docs/step2b_vol_design.md`. Same alt-data, repointed at the question the
+   measurements supported. **Implied vol (GVZ, gold) and the scheduled-event
+   calendar (both metals) qualify as step-4 position-SIZING candidates** at the
+   5-day horizon; COT and GDELT-attention are retired for vol too. Run 7 below.
+   No direction claim, no holdout spent, nothing trading on it yet.
 3. Generalize to platinum → palladium (one at a time)
 4. Cross-asset ranking, allocation, correlation-aware sizing
 5. Paper-trade full system; live capital only after pre-registered success criteria are met
@@ -77,10 +83,15 @@ src/commodity_ml/         # installed package (pip install -e .)
   features/cot.py         # step 2: CFTC positioning; lag 7d + publication-interruption table
   features/gdelt.py       # step 2: news tone/attention from BigQuery GKG; headline matching,
                           # dedup by title. Snapshots are pinned — GDELT is not point-in-time
+  features/event_dates.py # step 2b: FOMC/CPI/NFP schedules, transcribed from primary
+                          # sources (NOT rules of thumb — "NFP = first Friday" fails 4x)
+  features/vol_layer.py   # step 2b: the volatility-forecast feature set — HAR baseline,
+                          # GVZ implied vol, event-calendar flags, log forward RV target
   evaluation/ml_metrics.py       # AUC, Brier, per-fold tables
   evaluation/trading_metrics.py  # Sharpe, profit factor, max drawdown (pure pandas, no vbt dep)
-  evaluation/placebo.py   # circular-shift nulls: how much ΔAUC does this pipeline invent
+  evaluation/placebo.py   # circular-shift nulls: how much ΔAUC/ΔR² does this pipeline invent
                           # from data that cannot help? Use for ANY new feature family
+  evaluation/vol_gate.py  # walk-forward OLS R²_OOS (train-mean benchmark) + ΔR² ablation
   backtest/engine.py      # vectorbt: OOF probabilities -> simulated long-only trades
 scripts/                  # CLI entry points, run in order:
   fetch_data.py -> build_dataset.py -> train.py -> backtest.py
@@ -91,18 +102,23 @@ scripts/                  # CLI entry points, run in order:
   diagnose_altdata.py     # step-2 Tier-1 ICs; refuses to run on an uncommitted design doc
   placebo_altdata.py      # step-2 Tier-2 gate condition 3 — verifies its own fidelity
                           # against the committed dataset before spending 20 runs
+  vol_gate.py             # step-2b gate: alt-data -> volatility, ΔR² + placebo bar
   probe_gdelt_bq.py       # read-only BigQuery schema/cost probe (free dry runs)
 docs/step1_freeze_record.md   # frozen template + holdout pre-registration (COMMITTED —
                           # the ledger of what was tried is what makes the holdout
                           # interpretable; read before spending it)
 docs/step2_design.md      # step-2 pre-registration AND outcomes (§9 = the negative result).
                           # Read before proposing any alt-data or sentiment work
+docs/step2b_vol_design.md # step-2b: the same alt-data pointed at VOLATILITY. §7 = the two
+                          # families that passed, and why F-CAL's joint support is thin
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
   test_pipeline_integration.py  # the seams between the four scripts — everything else
                           # is unit-level, so this is what catches a contract drifting
   test_placebo.py         # pins that a "null" is really a null (permutation, not
                           # truncation; no shift landing near the truth)
+  test_vol_layer.py       # step-2b: forward target is strictly forward, R² benchmark comes
+                          # from train data, event tables match the primary sources
 ```
 
 ## Commands
@@ -524,6 +540,63 @@ refuses shifts that land near the truth. This is the reusable answer to "is
 this improvement bigger than what my pipeline invents from noise?", and it
 should be the default check for any future feature family.
 
+### Run 7 (30 Jul 2026): step 2b — alt-data → VOLATILITY. Two families pass.
+
+Pre-registered in `docs/step2b_vol_design.md` before any fetch; outcomes in its
+§7. Repointing the alt-data layer from direction to volatility, because that is
+where every step-1/step-2 measurement put the information. Daily grid, target =
+log realized vol over the next 5/20 trading days, model = **OLS** (HAR is
+linear and this repo has twice measured capacity is not the constraint),
+matched-row ΔR²_OOS ablations, and **no absolute threshold — the max of 20
+circular-shift placebos IS the bar** (run 6's lesson applied).
+
+Baselines: **B0** = HAR (log trailing 1/5/22d realized vol from intraday H4
+returns). **B1** = B0 + implied vol. Alt families must beat B1 on gold, so a
+feature that merely re-derives what the options market publishes for free
+cannot pass.
+
+| family | gold 5d | gold 20d | silver 5d | silver 20d | verdict |
+|---|---|---|---|---|---|
+| **F-IV** (GVZ implied vol) | **+0.063 PASS** | +0.100, 3/5 folds | — (no clean series) | — | **qualifies**, gold 5d |
+| **F-CAL** (FOMC/CPI/NFP within h) | **+0.021 PASS** | −0.017 | **+0.024 PASS** | −0.000 | **qualifies**, 5d |
+| F-COT | −0.043 | −0.093 | −0.078 | −0.435 | retired for vol |
+| F-ATTN (`gdelt_vol_smooth7_z`) | +0.011, 3/5 | +0.031, loses to placebo | +0.006 | +0.064, 2/5 | retired for vol |
+
+**All four §1 predictions, written before the harness existed, were correct** —
+including that COT, the cell called "genuinely open", would resolve negative.
+
+**The headline lesson: an ic of 0.27 became a ΔR² of 0.011.** Tier-1 measured
+gold's news attention → forward vol at ic 0.269 (z 5.68), stable across both
+halves — the largest effect step 2 produced. §5.2 warned in advance it was
+probably proxying recent realized vol. Against a HAR baseline that already
+knows trailing 1/5/22-day vol, it adds +0.011 on 3/5 folds. **A univariate ic
+measures a feature against nothing; only an ablation measures it against what
+you already have.** This retires both of step-2 §9's carried-forward sizing
+candidates.
+
+**Three caveats that must travel with the two passes:**
+1. **F-CAL's joint-rule support is nearly vacuous.** The joint rule assumes
+   per-asset inputs (COT has a contract code per metal, GDELT a query); F-CAL
+   gives gold and silver the *identical* two columns. With returns correlated
+   ~0.8, "passes on both" is one observation reported twice. Honest status:
+   one cell at p=0.048 on a well-documented mechanism. The rule was not
+   relaxed after the fact — the gap is recorded.
+2. **These placebo nulls centre well below zero** (means −0.005 to −0.68),
+   unlike run 6's ≈0.000, because OLS + R²_OOS *punishes* junk columns while
+   trees + AUC ignore them. The empirical p stays valid and distribution-free;
+   the *margin* flatters. Read the p, not the gap.
+3. **A vol forecast is not a P&L.** Both survivors are candidate inputs for
+   the step-4 sizing/regime design, to be re-tested there under its own
+   pre-registration — not established components.
+
+Also logged (§6 look 1): the B0 22-day rung initially had **zero** valid rows —
+Dukascopy's 1–2 bar Sunday stubs are correctly NaN'd, and rolling over the raw
+daily series let one stub void every window it touched. Fixed to roll over
+completed trading days, before any ΔR² was read, without changing the §3 spec.
+**Known guard limitation:** the dirty-tree check covers the design doc only,
+not the harness, so it could not have caught a post-outcome harness edit —
+future programs should hash the harness too.
+
 ### What this implies
 
 - **Do not** respond to this by adding model capacity (XGBoost, neural nets) or
@@ -545,7 +618,24 @@ should be the default check for any future feature family.
   queries, a transformer instead of tone, ETF flows as a third family) without
   a new pre-registration; run 6's placebo distributions show this pipeline
   manufactures ΔAUC up to +0.024 from noise, so an unregistered retry is
-  overwhelmingly likely to "find" something.
+  overwhelmingly likely to "find" something. **Run 7 then closed the vol
+  question for both families too** — COT and GDELT-attention add nothing to a
+  HAR baseline either, so neither family is live for direction *or* volatility.
+- **Ask the question the data supports, and the gate becomes passable.** Run 7
+  is the counter-example to five straight negatives: the same discipline, the
+  same placebo bar, pointed at volatility instead of direction, produced two
+  qualifying families (implied vol, event calendar) on the first attempt. The
+  lesson is not "keep trying until something passes" — it is that direction was
+  measured as structurally undetectable in this window (detectable |r| ≈
+  0.14–0.28 against realistic 0.02–0.05) while vol effects were measured at
+  0.13–0.27, i.e. above the floor. **Check the power arithmetic before choosing
+  a target**, not after.
+- **A univariate ic measures a feature against nothing.** Run 7's sharpest
+  finding: gold's news attention had ic 0.269 (z 5.68) versus forward vol,
+  stable in both halves — and ΔR² of +0.011 once a HAR baseline was present.
+  Tier-1-style diagnostics rank *candidates*; only a matched-row ablation
+  against the features you already have measures *contribution*. Never quote an
+  ic as a contribution.
 - **A placebo null is now the house standard for any new feature family.**
   `scripts/placebo_altdata.py` — the observed improvement must beat the max of
   20 time-shifted runs through the identical pipeline. Run 6 is the case for

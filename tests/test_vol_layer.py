@@ -93,6 +93,27 @@ def test_daily_rv_matches_manual_std_and_masks_stub_days():
     assert np.isnan(daily_realized_vol(stub).loc["2021-03-10"])
 
 
+def test_b0_survives_interleaved_sunday_stubs():
+    """Measured on real gold before this pin existed: Dukascopy opens each
+    week with a 1-2 bar Sunday session, that day's RV is (correctly) NaN, and
+    rolling over the raw series voided every 22-day window one touched — the
+    long HAR rung had ZERO valid rows. The ladder must roll over completed
+    trading days instead."""
+    close = make_h4()
+    # Thin every Sunday to a 2-bar stub, like the real feed.
+    is_sunday = close.index.dayofweek == 6
+    sunday_keep = pd.Series(False, index=close.index)
+    for day in np.unique(close.index.date[is_sunday]):
+        bars = close.index[(close.index.date == day)]
+        sunday_keep[bars[:2]] = True
+    stubbed = close[~is_sunday | sunday_keep]
+
+    grid = stubbed.resample("1D").last().dropna().index
+    b0 = build_b0(stubbed, grid)
+    long_rung = b0[f"har_log_rv_{HAR_WINDOWS[-1]}d"]
+    assert long_rung.notna().mean() > 0.8, "one weekly stub must not void the ladder"
+
+
 def test_b0_is_causal_and_warms_up_honestly():
     close = make_h4()
     grid = close.resample("1D").last().dropna().index
