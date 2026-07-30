@@ -879,6 +879,10 @@ ledger counts.
 
 ## 9. Outcomes
 
+*Successor program: the volatility question these results license is
+pre-registered separately in `docs/step2b_vol_design.md` (2026-07-30). This
+document stays closed.*
+
 **Verdict, 2026-07-30: neither family is retained. 4 of 4 combinations fail the
 §6 gate.** `features.cot` and `features.gdelt` return to false in both configs;
 both snapshots stay on disk; the step-1 frozen template stands unchanged.
