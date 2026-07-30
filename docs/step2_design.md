@@ -839,6 +839,9 @@ free second chance to find a positive.
 | 4 | 2026-07-29 | GDELT re-validation previews under headline matching, gold + silver | none | §4/§4.1. Headlines and syndication counts only; no price series loaded, no forward outcome computed. Not a look — see the §8 note below |
 | 5 | 2026-07-29 | GDELT snapshots fetched + coverage/`PAGE_TITLE` probes | none | §11, §4.3 finding 4. Row counts, date ranges, story densities, partition metadata. Descriptive only |
 | 6 | 2026-07-29 | Tier-1 GDELT, gold + silver | 24 cells × 2 assets, n≈1,931 each | §5.2. Ran only after the pre-registration was committed — the dirty-tree guard refused the first attempt. **Running total: 48 COT + 48 GDELT = 96 Tier-1 cells** |
+| 7 | 2026-07-30 | `features.cot`/`features.gdelt` set true in both configs; both datasets rebuilt | none | Phase 7 begins. Required by §6: ablations need ONE dataset with both families on. Not a retention decision. Datasets now 10,138 (gold) / 10,143 (silver) rows × 42 features, starting 2020-02-02 per §4.3 finding 4 |
+| 8 | 2026-07-30 | `placebo_altdata.py` smoke test, gold/gdelt, **n=2** | 1 ΔAUC + 2 placebo ΔAUCs | Validating the new harness, not the gate (which needs 20). Observed ΔAUC **−0.0026**. Recorded because the number was read; superseded by look 9 |
+| 9 | 2026-07-30 | Placebo battery, 20 runs × 2 families × 2 assets | 4 observed ΔAUC + 80 placebo ΔAUCs | §9. The pre-registered §6 condition-3 calibration |
 
 **Look 2 was void — the bug, recorded because it is the instructive part.**
 `diagnose_altdata.forward_outcomes` located each observation's forward window
@@ -876,7 +879,129 @@ ledger counts.
 
 ## 9. Outcomes
 
-*[Written after Tier 2, against the §6 gate. Nothing here yet.]*
+**Verdict, 2026-07-30: neither family is retained. 4 of 4 combinations fail the
+§6 gate.** `features.cot` and `features.gdelt` return to false in both configs;
+both snapshots stay on disk; the step-1 frozen template stands unchanged.
+
+### 9.1 The gate, all four combinations
+
+Matched-row ablations in meta mode on the development slice, one dataset per
+asset built with both families on. ΔAUC is pooled OOF, full model minus the
+model with that family's six columns removed — identical rows, identical folds.
+Placebos: 20 circular time-shifts of the family's source snapshot per cell,
+through the identical pipeline (`scripts/placebo_altdata.py`).
+
+| combination | ΔAUC | folds + | c1 ≥ +0.015 | c2 ≥ 4/5 | c3 > placebo max | placebo max | emp. p |
+|---|---|---|---|---|---|---|---|
+| gold / COT | −0.0117 | 1/5 | FAIL | FAIL | FAIL | +0.0121 | 0.952 |
+| gold / GDELT | −0.0026 | 4/5 | FAIL | PASS | FAIL | +0.0239 | 0.619 |
+| silver / COT | −0.0069 | 2/5 | FAIL | FAIL | FAIL | +0.0182 | 0.810 |
+| silver / GDELT | **+0.0198** | **5/5** | **PASS** | **PASS** | FAIL | +0.0210 | 0.095 |
+
+Component AUCs (the full 42-feature model is the common `with` arm):
+
+| asset | full model | drop COT | drop GDELT |
+|---|---|---|---|
+| gold | 0.5052 | **0.5169** | 0.5077 |
+| silver | 0.5017 | 0.5086 | **0.4820** |
+
+**Every observed effect on gold is negative, and dropping COT is gold's best
+configuration.** That is what adding uninformative columns to a model with no
+signal to dilute looks like.
+
+### 9.2 The near-miss is the reason this document exists
+
+`silver / gdelt` returned ΔAUC **+0.0198 with all five folds positive**. Under
+any conventional standard — a positive effect above a pre-set threshold,
+unanimous across folds — that is a discovery, and it is exactly the result that
+would have been written up as "the sentiment layer works on silver."
+
+Three pre-registered checks retire it, and none of them are post-hoc:
+
+1. **The placebo null (§6 condition 3).** The best of 20 time-shifted-noise
+   runs scored **+0.0210**, above the observed +0.0198. Empirical p = 0.095.
+   One in twenty runs of data that *cannot* carry information did better.
+2. **It appeared on the asset §1.1 predicted would be weaker.** The
+   pre-registered mechanism says GDELT should be *stronger* on gold
+   (safe-haven/monetary) and *weaker* on silver (industrial demand offsets the
+   fear trade). Observed: gold −0.0026, silver +0.0198. An effect that shows up
+   only where the mechanism says it should be faintest, and vanishes where it
+   should be strongest, is evidence **against** the mechanism. Had the pattern
+   been reversed, §1.1 would have been confirmed — writing the expectation down
+   first is what makes this direction readable at all.
+3. **The "improvement" ends at a coin flip.** Silver's control AUC without
+   GDELT is **0.4820** — worse than chance. Adding GDELT moves it to 0.5017.
+   The six features are not adding signal; they are diluting an inverted fit
+   back toward no-information. Nothing tradeable is produced by moving from
+   actively-wrong to random, and a ΔAUC headline conceals that entirely.
+
+### 9.3 The threshold was too lenient, measured
+
+The placebo distributions have a mean of ≈0.000 (−0.0011, +0.0002, +0.0020,
++0.0051) — the null is centred where it should be, which is the harness's own
+sanity check. Their spread is the finding:
+
+| cell | placebo sd | placebo 90th pct | placebo max |
+|---|---|---|---|
+| gold / COT | 0.0074 | +0.0074 | +0.0121 |
+| gold / GDELT | 0.0076 | +0.0066 | +0.0239 |
+| silver / COT | 0.0101 | +0.0144 | +0.0182 |
+| silver / GDELT | 0.0073 | +0.0138 | +0.0210 |
+
+**In 3 of 4 cells the best noise run cleared the pre-registered +0.015
+threshold.** Condition 1 was therefore not a meaningful bar — a family could
+have passed it on time-shifted noise alone, with roughly a 1-in-20 chance per
+cell across eight opportunities (two families × two assets × two label modes).
+§6 asserted this in advance without a number: *"Condition 1 alone is a screen,
+not evidence… The gate's evidential content is condition 3."* It now has a
+number.
+
+**The threshold is NOT being revised.** It is pre-registered, nothing passed
+it, and moving a fixed number after seeing results is the failure this design
+exists to prevent. Recorded as a finding for any future addendum: an absolute
+ΔAUC threshold is not transferable across sample sizes, and a placebo null
+should set the bar instead. Silver's wider null (sd 0.0101 on COT) is itself
+consistent with §1.1a — fewer stories and fewer COT-independent observations
+mean a noisier estimate, so noise has more room to imitate signal.
+
+### 9.4 What step 2 produced
+
+**Negative on direction, from two independent data families, on two assets —
+the pre-registered expected outcome.** §7 said, before any snapshot existed:
+*"honest negative on direction for both families; GDELT-attention vs volatility
+is the likeliest positive."* Both halves held.
+
+Carried forward under §6's interpretive note (b) — useful positives that do
+**not** retain a family for direction:
+
+- `cot_mm_net_z` → forward volatility (positive in 4/4 asset × horizon cells,
+  every half same-signed, §5.1)
+- gold `gdelt_vol_smooth7_z` → forward volatility (ic 0.269/0.277, z 5.68/3.44,
+  stable across both halves, §5.2) — **but** Tier-2 shows it adds no AUC, which
+  is consistent with §5.2's stated caveat that it largely proxies recent
+  realized volatility, which the price features already carry. It is a
+  step-4 **sizing** candidate, not a direction input, and its Tier-1 ic must
+  not be quoted as a contribution.
+
+**This is now the third independent confirmation of step 1's central
+asymmetry**: volatility is forecastable in this domain, direction is not.
+Price technicals said so (0.62 vs 0.05), macro said so across horizons 3–40
+days, and positioning plus news sentiment now say so too.
+
+**Phase D (§10) does not open.** It is gated on a family surviving; none did.
+
+### 9.5 What was NOT done, deliberately
+
+- No threshold relaxed, no feature redefined, no window retuned after seeing a
+  number.
+- **No third asset added** to break the silver/gold disagreement — §6.1
+  forbids it, and it is what would have turned a 1-in-20 noise result into a
+  "two of three" replication story.
+- The holdout was not touched. Step 2 spent no holdout data and adds its
+  comparisons to the §8 ledger against the same single holdout.
+- The silver GDELT near-miss is **not** logged as a lead requiring follow-up.
+  It fails its own mechanism prediction and ends at AUC 0.5017; treating it as
+  promising would be the multiple-comparisons trap with extra steps.
 
 ---
 

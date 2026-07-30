@@ -228,5 +228,6 @@ reports/*
 !models/.gitkeep
 !reports/.gitkeep
 
-# Ai assistance
+#llm
 CLAUDE.md 
+.claude/

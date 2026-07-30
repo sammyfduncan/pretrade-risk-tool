@@ -17,11 +17,14 @@ execution steps interactively, and prefer readable code over clever code.
 1. **[TEMPLATE FROZEN, HOLDOUT UNSPENT — no confirmed edge] Price-only ML pipeline for gold**
    Pipeline validated, no directional signal found. Meta-labeling is a lead, not
    a result (run 5). Frozen at `69f0527`; see `docs/step1_freeze_record.md`.
-2. **[IN PROGRESS since 2026-07-28]** Sentiment/alt-data layer + composite
-   scoring — CFTC COT positioning + GDELT news tone, pre-registered in
-   `docs/step2_design.md` (read it before running or proposing anything).
-   **Gold is the hypothesis, silver the transferability control** (scope
-   amended 2026-07-29, decision rule fixed first — design §6.1). No PGMs.
+2. **[COMPLETE 2026-07-30 — HONEST NEGATIVE. Neither family retained.]**
+   Sentiment/alt-data layer — CFTC COT positioning + GDELT news tone,
+   pre-registered in `docs/step2_design.md`. The §6 retention gate failed on
+   **4 of 4** asset × family combinations (run 6 below; outcomes in §9).
+   `features.cot` and `features.gdelt` are back to `false`; snapshots stay on
+   disk. **Composite scoring (§10) never opened** — it was gated on a family
+   surviving. Turning either family back on is a NEW pre-registered
+   experiment, not a revert.
 3. Generalize to platinum → palladium (one at a time)
 4. Cross-asset ranking, allocation, correlation-aware sizing
 5. Paper-trade full system; live capital only after pre-registered success criteria are met
@@ -71,20 +74,35 @@ src/commodity_ml/         # installed package (pip install -e .)
   modeling/walkforward.py # TimeSeriesSplit walk-forward harness, OOF predictions
   modeling/sample_weights.py  # label-uniqueness weights (overlapping labels aren't independent)
   modeling/calibration.py     # per-fold isotonic/Platt + the CalibratedModel artifact
+  features/cot.py         # step 2: CFTC positioning; lag 7d + publication-interruption table
+  features/gdelt.py       # step 2: news tone/attention from BigQuery GKG; headline matching,
+                          # dedup by title. Snapshots are pinned — GDELT is not point-in-time
   evaluation/ml_metrics.py       # AUC, Brier, per-fold tables
   evaluation/trading_metrics.py  # Sharpe, profit factor, max drawdown (pure pandas, no vbt dep)
+  evaluation/placebo.py   # circular-shift nulls: how much ΔAUC does this pipeline invent
+                          # from data that cannot help? Use for ANY new feature family
   backtest/engine.py      # vectorbt: OOF probabilities -> simulated long-only trades
 scripts/                  # CLI entry points, run in order:
   fetch_data.py -> build_dataset.py -> train.py -> backtest.py
   predict.py              # live decision path; groundwork, order placement not wired up
   find_epic.py, compare_sources.py   # IG setup + cross-source validation
+  fetch_altdata.py        # step 2: pins COT/GDELT snapshots (+ --preview to validate a
+                          # query before spending a 540 GB BigQuery scan)
+  diagnose_altdata.py     # step-2 Tier-1 ICs; refuses to run on an uncommitted design doc
+  placebo_altdata.py      # step-2 Tier-2 gate condition 3 — verifies its own fidelity
+                          # against the committed dataset before spending 20 runs
+  probe_gdelt_bq.py       # read-only BigQuery schema/cost probe (free dry runs)
 docs/step1_freeze_record.md   # frozen template + holdout pre-registration (COMMITTED —
                           # the ledger of what was tried is what makes the holdout
                           # interpretable; read before spending it)
+docs/step2_design.md      # step-2 pre-registration AND outcomes (§9 = the negative result).
+                          # Read before proposing any alt-data or sentiment work
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
   test_pipeline_integration.py  # the seams between the four scripts — everything else
                           # is unit-level, so this is what catches a contract drifting
+  test_placebo.py         # pins that a "null" is really a null (permutation, not
+                          # truncation; no shift landing near the truth)
 ```
 
 ## Commands
@@ -439,6 +457,73 @@ single-use resource on a test whose only informative outcome is a negative one.
 The pre-registered protocol, predictions and decision rules are fixed in the
 freeze record for whenever it *is* spent.
 
+### Run 6 (30 Jul 2026): step 2 alt-data — negative on 4 of 4, gate held
+
+The full pre-registered program in `docs/step2_design.md` ran to its decision
+point. **Neither COT positioning nor GDELT news sentiment adds directional
+information to either metal.** Flags are back to `false`; the step-1 template
+is re-verified bit-identical (AUC 0.5291) after the ablation datasets were
+rebuilt away.
+
+Matched-row ablations (one dataset per asset with both families on, ablated by
+`train.py --exclude-family`), meta mode, development slice, ΔAUC = full model
+minus that family's six columns:
+
+| combination | ΔAUC | folds + | placebo max | emp. p | gate |
+|---|---|---|---|---|---|
+| gold / COT | −0.0117 | 1/5 | +0.0121 | 0.952 | FAIL |
+| gold / GDELT | −0.0026 | 4/5 | +0.0239 | 0.619 | FAIL |
+| silver / COT | −0.0069 | 2/5 | +0.0182 | 0.810 | FAIL |
+| silver / GDELT | **+0.0198** | **5/5** | +0.0210 | 0.095 | **FAIL (c3 only)** |
+
+Component AUCs — dropping COT is gold's *best* configuration:
+
+| asset | full (42 feat) | drop COT | drop GDELT |
+|---|---|---|---|
+| gold | 0.5052 | **0.5169** | 0.5077 |
+| silver | 0.5017 | 0.5086 | **0.4820** |
+
+**The near-miss is the whole point.** `silver/gdelt` returned +0.0198 with
+5/5 folds positive — under any conventional standard, a discovery. Three
+pre-registered checks retired it:
+
+1. **The placebo null.** Best of 20 circular time-shifts of the source
+   snapshot: **+0.0210**, above the observed +0.0198. One in twenty runs of
+   data that *cannot* carry information did better.
+2. **Wrong asset.** §1.1 predicted in advance that GDELT would be *stronger*
+   on gold and *weaker* on silver (industrial demand offsets the fear trade).
+   Observed the reverse. An effect present only where the mechanism says it
+   should be faintest is evidence **against** the mechanism.
+3. **It ends at a coin flip.** Silver's control AUC is 0.4820 — worse than
+   chance. GDELT moves it to 0.5017, i.e. it dilutes an inverted fit back
+   toward no-information. A ΔAUC headline hides that completely.
+
+**Measured: the +0.015 threshold was too lenient.** Placebo means were ≈0.000
+(the null is centred correctly) but **in 3 of 4 cells the best noise run
+cleared +0.015**. §6 asserted "condition 1 alone is a screen, not evidence"
+in advance; that now has a number. The threshold was **not** revised — nothing
+passed it, and moving a pre-registered number after seeing results is the
+failure the design exists to prevent. For any future addendum: an absolute
+ΔAUC threshold does not transfer across sample sizes; let a placebo set the bar.
+
+**Tier-1 diagnostics (§5.1, §5.2), which gate nothing:** direction was null on
+all 96 cells. Volatility was not — `cot_mm_net_z` → forward vol is positive in
+4/4 asset × horizon cells, and gold's `gdelt_vol_smooth7_z` → forward vol is
+ic 0.269/0.277 (z 5.68/3.44), stable across both time halves. **But Tier 2
+shows it adds no AUC**, consistent with §5.2's pre-stated caveat that it mostly
+proxies recent realized volatility, which the price features already carry.
+Both are **step-4 position-SIZING candidates only** — never quote their Tier-1
+ic as a contribution.
+
+**A new tool worth knowing about:** `scripts/placebo_altdata.py` +
+`src/commodity_ml/evaluation/placebo.py` generate an empirical null by
+circularly shifting a source snapshot through the identical pipeline. It
+verifies its own fidelity first (a zero-shift pass must reproduce the
+committed dataset — currently max |Δ| = 0.00e+00 across 45 float columns) and
+refuses shifts that land near the truth. This is the reusable answer to "is
+this improvement bigger than what my pipeline invents from noise?", and it
+should be the default check for any future feature family.
+
 ### What this implies
 
 - **Do not** respond to this by adding model capacity (XGBoost, neural nets) or
@@ -451,8 +536,21 @@ freeze record for whenever it *is* spent.
   Ranking assets against each other is a *relative* (cross-sectional) problem,
   and cross-sectional momentum is far better documented than time-series
   direction prediction. Steps 3–4 test a different hypothesis than step 1 did.
-- **The sentiment layer (step 2) is now the main open hypothesis** for
-  differentiated information, which is what the README always argued.
+- **The sentiment layer was the main open hypothesis for differentiated
+  information, and run 6 closed it negative.** COT positioning and GDELT news
+  tone both fail the pre-registered gate on both metals. The README's argument
+  that differentiated information is where an edge would come from may still be
+  right — but these two free, backtestable proxies for it are not that
+  information. **Do not propose a variant of either as a fix** (broader
+  queries, a transformer instead of tone, ETF flows as a third family) without
+  a new pre-registration; run 6's placebo distributions show this pipeline
+  manufactures ΔAUC up to +0.024 from noise, so an unregistered retry is
+  overwhelmingly likely to "find" something.
+- **A placebo null is now the house standard for any new feature family.**
+  `scripts/placebo_altdata.py` — the observed improvement must beat the max of
+  20 time-shifted runs through the identical pipeline. Run 6 is the case for
+  it: a +0.0198 ΔAUC with 5/5 folds positive, which any conventional standard
+  would have called a discovery, sat *inside* the noise distribution.
 - **Meta-labeling is the one price-only idea still alive** (runs 3-5), because
   it asks the model a regime question rather than a direction question. But
   after run 5 it is **explicitly not validated**: p ≈ 0.036 on 86 effective
@@ -506,18 +604,20 @@ freeze record for whenever it *is* spent.
   replication is scope creep and multiplies comparisons). Tuning cannot create
   information that isn't present, and every extra variant tried before the
   holdout is spent makes the holdout weaker evidence.
-- **Step 2 (sentiment) — STARTED 2026-07-28, design fixed in
-  `docs/step2_design.md`.** Two independent feature families: CFTC COT
+- **Step 2 (sentiment) — DONE 2026-07-30, negative. Design and outcomes in
+  `docs/step2_design.md`.** Two independent feature families were built,
+  validated and evaluated to their pre-registered decision point: CFTC COT
   positioning (Socrata `72hh-3qpy`, lag 7d, publication-interruption table)
-  and GDELT DOC 2.0 tone/attention (daily timelines, pinned
-  non-point-in-time snapshots, preview-validated query). Exactly six
-  pre-registered features; matched-row ablations via `train.py
-  --exclude-family`; retention gate = ΔAUC ≥ +0.015 AND ≥4/5 folds AND beating
-  the max of 20 circular-shift placebos. RSS dropped (no archive → not
-  backtestable); ETF flows deferred; transformer only if a lexicon-grade
-  baseline shows signal. Composite scoring (weighted ML prob + sentiment z) is
-  GATED on a family surviving — do not build it early. PGM query
-  personalisation (South Africa/Russia supply + auto demand) waits for step 3.
+  and GDELT tone/attention (BigQuery `gdelt-bq.gdeltv2.gkg_partitioned`,
+  headline matching, deduplicated by title, pinned non-point-in-time
+  snapshots, preview-validated phrase lists). Six pre-registered features,
+  matched-row ablations, the three-condition gate — **all four asset × family
+  combinations failed** (run 6). Composite scoring was gated on a survivor and
+  therefore never built. Code, snapshots and the placebo harness all remain;
+  only the yaml flags are off. Left unbuilt as designed: RSS (no archive → not
+  backtestable), ETF flows, any transformer (it was contingent on a
+  lexicon-grade baseline showing signal — it did not), and PGM query
+  personalisation, which waits for step 3.
 - **Step 2 on silver (added 2026-07-29).** Silver is the transferability
   control, same six features and same gate. An asset costs **two yaml
   identifiers and no code**: `cot.contract_code` (gold 088691, silver 084691,

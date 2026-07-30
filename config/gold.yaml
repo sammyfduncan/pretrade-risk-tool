@@ -32,8 +32,17 @@ features:
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
   crossasset: true         # gold/silver ratio — regime, not direction
 
-  # Step-2 alt-data (docs/step2_design.md). OFF until the pre-registered Tier-2
-  # evaluation says otherwise — flipping one on is a ledgered decision (§8).
+  # Step-2 alt-data (docs/step2_design.md). Both OFF again as of 2026-07-30:
+  # the pre-registered §6 retention gate FAILED on 4 of 4 combinations (§9).
+  # Neither family adds directional information — every observed AUC delta on
+  # gold was negative, and silver's one positive (+0.0198, 5/5 folds) lost to
+  # the max of 20 time-shifted placebos. The snapshots stay on disk so the
+  # result is reproducible; the features stay off.
+  #
+  # Turning either back on is a NEW pre-registered experiment, not a revert.
+  # `cot_mm_net_z` and `gdelt_vol_smooth7_z` remain step-4 position-SIZING
+  # candidates (they forecast volatility, not direction) — that is a different
+  # question and does not license enabling them here.
   cot: false               # CFTC COT positioning — crowdedness, contrarian hypothesis
   gdelt: false             # GDELT news tone/attention — safe-haven hypothesis
 
