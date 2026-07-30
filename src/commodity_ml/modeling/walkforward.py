@@ -93,6 +93,7 @@ def walk_forward(
     exit_time: pd.Series | None = None,
     sample_weighting: str = "none",
     calibration: str = "none",
+    purge_by_exit_time: bool = False,
 ) -> WalkForwardResult:
     """Run expanding-window walk-forward training and collect OOF predictions."""
     if not X.index.is_monotonic_increasing:
@@ -102,6 +103,8 @@ def walk_forward(
             "sample_weighting='uniqueness' needs each label's exit_time "
             "(the 'exit_time' column produced by labels.make_labels)."
         )
+    if purge_by_exit_time and exit_time is None:
+        raise ValueError("purge_by_exit_time=True requires exit_time")
 
     tscv = TimeSeriesSplit(n_splits=n_splits, gap=gap)
     result = WalkForwardResult(
@@ -112,11 +115,24 @@ def walk_forward(
     calibrated_chunks: list[pd.Series] = []
 
     for fold, (train_idx, test_idx) in enumerate(tscv.split(X)):
+        if purge_by_exit_time:
+            test_start = X.index[test_idx[0]]
+            train_exit = pd.to_datetime(exit_time.iloc[train_idx], utc=True)
+            train_idx = train_idx[(train_exit < test_start).to_numpy()]
+            if not len(train_idx):
+                raise ValueError(f"Fold {fold} has no rows after exit-time purging")
         X_train, y_train = X.iloc[train_idx], y.iloc[train_idx]
         weights = _fold_weights(sample_weighting, X_train.index, exit_time)
 
         calibrator = _fit_fold_calibrator(
-            X_train, y_train, weights, gap, model_kind, calibration
+            X_train,
+            y_train,
+            weights,
+            gap,
+            model_kind,
+            calibration,
+            exit_time=exit_time,
+            purge_by_exit_time=purge_by_exit_time,
         )
 
         model = _fit(make_model(model_kind), X_train, y_train, weights)
@@ -155,6 +171,7 @@ def fit_final_model(
     sample_weighting: str = "none",
     calibration: str = "none",
     gap: int = 0,
+    purge_by_exit_time: bool = False,
 ) -> CalibratedModel:
     """Fit on all available history — the artifact for future/live prediction.
 
@@ -164,7 +181,16 @@ def fit_final_model(
     one without the other.
     """
     weights = _fold_weights(sample_weighting, X.index, exit_time)
-    calibrator = _fit_fold_calibrator(X, y, weights, gap, model_kind, calibration)
+    calibrator = _fit_fold_calibrator(
+        X,
+        y,
+        weights,
+        gap,
+        model_kind,
+        calibration,
+        exit_time=exit_time,
+        purge_by_exit_time=purge_by_exit_time,
+    )
     model = _fit(make_model(model_kind), X, y, weights)
     return CalibratedModel(
         model=model, calibrator=calibrator, feature_names=list(X.columns)
@@ -190,6 +216,9 @@ def _fit_fold_calibrator(
     gap: int,
     model_kind: str,
     calibration: str,
+    *,
+    exit_time: pd.Series | None = None,
+    purge_by_exit_time: bool = False,
 ):
     """Fit the calibrator on a gapped tail of the training block only."""
     if calibration == "none":
@@ -199,6 +228,17 @@ def _fit_fold_calibrator(
     if split is None:
         return IdentityCalibrator()
     fit_rows, cal_rows = split
+    if purge_by_exit_time:
+        if exit_time is None:
+            raise ValueError("Calibration purging requires exit_time")
+        calibration_start = X_train.index[cal_rows[0]]
+        fit_exit = pd.to_datetime(
+            exit_time.loc[X_train.index[fit_rows]],
+            utc=True,
+        )
+        fit_rows = fit_rows[(fit_exit < calibration_start).to_numpy()]
+        if not len(fit_rows):
+            return IdentityCalibrator()
 
     inner = _fit(
         make_model(model_kind),

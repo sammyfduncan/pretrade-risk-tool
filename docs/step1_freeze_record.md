@@ -3,8 +3,13 @@
 > **Historical H4 record — preserved, not the active build plan.** The user
 > selected an H1/M30 intraday redesign on 2026-07-30, with M15 as an optional
 > execution challenger. See `docs/intraday_rebuild_plan.md`. Nothing in that
-> redesign changes the results, ledger, freeze, or ownership of the H4 holdout
-> recorded here.
+> redesign changes the results or ledger recorded here.
+>
+> **Holdout disposition, fixed 2026-07-30 without reading outcomes:** the H4
+> strategy is retired without spending its underpowered holdout. The still
+> unread `2025-07-01` onward window is reassigned once as the intraday
+> program's historical confirmation window. It may confirm or retire the
+> fully frozen intraday version; it may not tune it. See intraday plan §2.6.
 
 **Written 2026-07-28, before the holdout has been read.** Frozen at commit
 `69f0527`.

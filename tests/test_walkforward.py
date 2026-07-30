@@ -56,6 +56,27 @@ def test_unsorted_index_rejected():
         walk_forward(X_shuffled, y, n_splits=4, gap=12, model_kind="logistic")
 
 
+def test_candidate_walkforward_purges_trades_open_at_test_start():
+    X, y = synthetic_xy(n=600)
+    # Irregular candidates whose outcomes remain open for 10 hours.
+    keep = np.arange(len(X)) % 3 != 0
+    X, y = X.loc[keep], y.loc[keep]
+    exit_time = pd.Series(X.index + pd.Timedelta(hours=10), index=X.index)
+
+    wf = walk_forward(
+        X,
+        y,
+        n_splits=4,
+        gap=0,
+        model_kind="logistic",
+        exit_time=exit_time,
+        purge_by_exit_time=True,
+    )
+
+    for fold in wf.folds:
+        assert exit_time.loc[fold.train_end] < fold.test_start
+
+
 def test_config_rejects_gap_smaller_than_horizon():
     with pytest.raises(ValueError, match="gap_bars"):
         AssetConfig(

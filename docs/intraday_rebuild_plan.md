@@ -1,6 +1,6 @@
 # Intraday commodity-system rebuild plan
 
-**Status:** ACTIVE DESIGN — documentation decision only; implementation has not started
+**Status:** MANDATE FROZEN — broker/risk correctness foundation implemented
 
 **Decision date:** 2026-07-30
 
@@ -54,21 +54,189 @@ No H4 result is erased. The historical records remain:
 
 M5 and faster scalping are outside version 1.
 
-## 2. Decisions still required before code changes
+## 2. Frozen version-1 mandate
 
-The following must be resolved explicitly rather than tuned from results:
+These decisions were fixed on 2026-07-30 before any intraday strategy outcome
+was read. They are starting hypotheses, not numbers selected from a sweep.
+Changing one after results creates a new version and a new comparison in the
+ledger.
 
-1. Exact daily position cutoff and the session/timezone it follows.
-2. Whether the first version can take both long and short trades.
-3. Maximum simultaneous positions and correlated-metals exposure.
-4. Risk per trade plus daily and weekly loss limits.
-5. Which exact specifications represent the three permitted primary families.
-6. Ownership of the old H4 holdout and the clean prospective boundary for the
-   intraday program.
-7. IG epic, minimum size, typical spread, and trading hours for each asset.
+### 2.1 Session, cutoff, and event restrictions
 
-Until these are fixed, the repository's H4 configs remain the executable
-historical configuration.
+- Session timezone: `Europe/London`, so the broker rollover rule follows UK
+  daylight-saving time.
+- Eligible entry window: **07:00 inclusive to 19:30 exclusive** London time.
+  Signals may be computed outside the window for logging, but cannot open a
+  position.
+- Forced-flat cutoff: **21:30 London time**, 30 minutes before IG's usual
+  22:00 funding boundary. The position exits at the close of the final complete
+  M30/M15 bar ending at or before the cutoff.
+- Holidays and broker early closes override the normal cutoff: flatten no later
+  than 30 minutes before the published close.
+- Version 1 does not enter during the Asian/overnight session and does not
+  carry positions through the daily funding boundary.
+- CPI and NFP: no new entry from 30 minutes before until 30 minutes after the
+  exact release timestamp.
+- FOMC rate decision/statement: no new entry from 30 minutes before until
+  60 minutes after.
+- An existing position is not automatically closed solely because a blackout
+  begins; its pre-defined stop, target, timeout, and daily cutoff still apply.
+  A future event-exit rule would be a separate experiment.
+
+### 2.2 Direction and position overlap
+
+- Version 1 may trade **both long and short**. Intraday metals have no
+  defensible long-only drift strong enough to justify discarding half the
+  primary hypotheses.
+- The primary rule chooses the side; ML never reverses it.
+- Before the allocator exists, assets are researched separately and only one
+  position may be open.
+- The first portfolio allocator also starts with **one open precious-metals
+  position portfolio-wide**. This avoids pretending that simultaneous
+  gold/silver/PGM positions are independent. Raising the limit requires a
+  separate correlation/exposure gate.
+- A candidate arriving while a position is open is logged and rejected; it is
+  not queued for a later, different price.
+
+### 2.3 Risk limits
+
+- Initial stop risk: **0.25% of current equity per trade** (`1R`).
+- Maximum gross notional exposure: **100% of current equity**. If the broker's
+  minimum size cannot satisfy both the stop-risk and notional caps, the asset
+  is paper-only.
+- Maximum new entries: **three per London trading day** portfolio-wide.
+- Daily loss gate: after realized plus open P&L reaches **−0.75%** from the
+  day's starting equity (`−3R`), flatten any open position and allow no new
+  entries until the next London trading day.
+- Weekly loss gate: after realized plus open P&L reaches **−1.50%** from the
+  week's starting equity (`−6R`), flatten and pause until the next London
+  Monday.
+- The daily and weekly gates may stop trading; they may never increase size to
+  recover losses.
+- Minimum-size live trading may use less than 0.25% risk. It may not use more
+  without a pre-defined scale review.
+
+### 2.4 Common executable trade contract
+
+All three primary families use the same contract:
+
+- Candle timestamps denote bar **open** time.
+- A candidate is known only after its signal bar closes.
+- Entry is the **next contiguous M30 bar open**. M15 may later refine that
+  entry only under the §4 cost gate.
+- No candidate may fill across a missing bar, session boundary, or market
+  closure.
+- Stop/target distances use information fixed at the signal close and are
+  anchored to the actual next-bar entry price.
+- Stop and target checks use the entry/future bars' real high and low.
+- If one OHLC bar touches both stop and target, resolve to the stop
+  (conservative/adverse ordering).
+- Timeouts exit at the relevant bar close. The daily cutoff overrides a longer
+  timeout.
+- With complete bid/ask candles, longs enter at ask and exit/check barriers at
+  bid; shorts enter at bid and exit/check barriers at ask. Partial quote candles
+  are invalid. Mid OHLC plus the configured flat cost remains only a research
+  fallback where quote history is unavailable.
+- When quotes are present, the configured per-side cost is an additional
+  commission/slippage allowance because spread is already embedded in the
+  executable prices. Promotion requires observed/time-varying IG spread plus
+  slippage stress.
+- The ML label is `1` only when the **net** trade return after costs is
+  positive; otherwise it is `0`.
+
+Here `ATR` means M30 Wilder ATR(14) computed through the signal close, and `R`
+means the fixed entry-to-stop distance.
+
+### 2.5 Exact primary strategy hypotheses
+
+#### P1 — London opening-range breakout
+
+- Opening range: M30 bars opening from **07:00 through 08:30** London time
+  (the two-hour `[07:00, 09:00)` window).
+- Compression gate: that range is no larger than `1.25 ×` the median opening
+  range of the previous 20 valid London sessions.
+- H1 direction gate, using the last completed H1 bar:
+  - long: close above EMA50 and EMA50 above its value three H1 bars earlier;
+  - short: close below EMA50 and EMA50 below its value three H1 bars earlier.
+- Signal: the first eligible M30 close after 09:00 that closes at least
+  `0.10 × ATR` beyond the opening-range high (long) or low (short), aligned
+  with the H1 gate.
+- Maximum one P1 trade per asset per London day.
+- Stop: `1.00 × ATR`.
+- Target: `1.50R`.
+- Timeout: six M30 bars (three hours) or the daily cutoff, whichever comes
+  first.
+
+#### P2 — H1 trend, M30 pullback continuation
+
+- H1 long regime: EMA20 above EMA50, close above EMA20, and EMA50 above its
+  value three H1 bars earlier. The short regime is the exact inverse.
+- Long M30 signal: the bar low touches or crosses EMA20, then closes above
+  EMA20 with a positive candle body, and its close is no farther than
+  `0.50 × ATR` above EMA20.
+- Short M30 signal: the bar high touches or crosses EMA20, then closes below
+  EMA20 with a negative candle body, and its close is no farther than
+  `0.50 × ATR` below EMA20.
+- Maximum two P2 trades per asset per London day, still subject to the
+  portfolio-wide three-entry limit.
+- Stop: `1.00 × ATR`.
+- Target: `1.50R`.
+- Timeout: eight M30 bars (four hours) or the daily cutoff, whichever comes
+  first.
+
+#### P3 — non-trending-regime mean reversion
+
+- H1 non-trending gate, using the last completed H1 bar:
+  - `abs(EMA20 − EMA50) / close <= 0.25 × ATR14 / close`; and
+  - `abs(EMA50 − EMA50.shift(3)) / close <= 0.25 × ATR14 / close`.
+- M30 excursion/re-entry signal:
+  - long: previous close below its lower Bollinger Band(20, 2), followed by a
+    close back above the current lower band;
+  - short: previous close above its upper band, followed by a close back below
+    the current upper band.
+- Maximum one P3 trade per asset per London day.
+- Stop: `1.00 × ATR`.
+- Target: `1.00R`.
+- Timeout: four M30 bars (two hours) or the daily cutoff, whichever comes
+  first.
+
+No neighboring thresholds, alternative EMA lengths, or additional indicator
+confirmations are part of the first registered look.
+
+### 2.6 Evaluation boundary and holdout ownership
+
+- Historical intraday development data ends **2025-06-30 23:59 UTC**.
+- The old H4 strategy is retired without spending its underpowered holdout.
+  Its `2025-07-01` onward window is reassigned, still unread for strategy
+  outcomes, as the intraday program's **single-use historical confirmation
+  window**.
+- The confirmation window is not opened until the execution contract, three
+  primary strategies, cost assumptions, and retention gates are implemented
+  and committed.
+- Confirmation outcomes may confirm or retire version 1; they may not tune it.
+  A changed version waits for prospective data.
+- **2026-07-31 00:00 UTC onward** is the prospective boundary. Data after that
+  time may be used for feed/operational diagnostics, but its strategy P&L is
+  reserved for the frozen paper-performance stage.
+
+### 2.7 IG instrument admission gate
+
+IG epics, minimum sizes, and account-specific spreads must be discovered from
+the user's demo account; they must never be guessed or hardcoded.
+
+An asset is admitted only if:
+
+1. `scripts/find_epic.py` identifies the regional epic and the user confirms
+   the intended spot-metal market;
+2. published/dealt hours cover the §2.1 entry window and cutoff;
+3. recent IG and Dukascopy M30/H1 returns pass the source-comparison gate;
+4. minimum size can keep stop risk at or below 0.25% and gross notional at or
+   below 100% of equity;
+5. median observed round-trip spread plus slippage is at most `0.10R`; and
+6. the 95th-percentile stressed round-trip cost is at most `0.25R`.
+
+Gold and silver are checked first. Platinum and palladium remain excluded until
+their own admission records pass.
 
 ## 3. Target architecture
 
@@ -124,6 +292,14 @@ Requirements:
 
 An ML filter is retained only if it improves the underlying rule rather than
 merely producing attractive standalone metrics.
+
+Implementation detail: each primary family receives its own candidate dataset
+and model because its mechanism and setup-distance features differ. Initial
+training uses deep Dukascopy H1/M30 development history; recent IG data is the
+execution/feed-parity control, not a substitute bulk training source. Candidate
+folds are purged using actual trade exit times rather than a fixed number of
+irregular candidate rows. The complete retraining lifecycle is frozen in
+`docs/intraday_ml_retraining.md`.
 
 ### 3.3 Volatility and event-risk layer
 
@@ -394,24 +570,38 @@ Size increases occur only at pre-defined review points.
 
 ## 11. Ordered implementation plan
 
-1. **Mandate freeze**
-   - resolve §2 decisions;
-   - append exact rule specifications and evaluation boundaries here;
-   - commit before reading new outcomes.
-2. **Execution-contract repair**
-   - implement §8 items;
-   - add parity and cost-model tests.
+1. **Mandate freeze — COMPLETE 2026-07-30**
+   - §2 fixes session/cutoff, long/short, risk, three exact primary rules,
+     evaluation boundaries, holdout disposition, and IG admission gates;
+   - no intraday strategy outcome was read.
+2. **Execution-contract repair — IN PROGRESS**
+   - standalone next-bar-open OHLC resolver and reason-coded ledger implemented;
+   - quote-aware long/short fills, explicit-cost separation, frozen stop sizing,
+     and portfolio loss/entry gates implemented;
+   - synthetic parity, quote, cost, cutoff, blackout, early-close, sizing,
+     threshold, non-overlap, and exact candidate-label tests added;
+   - IG quote ingestion, UTC bar handling, account/market adapters, shifted-feed
+     source parity, and a fail-closed dry paper-intent harness implemented;
+   - persisted artifact reconciliation, persistent restart/idempotency state,
+     live streaming, and actual demo-account validation remain before this phase
+     is complete.
 3. **Intraday data path**
-   - fetch/build H1 and M30;
+   - **implemented:** granularity-specific fetch artifacts and causal completed
+     H1 -> M30 joins;
+   - **implemented:** development-only base builder and confirmation fence;
    - support synchronized M15 inputs without making M15 mandatory;
-   - validate Dukascopy/IG parity.
+   - live-validate Dukascopy/IG parity with the user's account.
 4. **Primary rules**
-   - implement the three pre-registered families;
+   - **implemented:** exact P1/P2/P3 candidate generators and ATR-distance
+     candidate contract;
+   - build real development artifacts before evaluating bare controls;
    - evaluate bare controls on gold.
 5. **ML challenger**
-   - candidate-only labels;
-   - logistic and LightGBM;
-   - OOF, effective-n, calibration, and placebo gates.
+   - **implemented:** candidate-only dataset schema and exact execution labels;
+   - **implemented:** logistic/LightGBM research trainer with exit-time-purged
+     OOF folds, uniqueness weighting, and no deployment threshold;
+   - pending: real candidate counts, retention threshold, bare-rule comparison,
+     calibration and placebo gates.
 6. **Risk layer**
    - intraday volatility baseline;
    - event-calendar ablation;
@@ -445,3 +635,102 @@ Version 1 succeeds as a project if it produces:
 
 Profit is required before meaningful live scale, but an honest negative remains
 a valid research result.
+
+## 13. Implementation ledger
+
+### 2026-07-30 — mandate freeze and execution-contract foundation
+
+- Fixed every former §2 open decision using the user's authorization to choose
+  conservative commodity-specific defaults.
+- Reassigned the unread old H4 holdout once as the frozen intraday historical
+  confirmation window; no outcomes were read.
+- Added `commodity_ml.intraday.execution` without modifying the historical H4
+  label or vectorbt paths.
+- The new resolver uses next-contiguous-bar open, real OHLC barriers, adverse
+  same-bar ordering, London/DST-aware cutoff, early-close overrides, scheduled
+  entry blackouts, round-trip costs, long/short symmetry, and a one-position
+  reason-coded ledger.
+- Labels are derived from the exact net executed outcomes.
+- This entry records correctness work only. No P1/P2/P3 signal was generated,
+  backtested, or inspected.
+
+### 2026-07-30 — quote-aware fills and executable risk policy
+
+- Extended the same resolver to accept complete mid + bid/ask OHLC candles.
+  Long fills and barriers now use ask-to-bid economics, short fills and barriers
+  use bid-to-ask economics, crossed or partial quotes fail closed, and each
+  ledger row records whether it used quotes or the mid-price fallback.
+- Kept observed spread and explicit friction separate: quote spread is embedded
+  in gross return, while `cost_pct_per_side` represents additional
+  commission/slippage.
+- Added deterministic stop-based sizing using broker minimum size, size
+  increment, account-currency point value, a 0.25% stop-risk budget, and the
+  100% gross-notional cap. An instrument is rejected when its minimum size
+  exceeds either cap.
+- Added portfolio gates for one open position, three entries per London day,
+  and exact daily/weekly equity thresholds. Current equity explicitly includes
+  open P&L; a loss-gate breach requests an immediate flatten.
+- These are policy primitives for the future allocator/paper loop. They are not
+  yet wired to broker contract metadata, quote collection, or order placement.
+- This entry is correctness work only. No P1/P2/P3 outcome or confirmation data
+  was read.
+
+### 2026-07-30 — IG admission and dry paper boundary
+
+- The canonical candle schema now preserves a complete bid/ask OHLC set and
+  fails closed on partial, crossed, non-finite, or internally invalid quotes.
+  IG historical conversion requests `snapshotTimeUTC` through trading-ig's
+  flat formatter, avoiding local-time/DST ambiguity.
+- Added bounded recent IG quote-window fetching and M15/M30/H1 CLI granularity
+  overrides without changing the frozen H4 configs.
+- Added account snapshots where equity is balance plus open P&L, current market
+  quote freshness/status/delay checks, market metadata parsing, and broker
+  position-ID reconciliation.
+- IG minimum deal size is read from the account-specific market. Size increment
+  and account-currency P&L per price point must be confirmed from that demo
+  order ticket and configured explicitly; the system refuses to infer them
+  from a different regional epic or product.
+- Replaced the print-only source comparison with a reusable gate covering exact
+  timestamp coverage, contiguous returns, tracking error, and ±2-bar shift
+  detection. A materially better shifted alignment is a failure, not a pass.
+- Added closed-bar freshness/contiguity checks and the frozen median `0.10R` /
+  p95 `0.25R` spread-plus-slippage admission gates.
+- Added a dry paper-intent path that combines broker reconciliation, duplicate
+  intent IDs, kill switch, account/product checks, quote freshness, spread
+  history, daily/weekly loss gates, and stop/notional/minimum-size sizing.
+  It produces an auditable order-shaped object but contains no submission call.
+- Added `scripts/audit_ig.py` for the admission checks and
+  `scripts/paper_dry_run.py` for an explicit candidate plumbing check. Both are
+  non-dealing commands.
+- No IG credentials were available during implementation, so live account facts
+  remain unverified. No primary strategy, confirmation outcome, or new P&L was
+  generated or read.
+
+### 2026-07-30 — causal intraday data, primary rules, and ML training contract
+
+- Added a development-only H1/M30 builder. H1 state is keyed by bar-close
+  availability and joined backward to the M30 decision time with a bounded
+  staleness tolerance; a forming H1 candle cannot enter a feature row.
+- Added causal previous-session and completed opening-range state plus the
+  normalized H1/M30 foundation features.
+- Implemented the exact frozen P1 opening breakout, P2 trend pullback, and P3
+  non-trending Bollinger re-entry conditions. These generate both long and
+  short candidates without ML.
+- Corrected the candidate/execution representation so a signal-close ATR stop
+  remains an absolute price distance across a next-bar entry gap. Targets are
+  exact `R` multiples of that distance.
+- The simulator now applies the frozen one/two/one per-family daily entry caps
+  and the three-entry portfolio cap to executed trades, while retaining
+  reason-coded rejected signals.
+- Added a strict candidate-only ML dataset: features are enumerated by strategy,
+  exit/label metadata cannot become inputs, and incomplete warmup rows fail
+  loudly rather than disappearing.
+- Extended walk-forward training with actual-exit-time purging for irregular
+  candidates. Added a research trainer that always supports the logistic
+  baseline and LightGBM challenger, saves OOF scores, and deliberately saves no
+  deployment threshold.
+- Added `docs/intraday_ml_retraining.md`. Initial data is Dukascopy H1/M30;
+  IG supplies parity, spread, and eventual paper/live truth. Frozen performance
+  paper trading never retrains.
+- No intraday raw artifacts were fetched and no P1/P2/P3 outcome or model score
+  was generated or read during this implementation work.

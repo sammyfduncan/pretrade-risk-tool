@@ -38,7 +38,9 @@ preserved in the historical design records:
 - Implied volatility (GVZ for gold) and the scheduled-event calendar qualified
   as volatility-sizing candidates at a five-day horizon. They are not direction
   signals and must be re-tested for the new intraday target.
-- The original gold holdout remains unspent.
+- The original gold H4 holdout was never spent on the retired H4 strategy. Its
+  unread `2025-07-01` onward window is now reserved as the intraday program's
+  single-use historical confirmation window; it cannot be used for tuning.
 
 These results reject the tested **H4 public-feature direction hypothesis**.
 They do not establish that commodities, price-based rules, or ML are unusable.
@@ -48,6 +50,7 @@ Historical records:
 - [`docs/step1_freeze_record.md`](docs/step1_freeze_record.md)
 - [`docs/step2_design.md`](docs/step2_design.md)
 - [`docs/step2b_vol_design.md`](docs/step2b_vol_design.md)
+- [`docs/intraday_ml_retraining.md`](docs/intraday_ml_retraining.md)
 
 ## 3. Active system design
 
@@ -78,17 +81,16 @@ The agreed cadence is:
 - **M15:** optional execution/refinement challenger, retained only if its extra
   opportunities survive realistic spread, slippage, and latency assumptions.
 
-This is an intraday project. The working assumption is that positions are not
-held overnight routinely, although the exact daily cutoff and exceptional
-handling must be fixed before implementation.
+This is an intraday project. Positions are forced flat by 21:30 London time,
+with earlier close overrides; entries are allowed from 07:00 to before 19:30.
 
 M5 and faster scalping are out of scope for the first intraday version. At
 those frequencies the available OHLC data and CFD execution model are not
 adequate to make realistic claims.
 
-The currently committed configs still describe the frozen H4 research
-pipeline. Documentation has moved first; changing data, labels, configs, and
-backtests belongs to the new pre-registered implementation program.
+The committed yaml configs still reproduce the frozen H4 research pipeline.
+Intraday fetching uses explicit H1/M30 granularity artifacts, and the new
+builders write separate intraday base/candidate/model paths.
 
 ## 5. Primary strategy research
 
@@ -102,6 +104,9 @@ families before reading results:
 Each family must define its entry, side, exit, stop, maximum holding time,
 session restrictions, event restrictions, and cost assumptions before
 evaluation.
+
+The exact P1/P2/P3 rules and candidate generators are implemented. They have
+not yet been run on real intraday development artifacts or evaluated.
 
 The existing RSI, MACD, Bollinger, EMA, return, ATR, volatility, candle-shape,
 and calendar features already cover the common technical-indicator families.
@@ -136,6 +141,13 @@ information.
 A pooled multi-asset model may later be evaluated as a challenger once at
 least three assets exist, but it must be tested against independent per-asset
 models and with leave-one-asset-out transfer checks.
+
+Initial retraining is now specified: deep Dukascopy H1/M30 development history
+creates executable candidates; each rule gets its own logistic baseline and
+LightGBM challenger; folds purge trades still open at the test boundary. The
+training command saves no deployment threshold, so a research artifact cannot
+silently become a paper model. See
+[`docs/intraday_ml_retraining.md`](docs/intraday_ml_retraining.md).
 
 ## 7. News and event data
 
@@ -190,6 +202,15 @@ Before any new performance experiment:
 - session, holiday, and daily-cutoff behavior must be explicit; and
 - trade-by-trade label/backtest parity must be tested.
 
+The isolated intraday engine now enforces the timing/OHLC contract, accepts
+complete bid/ask candles for executable long and short fills, and exposes the
+frozen stop-sizing and portfolio loss gates. The IG adapter now retains
+time-varying quotes, reads account/market metadata, compares exact timestamps
+and returns against Dukascopy, and can build a fully checked **dry** paper
+intent. Real order submission remains deliberately disabled; account-specific
+epic, size increment, and point value must be confirmed before the dry harness
+will pass.
+
 The old H4 backtest omitted some of this realism. Its ML and feature-ablation
 conclusions remain useful, but its PF and Sharpe are not estimates of live
 intraday profitability.
@@ -208,17 +229,23 @@ intraday profitability.
   drawdown, turnover, time in cash, exposure concentration, and slippage.
 - A result is not promoted on a few favorable weeks.
 
-The H4 holdout belongs to the frozen H4 question and must not be casually
-re-used. Holdout ownership and the prospective evaluation boundary for the
-intraday program must be fixed before its first outcome is read.
+Historical development ends 2025-06-30. The unread `2025-07-01` onward window
+is the intraday program's single-use historical confirmation period, opened
+only after the full version-1 contract and gates are committed. Data from
+2026-07-31 onward is the prospective paper boundary.
 
 ## 11. Build order
 
-1. Freeze this intraday design and resolve the remaining mandate decisions.
-2. Repair label/backtest/execution correctness without searching for alpha.
-3. Build H1/M30 datasets and M15-compatible execution inputs.
-4. Evaluate the pre-registered primary rule families on gold.
-5. Add ML as a challenger only to surviving rules.
+1. **Complete:** freeze the intraday mandate in plan §2.
+2. **In progress:** repair label/backtest/execution correctness without
+   searching for alpha. Broker/quote/risk dry-run controls are implemented;
+   persistent paper restart state and live validation remain.
+3. **Implemented, not yet run on real artifacts:** causal H1/M30 base,
+   candidate datasets, and confirmation fence. M15 remains pending.
+4. **Implemented, not yet evaluated:** exact pre-registered P1/P2/P3 candidate
+   generators on gold.
+5. **Training foundation implemented:** candidate-only logistic/LightGBM
+   research trainer. Real candidate counts and retention gates remain.
 6. Re-test volatility and scheduled-event risk controls at intraday horizons.
 7. Transfer the frozen pattern to silver, then platinum and palladium.
 8. Build correlation-aware allocation with an explicit cash outcome.
@@ -243,15 +270,19 @@ Live trading begins only at minimum viable size, with per-trade, daily,
 weekly, per-asset, and portfolio risk limits plus a global kill switch. A
 paper/shadow instance continues alongside live.
 
-## 13. Open decisions
+## 13. Frozen version-1 mandate
 
-Before implementation begins, fix:
+The mandate is fixed in
+[`docs/intraday_rebuild_plan.md` §2](docs/intraday_rebuild_plan.md):
 
-- the daily flat-position cutoff and timezone/session definition;
-- whether version 1 may trade short as well as long;
-- the exact primary strategy specifications;
-- the new historical/prospective evaluation boundary;
-- risk per trade and daily/weekly loss limits; and
-- IG epics and minimum executable sizes for every asset.
+- entries from 07:00 to before 19:30 Europe/London;
+- forced flat by 21:30, with earlier holiday handling;
+- both long and short trades;
+- one open precious-metals position portfolio-wide;
+- 0.25% initial stop risk, −0.75% daily and −1.50% weekly loss gates;
+- exact P1 opening-breakout, P2 trend-pullback, and P3 mean-reversion rules;
+- next-contiguous-bar-open execution with actual OHLC barriers; and
+- account-specific IG admission gates rather than guessed epics or sizes.
 
-These are mandate decisions, not parameters to infer after reading a backtest.
+These are pre-outcome choices. A later change creates a new version and a new
+ledger entry.

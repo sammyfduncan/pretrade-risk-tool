@@ -25,8 +25,9 @@ data:
   # end omitted -> now
 
   # Fenced off on 2026-07-28, after the first two runs had already informed the
-  # label/timeframe/feature choices. Nothing from here on is used for training,
-  # tuning or inspection until the template is frozen; then it is spent ONCE.
+  # label/timeframe/feature choices. The H4 strategy was retired without reading
+  # it; intraday plan §2.6 reassigns this unread window once as the frozen
+  # intraday historical confirmation period. It may not be used for tuning.
   holdout_start: "2025-07-01"
 
   dukascopy:
@@ -36,8 +37,12 @@ data:
   ig:
     # IG identifies markets by "epic", not ticker. Epics differ per account region,
     # so this is left unset deliberately — find yours with:
-    #     python scripts/find_epic.py --search "spot gold"
+    #     python scripts/find_epic.py --search "spot silver"
     epic: null
+    # Confirm both from this exact epic's DEMO order ticket before paper work.
+    # They are account-currency/product facts, not values to copy from examples.
+    size_increment: null
+    value_per_price_unit: null  # account-currency P&L for size 1 and a 1.0 price move
 
 features:
   technical: true          # price-path indicators — strong on volatility, weak on direction

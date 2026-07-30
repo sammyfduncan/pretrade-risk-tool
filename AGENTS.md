@@ -47,11 +47,16 @@ execution steps interactively, and prefer readable code over clever code.
    uniquely unsuitable for ML; they establish that the tested H4, public-feature
    direction hypothesis has no confirmed edge. The user explicitly chose to
    remain in commodities and redesign around intraday primary strategies.
-3. **[ACTIVE DESIGN — implementation not started] Intraday rebuild.**
+3. **[PHASE 1 ACTIVE — correctness foundation implemented] Intraday rebuild.**
    `docs/intraday_rebuild_plan.md`: H1 regime/context, M30 default
    entries/management, M15 optional; no routine overnight exposure. Resolve
    mandate decisions, then repair label/backtest/execution correctness before
-   reading new performance outcomes.
+   reading new performance outcomes. The isolated intraday resolver now covers
+   quote-aware fills and the frozen risk/sizing policy; synchronized intraday
+   data/candidate generation and the candidate-only ML research trainer are now
+   implemented but have not been run on real intraday artifacts. Broker
+   quote/metadata adapters, shifted-feed parity, and the non-dealing dry
+   paper-intent boundary also await demo-account validation.
 4. Pre-register and evaluate at most three primary strategy families on gold:
    session breakout/range expansion, trend continuation after pullback, and
    regime-conditioned mean reversion.
@@ -96,9 +101,11 @@ src/commodity_ml/         # installed package (pip install -e .)
                           # dataset rather than letting exit_bars/exit_time become features
   decision.py             # live trade/no-trade rule (rule long AND score >= threshold)
   primary.py              # direction rule for meta-labeling (model only filters it)
-  data/schema.py          # canonical candle contract + per-source granularity maps
+  data/schema.py          # canonical mid + optional complete bid/ask candle contract
   data/dukascopy.py       # bulk free history -> training data
-  data/ig.py              # broker API: epics, recent bars, allowance guard, execution later
+  data/ig.py              # broker API: UTC quotes, account/market metadata, positions,
+                          # historical allowance guard; no order submission
+  data/parity.py          # exact timestamps, contiguous returns, and shifted-feed gate
   features/pipeline.py    # THE shared feature path — training and live both call it
   features/technical.py   # pandas-ta-classic indicators + hand-rolled features
   features/macro.py       # FRED real yields/dollar/VIX; publication lags = lookahead risk
@@ -115,6 +122,15 @@ src/commodity_ml/         # installed package (pip install -e .)
                           # sources (NOT rules of thumb — "NFP = first Friday" fails 4x)
   features/vol_layer.py   # step 2b: the volatility-forecast feature set — HAR baseline,
                           # GVZ implied vol, event-calendar flags, log forward RV target
+  intraday/execution.py   # ACTIVE: next-bar-open OHLC trade/label contract, London cutoff,
+                          # quote-aware fills, blackouts, costs, and reason-coded rejections
+  intraday/data.py        # ACTIVE: causal completed-H1 -> M30 base and session features
+  intraday/strategies.py  # ACTIVE: exact frozen P1/P2/P3 long/short candidate rules
+  intraday/ml_dataset.py  # ACTIVE: explicit candidate-only feature/metadata contract
+  intraday/risk.py        # ACTIVE: stop-based sizing, notional/min-size caps, portfolio
+                          # daily/weekly loss gates and entry-count/overlap controls
+  intraday/market_data.py # ACTIVE: complete-bar/freshness and spread-in-R admission gates
+  intraday/paper.py       # ACTIVE: fail-closed dry order-intent construction; non-dealing
   evaluation/ml_metrics.py       # AUC, Brier, per-fold tables
   evaluation/trading_metrics.py  # Sharpe, profit factor, max drawdown (pure pandas, no vbt dep)
   evaluation/placebo.py   # circular-shift nulls: how much ΔAUC/ΔR² does this pipeline invent
@@ -124,7 +140,12 @@ src/commodity_ml/         # installed package (pip install -e .)
 scripts/                  # CLI entry points, run in order:
   fetch_data.py -> build_dataset.py -> train.py -> backtest.py
   predict.py              # live decision path; groundwork, order placement not wired up
-  find_epic.py, compare_sources.py   # IG setup + cross-source validation
+  find_epic.py, compare_sources.py   # IG setup + shifted-feed source validation
+  audit_ig.py             # live read-only admission audit; bounded historical allowance use
+  paper_dry_run.py        # explicit candidate -> checked intent; NEVER submits an order
+  build_intraday_data.py  # development-only causal H1/M30 base; no confirmation rows
+  build_intraday_candidates.py # exact bare-rule executions -> candidate ML artifact
+  train_intraday.py       # purged OOF logistic/LightGBM research artifacts; no threshold
   fetch_altdata.py        # step 2: pins COT/GDELT snapshots (+ --preview to validate a
                           # query before spending a 540 GB BigQuery scan)
   diagnose_altdata.py     # step-2 Tier-1 ICs; refuses to run on an uncommitted design doc
@@ -141,6 +162,7 @@ docs/step2b_vol_design.md # step-2b: the same alt-data pointed at VOLATILITY. §
                           # families that passed, and why F-CAL's joint support is thin
 docs/intraday_rebuild_plan.md # ACTIVE: H1/M30/M15 architecture, gates, build order,
                           # paper protocol, and open mandate decisions
+docs/intraday_ml_retraining.md # candidate ML data, validation, freeze, and refit protocol
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
   test_pipeline_integration.py  # the seams between the four scripts — everything else
@@ -153,9 +175,9 @@ tests/                    # synthetic-data tests, no network or credentials need
 
 ## Commands
 
-These commands currently reproduce the **historical frozen H4 pipeline**.
-Intraday configs and commands do not exist yet; documentation moved first so
-implementation can be pre-registered.
+The first block reproduces the **historical frozen H4 pipeline**. Intraday
+price/admission commands use explicit granularity overrides so the frozen yaml
+timeframe is not mutated.
 
 ```bash
 source .venv/bin/activate            # Python 3.13 venv (3.14 too new for numba)
@@ -173,6 +195,23 @@ python scripts/predict.py       --config config/gold.yaml   # latest bar -> trad
 python scripts/find_epic.py --search "spot gold"
 python scripts/fetch_data.py --config config/gold.yaml --source ig --start 2026-05-01
 python scripts/compare_sources.py --config config/gold.yaml
+
+# Intraday broker-boundary diagnostics (credentials + confirmed IG config facts)
+python scripts/fetch_data.py --config config/gold.yaml --source dukascopy --granularity M30
+python scripts/fetch_data.py --config config/gold.yaml --source ig --granularity M30 \
+  --start 2026-07-01
+python scripts/compare_sources.py --config config/gold.yaml --granularity M30
+python scripts/audit_ig.py --config config/gold.yaml --granularity M30 \
+  --stop-distance-pct 0.01
+# paper_dry_run.py requires an explicit synthetic/strategy candidate and still
+# submits no order; use --help for the required state and risk arguments.
+
+# Intraday development path (development slice only by default)
+python scripts/fetch_data.py --config config/gold.yaml --granularity H1
+python scripts/fetch_data.py --config config/gold.yaml --granularity M30
+python scripts/build_intraday_data.py       --config config/gold.yaml
+python scripts/build_intraday_candidates.py --config config/gold.yaml --strategy P1
+python scripts/train_intraday.py            --config config/gold.yaml --strategy P1 --model both
 ```
 
 ## Hard rules (from README methodology — apply to every component)
@@ -194,9 +233,11 @@ python scripts/compare_sources.py --config config/gold.yaml
   not out-of-sample with respect to design decisions, because those decisions
   were made after reading them. Do not spend the holdout until the template is
   frozen, and do not tune anything after spending it.
-- **The H4 holdout belongs to the frozen H4 question.** Do not silently spend
-  or repurpose it for the intraday redesign. Fix the intraday program's
-  prospective evaluation boundary before reading its first outcome.
+- **Holdout ownership was resolved before intraday outcomes.** The H4 strategy
+  is retired without spending its underpowered holdout. The still unread
+  `2025-07-01` onward window is reassigned once as the fully frozen intraday
+  program's historical confirmation window; it may not tune version 1.
+  `2026-07-31` onward is prospective.
 - **Any strategy that filters a rule must be compared against the bare rule.**
   A filter that doesn't beat its own primary signal is decoration.
 - **Backtests use out-of-fold predictions only** — never predictions from a model
@@ -228,9 +269,12 @@ python scripts/compare_sources.py --config config/gold.yaml
   management clock; M15 is an optional execution challenger. M15 is retained
   only if realistic time-varying spread, slippage, latency, and OHLC execution
   assumptions show incremental net value. M5 and faster are out of scope.
-- **Holding style:** intraday with no routine overnight exposure. Exact daily
-  cutoff and session/timezone are still mandate decisions and must be fixed
-  before implementation.
+- **Holding style:** intraday with no routine overnight exposure. Entries are
+  allowed from 07:00 to before 19:30 Europe/London and forced flat by 21:30,
+  with earlier holiday/market closes.
+- **Direction/risk:** both long and short; one open precious-metals position
+  portfolio-wide; 0.25% initial stop risk, −0.75% daily and −1.50% weekly
+  loss gates. Exact rules and event blackouts are frozen in intraday plan §2.
 - **Direction source:** no more unconstrained per-bar ML direction search.
   Complete primary rules create candidate trades and choose the side.
 - **ML role:** logistic baseline and LightGBM challenger on candidate trades
@@ -787,23 +831,31 @@ It did not spend the holdout or run a new outcome experiment.
   profitability.
 - **Preserve the evidence inside this repository.** The intraday redesign is a
   new documented program, not a rewrite of the H4 ledger. Keep the historical
-  records and H4 holdout intact; commit the new mandate, rules, costs, and
-  evaluation boundary before reading intraday outcomes.
+  records intact. The unread former H4 holdout is now the single-use intraday
+  historical confirmation window; do not open it until the whole version-1
+  contract and gates are committed.
 
 ## Active implementation plan (not yet built)
 
 The canonical plan is `docs/intraday_rebuild_plan.md`. In order:
 
-1. Resolve the exact daily cutoff, long/short mandate, risk limits, primary
-   rule specifications, and intraday evaluation boundary.
-2. Repair the entry/label/backtest contract and add OHLC, cost, latency,
-   session, and trade-by-trade parity tests without judging returns.
-3. Build synchronized H1/M30 data paths, with M15 inputs available as an
-   execution challenger rather than assumed as a better model frequency.
-4. Evaluate no more than three pre-registered bare primary-rule families on
-   gold.
-5. Add logistic/LightGBM meta-filters only to rules that survive their own
-   cost-aware controls.
+1. **Mandate freeze — COMPLETE.** Exact session, cutoff, long/short, risk,
+   primary rules, holdout disposition, prospective boundary, and IG admission
+   gates are in intraday plan §2.
+2. **Execution-contract repair — IN PROGRESS.** OHLC/quote fills, UTC broker
+   ingestion, fixed-cost separation, stop sizing, loss/spread gates,
+   shifted-feed parity, and a non-dealing dry paper intent are implemented.
+   Add primary-dataset parity, persistent restart/idempotency state, streaming
+   latency checks, and live demo-account validation without judging returns.
+3. **H1/M30 DATA FOUNDATION IMPLEMENTED, REAL BUILD PENDING.** Causal completed
+   H1 joins, session features, separate artifacts, and confirmation fencing are
+   wired. M15 remains a later execution challenger.
+4. **PRIMARY GENERATORS IMPLEMENTED, UNEVALUATED.** Build and evaluate no more
+   than the exact pre-registered P1/P2/P3 bare rules on gold.
+5. **ML TRAINER IMPLEMENTED, UNTRAINED.** Candidate-only per-rule logistic and
+   LightGBM training uses actual-exit-time purging and saves no deployment
+   threshold. Train only rules with 100+ executed development candidates and
+   compare any filter with its identical bare-rule control.
 6. Re-test GVZ/event-calendar contributions for intraday risk and sizing;
    COT/GDELT remain retired.
 7. Freeze and transfer to silver, then platinum and palladium one at a time.

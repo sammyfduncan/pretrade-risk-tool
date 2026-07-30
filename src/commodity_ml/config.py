@@ -24,6 +24,17 @@ class DukascopyConfig:
 @dataclass(frozen=True)
 class IGConfig:
     epic: str | None = None
+    # IG's generic market metadata exposes minDealSize but does not provide a
+    # universally safe size-step/P&L interpretation across regional CFDs and
+    # spread bets. Confirm these two values from the demo-account order ticket.
+    size_increment: float | None = None
+    value_per_price_unit: float | None = None  # account currency, per size unit
+
+    def __post_init__(self) -> None:
+        for name in ("size_increment", "value_per_price_unit"):
+            value = getattr(self, name)
+            if value is not None and value <= 0:
+                raise ValueError(f"data.ig.{name} must be positive when configured")
 
 
 @dataclass(frozen=True)
@@ -246,7 +257,12 @@ class AssetConfig:
         return df.loc[df.index >= cutoff]
 
     # ---- artifact paths (all gitignored) ----
-    def raw_path(self, source: str | None = None, symbol: str | None = None) -> Path:
+    def raw_path(
+        self,
+        source: str | None = None,
+        symbol: str | None = None,
+        granularity: str | None = None,
+    ) -> Path:
         """Raw candles are namespaced by source so two providers can coexist
         on disk and be compared (scripts/compare_sources.py).
 
@@ -255,7 +271,8 @@ class AssetConfig:
         """
         source = source or self.data.source
         symbol = symbol or self.symbol
-        return PROJECT_ROOT / "data" / "raw" / f"{symbol}_{self.granularity}_{source}.parquet"
+        granularity = granularity or self.granularity
+        return PROJECT_ROOT / "data" / "raw" / f"{symbol}_{granularity}_{source}.parquet"
 
     @property
     def cot_snapshot_path(self) -> Path:
@@ -274,6 +291,29 @@ class AssetConfig:
     @property
     def dataset_path(self) -> Path:
         return PROJECT_ROOT / "data" / "processed" / f"{self.asset}_dataset.parquet"
+
+    @property
+    def intraday_base_path(self) -> Path:
+        return PROJECT_ROOT / "data" / "processed" / f"{self.asset}_intraday_base.parquet"
+
+    def intraday_candidate_path(self, strategy: str) -> Path:
+        strategy = strategy.upper()
+        if strategy not in ("P1", "P2", "P3"):
+            raise ValueError("Intraday strategy must be P1, P2, or P3")
+        return (
+            PROJECT_ROOT
+            / "data"
+            / "processed"
+            / f"{self.asset}_intraday_{strategy.lower()}_candidates.parquet"
+        )
+
+    def intraday_model_path(self, strategy: str, model_kind: str) -> Path:
+        strategy = strategy.upper()
+        if strategy not in ("P1", "P2", "P3"):
+            raise ValueError("Intraday strategy must be P1, P2, or P3")
+        if model_kind not in ("logistic", "lightgbm"):
+            raise ValueError("model_kind must be logistic or lightgbm")
+        return PROJECT_ROOT / "models" / f"{self.asset}_{strategy.lower()}_{model_kind}.joblib"
 
     @property
     def oof_path(self) -> Path:

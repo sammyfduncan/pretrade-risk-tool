@@ -34,8 +34,11 @@ def main() -> None:
 
     print(f"Markets matching {args.search!r}:\n")
     print(results.to_string(index=False))
-    print("\nPick the spot/cash market (usually instrumentType CURRENCIES or COMMODITIES "
-          "with expiry '-' or 'DFB') and set it as data.ig.epic in your config.")
+    print(
+        "\nFor this project, confirm the spot/cash COMMODITIES market (normally "
+        "expiry '-' or 'DFB'), real-time rather than delayed pricing, and the "
+        "expected order-ticket contract before setting data.ig.epic."
+    )
 
 
 if __name__ == "__main__":

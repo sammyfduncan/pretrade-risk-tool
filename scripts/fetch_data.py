@@ -26,6 +26,11 @@ def main() -> None:
                         help="override data.source from the config")
     parser.add_argument("--start", help="override data.start (YYYY-MM-DD)")
     parser.add_argument("--end", help="override data.end (YYYY-MM-DD)")
+    parser.add_argument(
+        "--granularity",
+        choices=["M5", "M15", "M30", "H1", "H4", "D"],
+        help="override the frozen config timeframe for an intraday data artifact",
+    )
     args = parser.parse_args()
 
     load_dotenv()
@@ -44,9 +49,10 @@ def main() -> None:
     else:
         from commodity_ml.data import ig as provider
 
-    df = provider.fetch_candles(data_cfg, cfg.granularity)
+    granularity = args.granularity or cfg.granularity
+    df = provider.fetch_candles(data_cfg, granularity)
 
-    out_path = cfg.raw_path(data_cfg.source)
+    out_path = cfg.raw_path(data_cfg.source, granularity=granularity)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out_path)
 

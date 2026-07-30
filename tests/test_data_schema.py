@@ -5,6 +5,7 @@ These tests pin the contract so a provider quirk fails loudly at ingest
 rather than quietly distorting a model.
 """
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -13,6 +14,7 @@ from commodity_ml.data.ig import estimate_points
 from commodity_ml.data.schema import (
     GRANULARITY_TO_DUKASCOPY,
     GRANULARITY_TO_IG,
+    QUOTE_COLUMNS,
     validate_candles,
 )
 
@@ -62,11 +64,48 @@ def test_non_positive_price_rejected():
         validate_candles(df, "test")
 
 
+def test_non_numeric_or_negative_volume_rejected():
+    bad_text = make_frame(volume="not-a-number")
+    with pytest.raises(ValueError, match="non-finite volume"):
+        validate_candles(bad_text, "test")
+
+    negative = make_frame()
+    negative.loc[negative.index[0], "volume"] = -1
+    with pytest.raises(ValueError, match="negative volume"):
+        validate_candles(negative, "test")
+
+
 def test_duplicates_dropped_and_sorted():
     df = pd.concat([make_frame(), make_frame()]).sample(frac=1, random_state=0)
     out = validate_candles(df, "test")
     assert len(out) == 10
     assert out.index.is_monotonic_increasing and not out.index.duplicated().any()
+
+
+def test_complete_bid_ask_quotes_are_preserved():
+    df = make_frame()
+    for field in ("open", "high", "low", "close"):
+        df[f"bid_{field}"] = df[field] - 0.05
+        df[f"ask_{field}"] = df[field] + 0.05
+
+    out = validate_candles(df, "test")
+
+    assert all(column in out.columns for column in QUOTE_COLUMNS)
+    assert np.allclose(out["ask_close"].sub(out["bid_close"]), 0.1)
+
+
+def test_partial_and_crossed_quotes_fail_closed():
+    partial = make_frame()
+    partial["bid_open"] = partial["open"] - 0.05
+    with pytest.raises(ValueError, match="partial bid/ask"):
+        validate_candles(partial, "test")
+
+    crossed = make_frame()
+    for field in ("open", "high", "low", "close"):
+        crossed[f"bid_{field}"] = crossed[field] + 0.05
+        crossed[f"ask_{field}"] = crossed[field] - 0.05
+    with pytest.raises(ValueError, match="crossed bid/ask"):
+        validate_candles(crossed, "test")
 
 
 def test_both_sources_cover_the_same_granularities():
