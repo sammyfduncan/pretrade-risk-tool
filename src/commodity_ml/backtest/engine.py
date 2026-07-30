@@ -20,16 +20,16 @@ Honesty rules baked in here:
    period would set today's threshold using predictions from the future, so
    the quantile is computed only over predictions seen so far.
 
-4. Exits come from the label's own barriers, so the simulated trade is the
-   trade the model was trained to predict: take profit at +barrier_pct, stop
-   out at -barrier_pct, and give up after the label horizon. Previously the
-   model was graded on a 1-ATR/12-bar question but traded on a
-   "hold until probability decays" rule — two different strategies.
+4. Exits use the label's barrier percentages and horizon, but the historical
+   implementation is not fully label-equivalent: labels inspect high/low from
+   close(t), while this path passes close only and re-anchors stops at the
+   delayed entry. Its P&L is provisional. The intraday rebuild must pass actual
+   OHLC and prove label/execution parity trade by trade.
 
 5. Entries are debounced so trades never overlap (see `debounce_entries`).
-   Each trade is then one independent bet on one labeled outcome, which is
-   what the README's "100+ trades" minimum assumes — overlapping trades
-   inflate the apparent sample without adding information.
+   This removes mechanical horizon overlap but does not make trades fully
+   independent: signals may still cluster by regime. Effective sample size and
+   the minimum elapsed window remain relevant.
 
 6. Spread/fee cost is charged on every side of every trade, and a
    buy-and-hold portfolio is always computed alongside as the

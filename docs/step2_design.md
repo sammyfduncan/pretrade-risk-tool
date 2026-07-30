@@ -1,5 +1,11 @@
 # Step 2 — alt-data layer: pre-registration and design record
 
+> **Historical completed record — generic sentiment is retired from the active
+> design.** COT and GDELT failed the directional retention gate and remain
+> disabled. The active intraday system uses structured event timing for risk,
+> sizing, and restrictions; it does not replace this result with a keyword or
+> paid-LLM sentiment retry. See `docs/intraday_rebuild_plan.md`.
+
 **Written 2026-07-28, before any COT or GDELT number has been computed on real
 data.** No snapshot has been fetched; no IC, AUC or backtest involving these
 sources has been read.

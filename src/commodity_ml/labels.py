@@ -23,9 +23,11 @@ information can move AUC above 0.50. Expect the reported AUC to drop toward
 0.50 — that is the honest directional number becoming visible, not a
 regression.
 
-The barriers also define the exit, so the label and the backtest finally
-describe the same trade (take profit at +k*ATR, stop out at -k*ATR, give up
-after `horizon_bars`).
+The barriers are intended to define the executable exit too. The historical
+H4 backtest did not fully achieve that contract: labels inspect future high/low
+from the signal close, while its vectorbt path used close-only bars and a
+delayed entry anchor. The active intraday rebuild must align and test the two
+trade by trade before interpreting P&L.
 
 Modes
 -----
@@ -69,9 +71,10 @@ def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
 
     Returns a DataFrame with:
       label       1.0 / 0.0, NaN where the outcome isn't knowable
-      exit_bars   how many bars until the trade resolved (barrier touch or
-                  horizon). The backtest holds for exactly this long, so the
-                  simulated trade matches the labeled one.
+      exit_bars   how many bars until the labeled outcome resolved (barrier
+                  touch or horizon). An execution simulator must reproduce
+                  this contract explicitly; the historical H4 simulator did
+                  not yet do so exactly.
       barrier_pct the +/- barrier width at that bar, as a fraction of price.
                   Feeds the backtest's per-bar stop-loss / take-profit.
       exit_time   the timestamp `exit_bars` later. Every label owns a forward

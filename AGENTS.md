@@ -1,13 +1,24 @@
 # AGENTS.md — ML Commodity Trading
 
+This context is consumed by Codex through `AGENTS.md` and mirrored in
+`CLAUDE.md` for compatibility with the project's earlier Claude work. Keep the
+substantive contents synchronized; if they diverge, `AGENTS.md` is canonical.
+
 ## What this project is
 
-A learning-first, portfolio-quality algorithmic trading system combining per-asset
-**price-based ML** (Track A) with an **entity-filtered sentiment layer** (Track B),
-across precious metals (gold, silver, later platinum/palladium), converging into one
-cross-asset rotation/allocation layer. **Profitability is secondary to honest
-evaluation.** Read `README.md` for the full scope — it is the stable design
-reference and should not be casually edited.
+A learning-first, portfolio-quality **intraday commodity trading system**.
+Explicit price/session strategies create candidate trades; ML may filter or
+rank those candidates; volatility and scheduled events control risk; and a
+cross-asset allocator manages correlated exposure and cash. Initial assets are
+gold and silver, followed by platinum and palladium. **Profitability is
+secondary to honest evaluation during research, but an eventual live system
+must have positive expectancy after realistic costs.**
+
+The active cadence is **H1 context + M30 default decisions**, with **M15 as an
+optional execution challenger** if its extra opportunities survive spread,
+slippage, and latency. Generic COT/GDELT sentiment is retired; no paid LLM
+sentiment layer is planned. Read `README.md` for the scope and
+`docs/intraday_rebuild_plan.md` for the active implementation plan.
 
 The user is fairly new to ML: explain ML concepts when they come up, walk through
 execution steps interactively, and prefer readable code over clever code.
@@ -31,9 +42,26 @@ execution steps interactively, and prefer readable code over clever code.
    calendar (both metals) qualify as step-4 position-SIZING candidates** at the
    5-day horizon; COT and GDELT-attention are retired for vol too. Run 7 below.
    No direction claim, no holdout spent, nothing trading on it yet.
-3. Generalize to platinum → palladium (one at a time)
-4. Cross-asset ranking, allocation, correlation-aware sizing
-5. Paper-trade full system; live capital only after pre-registered success criteria are met
+2c. **[STRATEGIC DECISION 2026-07-30 — stay with commodities]**
+   The negative direction results do not establish that precious metals are
+   uniquely unsuitable for ML; they establish that the tested H4, public-feature
+   direction hypothesis has no confirmed edge. The user explicitly chose to
+   remain in commodities and redesign around intraday primary strategies.
+3. **[ACTIVE DESIGN — implementation not started] Intraday rebuild.**
+   `docs/intraday_rebuild_plan.md`: H1 regime/context, M30 default
+   entries/management, M15 optional; no routine overnight exposure. Resolve
+   mandate decisions, then repair label/backtest/execution correctness before
+   reading new performance outcomes.
+4. Pre-register and evaluate at most three primary strategy families on gold:
+   session breakout/range expansion, trend continuation after pullback, and
+   regime-conditioned mean reversion.
+5. Add ML only as a candidate filter/ranker; re-test volatility/event features
+   only for risk, sizing, and restrictions.
+6. Transfer the frozen pattern to silver, then platinum and palladium one at a
+   time.
+7. Build correlation-aware allocation with explicit cash, then paper trade in
+   separate operational and frozen-performance stages.
+8. Live capital starts at minimum size only after both paper gates pass.
 
 ## Where training data comes from (important — two sources, on purpose)
 
@@ -111,6 +139,8 @@ docs/step2_design.md      # step-2 pre-registration AND outcomes (§9 = the nega
                           # Read before proposing any alt-data or sentiment work
 docs/step2b_vol_design.md # step-2b: the same alt-data pointed at VOLATILITY. §7 = the two
                           # families that passed, and why F-CAL's joint support is thin
+docs/intraday_rebuild_plan.md # ACTIVE: H1/M30/M15 architecture, gates, build order,
+                          # paper protocol, and open mandate decisions
 data/raw, data/processed, models/, reports/   # all gitignored artifacts
 tests/                    # synthetic-data tests, no network or credentials needed
   test_pipeline_integration.py  # the seams between the four scripts — everything else
@@ -122,6 +152,10 @@ tests/                    # synthetic-data tests, no network or credentials need
 ```
 
 ## Commands
+
+These commands currently reproduce the **historical frozen H4 pipeline**.
+Intraday configs and commands do not exist yet; documentation moved first so
+implementation can be pre-registered.
 
 ```bash
 source .venv/bin/activate            # Python 3.13 venv (3.14 too new for numba)
@@ -160,6 +194,9 @@ python scripts/compare_sources.py --config config/gold.yaml
   not out-of-sample with respect to design decisions, because those decisions
   were made after reading them. Do not spend the holdout until the template is
   frozen, and do not tune anything after spending it.
+- **The H4 holdout belongs to the frozen H4 question.** Do not silently spend
+  or repurpose it for the intraday redesign. Fix the intraday program's
+  prospective evaluation boundary before reading its first outcome.
 - **Any strategy that filters a rule must be compared against the bare rule.**
   A filter that doesn't beat its own primary signal is decoration.
 - **Backtests use out-of-fold predictions only** — never predictions from a model
@@ -179,10 +216,46 @@ python scripts/compare_sources.py --config config/gold.yaml
   without it is not interpretable.
 - Report portfolio-quality metrics (Sharpe, PF, maxDD, turnover, time-in-cash), not
   just ML metrics, and check across volatility regimes.
+- **Paper trading has two gates.** Operational bugs may be repaired during the
+  shadow stage. Prediction logic is frozen during the performance stage; a
+  logic change creates a new version and resets its evaluation clock.
 
-## Engineering decisions made so far (provisional — confirm with user before changing)
+## Engineering decisions
 
-- **Timeframe: H4 candles.** Moved from H1 after the first run. Macro data updates
+### Active intraday decisions (2026-07-30)
+
+- **Cadence:** H1 supplies regime/context; M30 is the default candidate and
+  management clock; M15 is an optional execution challenger. M15 is retained
+  only if realistic time-varying spread, slippage, latency, and OHLC execution
+  assumptions show incremental net value. M5 and faster are out of scope.
+- **Holding style:** intraday with no routine overnight exposure. Exact daily
+  cutoff and session/timezone are still mandate decisions and must be fixed
+  before implementation.
+- **Direction source:** no more unconstrained per-bar ML direction search.
+  Complete primary rules create candidate trades and choose the side.
+- **ML role:** logistic baseline and LightGBM challenger on candidate trades
+  only. ML filters/ranks a rule and must beat the same bare rule on identical
+  entries and costs.
+- **Primary families:** at most three in the first program—session
+  breakout/range expansion, trend continuation after pullback/consolidation,
+  and regime-conditioned mean reversion.
+- **Feature policy:** do not add more conventional indicator variants. New
+  families describe session structure, price-path state, cross-commodity
+  state, execution conditions, or scheduled-event proximity, one
+  pre-registered family at a time.
+- **News policy:** COT and GDELT remain disabled; no paid LLM API. Structured
+  release timestamps may affect sizing, blackouts, and execution risk. A
+  directional event-surprise experiment needs its own point-in-time source and
+  pre-registration.
+- **Asset order:** gold development, silver untouched transfer, platinum, then
+  palladium subject to executable liquidity. Copper is the leading later
+  diversification candidate, not version-1 scope.
+- **Paper path:** operational shadow → frozen performance evaluation →
+  minimum-size live. Several weeks can validate plumbing, not profitability.
+
+### Historical H4 decisions (frozen research; not the active design)
+
+- **Timeframe was H4 candles.** Moved from H1 after the first run. Macro data updates
   daily, so at H1 (24 bars per update) or M15 (96) the model is asked to time
   entries from a feature that is a step function. H4 gives ~12k bars — enough for
   a GBM, unlike daily's ~2.3k — while keeping trade frequency low enough that an
@@ -193,9 +266,10 @@ python scripts/compare_sources.py --config config/gold.yaml
   +k·ATR, stop at −k·ATR, give up after `horizon_bars`. Symmetry is the point: it
   removes the volatility channel that made the old `long_threshold` label look
   predictive. `updown` and the legacy `long_threshold` remain available.
-- **Barriers define the exit too**, so the backtest trades the same thing the label
-  describes. Entries are debounced by the horizon so trades never overlap and each
-  one is a genuinely independent bet.
+- **The intended label/backtest contract was not achieved.** Labels inspect
+  future candle high/low from the signal close; the current vectorbt call passes
+  only close and re-anchors percentage stops at the delayed entry. Repair this
+  and add trade-by-trade parity tests before any intraday performance work.
 - **Entry rule: expanding-window quantile**, not an absolute probability. A fixed
   0.60 is unreachable for a calibrated model on a ~50% base rate, and a
   full-sample quantile would let future predictions set today's threshold.
@@ -665,7 +739,84 @@ future programs should hash the harness too.
   mechanisms in run 4 quietly improved metrics by inverting or re-ranking
   predictions; both were bugs.
 
-## Implementation ideas for future steps (not yet built)
+## Codex strategic audit (2026-07-30 — context only)
+
+This audit read the code, configs, generated reports and design records, ran the
+offline test suite, and compared the project's premise with primary research.
+It did not spend the holdout or run a new outcome experiment.
+
+- **Decision after the audit: remain in commodities and rebuild intraday.**
+  The user selected H1 context plus M30 decisions, with M15 as a possible
+  execution refinement. Gold and silver are exposed to geopolitical and macro
+  shocks, but the H4 negatives did not show that metals are uniquely
+  incompatible with statistical methods. They showed that unconstrained
+  short-horizon direction from public price history, slow macro series and
+  lagged public news was the wrong question for this data.
+- **Interpret the negative result narrowly and accurately.** The repo has ruled
+  out a useful directional contribution from its tested technical/macro set,
+  CFTC positioning and GDELT tone/attention on this development window. It has
+  not ruled out all commodity information, all horizons, all trading targets,
+  or all ML. In particular, spot XAU/XAG contains none of the futures-curve
+  basis/carry and inventory information that commodity-return research treats
+  as economically central.
+- **Changing only the timeframe is not enough.** The intraday program also
+  changes the source of direction: explicit session/price strategies generate
+  candidates, ML filters or ranks them, and scheduled events manage risk.
+  Simply rerunning the generic H4 classifier at M30 would probably reproduce
+  the same information problem at a more cost-sensitive frequency.
+- **Steps 3–4 cannot simply rank the existing per-asset direction scores.**
+  Neither direction feature family survived its gate, and implied
+  volatility/event dates supply sizing information, not direction. A
+  cross-sectional return/ranking target could still be valid, but it is a new
+  experiment with its own labels, controls, placebo and power analysis—not a
+  downstream use of a validated directional model.
+- **Trading P&L is provisional because the label and backtest executions are
+  not currently the same contract.** Triple-barrier labels inspect the future
+  candle high/low from the signal close. The vectorbt backtest passes only
+  `close`, so stops are evaluated without the source candle high/low, and its
+  one-bar-delayed trade re-anchors the percentage barrier at the next close.
+  This does not invalidate OOF AUC, matched-row feature ablations, placebo
+  gates, or the volatility results. It does mean the reported PF, Sharpe and
+  meta-label trade outcomes should not guide an asset-class decision until the
+  execution semantics are aligned and pinned by a trade-by-trade parity test.
+- **The remaining deployment gap is material.** The backtest also omits
+  overnight financing/roll, time-varying spread and slippage; cash earns zero;
+  Dukascopy-versus-IG return parity has not been demonstrated with local IG
+  data; and order placement is not wired. These are normal unfinished-system
+  items, but they prevent the current reports from being estimates of live
+  profitability.
+- **Preserve the evidence inside this repository.** The intraday redesign is a
+  new documented program, not a rewrite of the H4 ledger. Keep the historical
+  records and H4 holdout intact; commit the new mandate, rules, costs, and
+  evaluation boundary before reading intraday outcomes.
+
+## Active implementation plan (not yet built)
+
+The canonical plan is `docs/intraday_rebuild_plan.md`. In order:
+
+1. Resolve the exact daily cutoff, long/short mandate, risk limits, primary
+   rule specifications, and intraday evaluation boundary.
+2. Repair the entry/label/backtest contract and add OHLC, cost, latency,
+   session, and trade-by-trade parity tests without judging returns.
+3. Build synchronized H1/M30 data paths, with M15 inputs available as an
+   execution challenger rather than assumed as a better model frequency.
+4. Evaluate no more than three pre-registered bare primary-rule families on
+   gold.
+5. Add logistic/LightGBM meta-filters only to rules that survive their own
+   cost-aware controls.
+6. Re-test GVZ/event-calendar contributions for intraday risk and sizing;
+   COT/GDELT remain retired.
+7. Freeze and transfer to silver, then platinum and palladium one at a time.
+8. Add rule-based correlation-aware allocation and explicit cash.
+9. Paper trade in an operational shadow stage followed by a frozen
+   performance stage; then move to minimum-size live only if both pass.
+
+## Historical implementation notes (superseded as instructions)
+
+The remainder of this section records what the old H4 build order intended.
+It is retained for provenance only. It must not be treated as the active task
+list; where it conflicts with `docs/intraday_rebuild_plan.md`, the intraday plan
+wins.
 
 - **Step 1 — what is left.** Done in runs 3-5: the holdout fence, the silver
   transferability check, meta-labeling, the gold/silver ratio, sample weighting
@@ -753,5 +904,6 @@ future programs should hash the harness too.
 - Config-driven: no magic numbers in modules; everything tunable lives in
   `config/gold.yaml` and flows through `config.py` dataclasses.
 - Artifacts (`data/`, `models/`, `reports/`) never committed.
-- `.env` holds `OANDA_API_KEY` / `OANDA_ENV` (practice|live); never committed,
-  `.env.example` documents the shape.
+- `.env` holds `IG_API_KEY`, `IG_USERNAME`, `IG_PASSWORD`, `IG_ACC_TYPE` and
+  optionally `IG_ACC_NUMBER`; never committed, `.env.example` documents the
+  shape.

@@ -1,7 +1,7 @@
 [project]
 name = "commodity-ml"
 version = "0.1.0"
-description = "Multi-commodity ML + sentiment rotation trading system (step 1: gold price-ML pipeline)"
+description = "Intraday multi-commodity algorithmic trading research system"
 requires-python = ">=3.13"
 
 [build-system]

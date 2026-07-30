@@ -5,8 +5,10 @@ Usage:
 
 Reads data/processed/<asset>_oof.parquet (produced by train.py) plus raw
 prices. Entries are the top `entry_quantile` of predictions (computed on an
-expanding window, so no future information sets today's threshold); exits are
-the label's own barriers, so the simulated trade matches the labeled one.
+expanding window, so no future information sets today's threshold). The
+historical simulator uses the label's barrier percentages and horizon, but is
+not fully label-equivalent because it uses close-only bars and a delayed entry
+anchor. Treat its P&L as provisional; see `docs/intraday_rebuild_plan.md`.
 
 Writes reports/<asset>_backtest.txt.
 """
@@ -104,8 +106,9 @@ def main() -> None:
                  + sweep.to_string())
     print("\n" + sweep_txt)
 
-    # Entries are debounced (engine.debounce_entries), so trades never overlap
-    # and each one is an independent bet — the count can be taken at face value.
+    # Entries are debounced (engine.debounce_entries), so their label horizons
+    # do not overlap mechanically. Regime clustering can still reduce the
+    # effective sample; the raw count is not proof of independence.
     n_trades = result.stats.get("n_trades", 0)
     if n_trades < 100:
         print(f"\nNOTE: {n_trades} non-overlapping trades, below the pre-registered "

@@ -1,89 +1,257 @@
-# Multi-Commodity ML + Sentiment Rotation System — Project Scope
+# Intraday Multi-Commodity Algorithmic Trading System
 
-**Status:** Design reference, pre-engineering
-**Purpose of this document:** A stable, high-level reference to work against during engineering. Contains scope, architecture, and methodology decisions only — no code, folder structures, or library-level specifics.
+**Status:** Active intraday redesign after a completed H4 research program
 
----
+**Canonical implementation plan:** [`docs/intraday_rebuild_plan.md`](docs/intraday_rebuild_plan.md)
 
-## 1. Purpose & Goals
+## 1. Purpose
 
-A learning-first, portfolio-quality algorithmic trading project combining **price-based machine learning** with an **alternative-data sentiment layer**, applied across a small basket of **physical/precious-metal commodities** rather than FX. Profitability is a secondary goal; the primary goal is a technically sound, honestly evaluated system. Live capital is only to be considered after the paper-trading phase meets explicitly defined success criteria (not yet specified).
+This is a learning-first, portfolio-quality algorithmic commodity trading
+project. Its goals, in order, are to:
 
-This project builds on, and shares standards with, an earlier rule-based (non-ML) XAUUSD day-trading strategy project — the methodology and risk discipline below are consistent with that earlier work, not a separate standard.
+1. build an honestly evaluated and operationally reliable commodity trading
+   system;
+2. paper trade it long enough to validate both execution and performance;
+3. progress to tightly risk-controlled live trading only after pre-registered
+   gates are met; and
+4. use the process to learn commodity-market structure, machine learning,
+   backtesting, execution, and portfolio construction.
 
----
+Profitability is not the immediate research objective, but an eventual live
+system must have positive expectancy after realistic costs. Negative results
+are retained as evidence rather than tuned away.
 
-## 2. Asset Universe
+The project remains focused on **commodities, not FX**.
 
-- **Core assets:** Gold (XAUUSD), Silver (XAGUSD)
-- **Recommended extension:** Platinum (XPTUSD), Palladium (XPDUSD)
+## 2. What has already been learned
 
-**Rationale for extending beyond gold/silver:** gold and silver are highly correlated (both driven primarily by real yields, dollar strength, and safe-haven flow), so a rotation system limited to just these two mostly makes a sizing decision between near-twins rather than a genuine cross-asset choice. Platinum and palladium are still physical/precious metals (consistent with the "no FX" preference) but are driven substantially by industrial demand (automotive catalytic converters) and geopolitically concentrated supply (South Africa, Russia) — giving the system genuinely different signal sources to work with, and giving the sentiment layer real, distinct events to react to.
+The first research program used H4 gold and silver data. It is complete and is
+preserved in the historical design records:
 
-**Open item:** confirm broker and historical-data availability/quality for platinum and palladium specifically before finalizing the universe — coverage for these is less certain than for gold and silver.
+- Generic technical, basic macro, CFTC COT, and GDELT tone/attention features
+  produced no confirmed directional edge.
+- Gold meta-labeling remains an unvalidated lead; it did not transfer cleanly
+  to silver and was underpowered after overlap and multiple-comparison
+  corrections.
+- COT and GDELT failed the pre-registered directional retention gate on all
+  four asset × family combinations.
+- Implied volatility (GVZ for gold) and the scheduled-event calendar qualified
+  as volatility-sizing candidates at a five-day horizon. They are not direction
+  signals and must be re-tested for the new intraday target.
+- The original gold holdout remains unspent.
 
-**Design rationale for a shared universe:** rather than running four independent, uncoordinated single-asset bots, the system treats all assets as one competing pool and dynamically favors whichever looks most attractive at a given time — including the option of favoring none of them.
+These results reject the tested **H4 public-feature direction hypothesis**.
+They do not establish that commodities, price-based rules, or ML are unusable.
 
----
+Historical records:
 
-## 3. High-Level Architecture
+- [`docs/step1_freeze_record.md`](docs/step1_freeze_record.md)
+- [`docs/step2_design.md`](docs/step2_design.md)
+- [`docs/step2b_vol_design.md`](docs/step2b_vol_design.md)
 
-Two parallel signal-generation tracks run per asset, converging into one cross-asset decision layer.
+## 3. Active system design
 
-### Track A — ML Price Prediction (per asset)
+The intraday redesign separates four jobs that the original architecture mixed
+together:
 
-- **One independently trained model per commodity**, not a single pooled model across all four. Chosen for debuggability (issues in one asset's model don't get tangled with another's), ease of adding or dropping an asset later, and because each commodity's driver set and price dynamics differ enough that a shared model risks one asset's regime dominating the others.
-- Feature inputs: technical/statistical features per asset, plus relevant macro variables (e.g. dollar/real-yield proxies for gold and silver; industrial-demand proxies for platinum and palladium).
-- Model family: tabular gradient-boosted trees, consistent with the ML approach chosen elsewhere in the broader project.
-- Validation discipline: strict time-ordered walk-forward validation only. No random train/test splits, no future information leaking into training at any point.
+1. **Primary strategies create direction.** A small set of explicit,
+   economically motivated price/session rules produces candidate trades.
+2. **ML is an optional meta-filter or ranker.** It estimates whether a valid
+   candidate is worth taking; it does not search every candle for direction.
+3. **Volatility and scheduled events control risk.** They inform sizing,
+   entry restrictions, and execution expectations—not trade direction.
+4. **The allocator manages the portfolio.** It compares valid opportunities,
+   controls correlated exposure, accounts for costs, and may choose cash.
 
-### Track B — Sentiment / Alternative Data (per asset)
+In compact form:
 
-- Sentiment must be **entity- and theme-filtered per asset** — a single blended "commodities sentiment" score is explicitly rejected as too diffuse to be useful. Each asset needs its own filtered query (e.g. monetary-policy/central-bank themes for gold; export-policy and automotive-demand themes for platinum and palladium).
-- Data sources: free and fully backtestable sources only. Primary candidates are GDELT and/or published academic geopolitical risk indices. **Twitter/X is explicitly excluded** — as of 2026 there is no meaningful free tier, and the full historical archive access required for honest backtesting is prohibitively expensive.
-- Scoring approach (to be decided during engineering): simple lexicon-based scoring as a fast baseline, versus a domain-tuned transformer classifier for higher-nuance scoring.
+`primary setup → optional ML filter → volatility/event sizing → allocator → execution`
 
-### Composite Scoring & Cross-Asset Ranking
+Every learned component must beat the transparent rule it modifies.
 
-- The per-asset ML signal and sentiment score are combined into one composite score per commodity, recalculated at each decision point.
-- All commodities are ranked by composite score.
-- The ranking must include an explicit **"stay in cash / no position"** outcome — the system must never be forced into a position simply because it's the least-bad option among four weak signals.
-- **Hysteresis is required**: a meaningful score gap must be required before rotating from one asset to another, to prevent excessive switching driven by ordinary signal noise (the same principle used for regime-switching in the earlier rule-based project).
+## 4. Trading cadence
 
-### Allocation & Execution
+The agreed cadence is:
 
-- **Correlation-aware position sizing**: if two correlated assets (e.g. gold and silver) both rank highly at once, they must not be treated as two independent bets — combined exposure needs explicit capping or inverse-correlation-weighted sizing.
-- **Turnover/switching cost is tracked as its own evaluation dimension**, since every rotation between commodities incurs real spread cost.
-- Execution runs on paper trading accounts in the first phase; live capital is only considered after paper trading meets pre-defined success criteria (criteria not yet specified — an open item).
+- **H1:** higher-level trend, regime, and market context;
+- **M30:** default candidate-entry and trade-management clock;
+- **M15:** optional execution/refinement challenger, retained only if its extra
+  opportunities survive realistic spread, slippage, and latency assumptions.
 
----
+This is an intraday project. The working assumption is that positions are not
+held overnight routinely, although the exact daily cutoff and exceptional
+handling must be fixed before implementation.
 
-## 4. Methodology & Evaluation Principles
+M5 and faster scalping are out of scope for the first intraday version. At
+those frequencies the available OHLC data and CFD execution model are not
+adequate to make realistic claims.
 
-These carry over directly from the broader project's standards and apply to every component below (ML models, sentiment layer, and the combined system):
+The currently committed configs still describe the frozen H4 research
+pipeline. Documentation has moved first; changing data, labels, configs, and
+backtests belongs to the new pre-registered implementation program.
 
-- **Minimum sample size before drawing conclusions**: a pre-registered minimum trade count (suggested: 100+ trades, or a fixed multi-month window, whichever is later) before any component is judged as working or not.
-- **Walk-forward, time-ordered validation is mandatory** for both the ML models and any weighting/calibration applied within the sentiment layer.
-- **Multiple-comparisons awareness**: testing several assets and components in parallel increases the odds that one looks good purely by chance. No component is promoted toward live consideration without confirmation on a further out-of-sample period.
-- **Regime-aware evaluation**: results must be checked across different volatility/trend regimes, and where feasible across different sentiment/news-flow conditions, rather than judged on one arbitrary backtest window.
-- **Portfolio-level metrics, not just per-asset ones**: combined Sharpe/Sortino ratio, max drawdown, turnover, and time spent in cash, in addition to each individual asset's signal quality.
+## 5. Primary strategy research
 
----
+The first intraday program will select no more than three distinct strategy
+families before reading results:
 
-## 5. Recommended Build Order
+1. **Session breakout / range expansion**
+2. **Trend continuation after a pullback or consolidation**
+3. **Regime-conditioned mean reversion**
 
-1. Build and validate the **price-only ML pipeline end-to-end for one asset (gold)** first, reusing and extending the existing architecture.
-2. Add the **sentiment/alt-data layer for that single asset only**, and validate the composite scoring logic in isolation before generalizing to other assets.
-3. Generalize the proven pattern to the remaining assets — silver, then platinum, then palladium — one at a time.
-4. Only once every individual asset pipeline is validated, build the **cross-asset ranking, allocation, and correlation-aware sizing layer** on top.
-5. Paper-trade the full multi-asset system for a sufficient period (per the methodology section above) before any live-capital discussion begins.
+Each family must define its entry, side, exit, stop, maximum holding time,
+session restrictions, event restrictions, and cost assumptions before
+evaluation.
 
----
+The existing RSI, MACD, Bollinger, EMA, return, ATR, volatility, candle-shape,
+and calendar features already cover the common technical-indicator families.
+Adding more variants of the same indicators is not the plan. New features
+should describe market structure or execution, such as:
 
-## 6. Open Items to Resolve Before/During Engineering
+- session and time since session open;
+- previous-session high, low, range, and return;
+- opening-range position and range compression;
+- upside/downside realized variation;
+- synchronized cross-metal returns;
+- current spread and recent spread regime; and
+- volume or tick activity only where it is real and comparable across sources.
 
-- Confirm final asset universe: gold + silver only, versus the full four-asset precious-metals basket — pending data/broker availability checks for platinum and palladium.
-- Confirm trading cadence/timeframe for this specific system (day-trading cadence has been assumed for consistency with the rest of the project, but has not been explicitly re-confirmed for this multi-asset rotation system).
-- Finalize the primary sentiment/alt-data source(s): GDELT, a geopolitical risk index, or a combination.
-- Decide the composite-score combination method (fixed weighting vs. a learned/optimized weighting) and the specific hysteresis threshold approach.
-- Define explicit, written success criteria for the paper-trading phase that must be met before any live-capital go/no-go decision.
+## 6. Role of machine learning
+
+ML remains part of the project, but its role changes:
+
+- Logistic regression remains the simple baseline.
+- LightGBM remains the nonlinear challenger.
+- The training sample consists of actual primary-strategy candidates.
+- The target describes executable trade success or net outcome, not generic
+  next-bar direction.
+- Raw scores may rank candidates; calibrated probabilities may support sizing.
+- Sample-overlap, walk-forward, placebo, and bare-rule controls remain
+  mandatory.
+
+No neural-network, LLM, hyperparameter-search, or additional boosting work is
+planned until a simpler model demonstrates that the new inputs contain useful
+information.
+
+A pooled multi-asset model may later be evaluated as a challenger once at
+least three assets exist, but it must be tested against independent per-asset
+models and with leave-one-asset-out transfer checks.
+
+## 7. News and event data
+
+Generic news sentiment is retired from the active direction design:
+
+- COT and GDELT remain disabled.
+- No paid LLM API sentiment layer is planned.
+- A better language model would not repair point-in-time archives, publication
+  timing, or the lack of demonstrated incremental information.
+
+The useful successor is a **structured event-risk layer**:
+
+- exact FOMC, CPI, NFP, and other relevant release timestamps;
+- time-to-event and time-since-event;
+- event-window spread and volatility expectations;
+- configurable entry blackout or reduced-risk windows; and
+- later, actual-minus-consensus surprises only if an honest point-in-time
+  consensus source is available.
+
+Event data is initially a risk and execution input. It becomes directional only
+under a separate pre-registered hypothesis.
+
+## 8. Asset universe
+
+The planned sequence is:
+
+1. **Gold** — development asset
+2. **Silver** — untouched transferability control
+3. **Platinum** — first new asset
+4. **Palladium** — conditional on broker availability, spread, gaps, and
+   executable liquidity
+
+Copper is the leading candidate for a later expansion beyond precious metals
+because it adds a more distinct industrial-demand mechanism. Energy and
+agriculture remain later possibilities, not current scope.
+
+Assets are added to test transferability and improve portfolio diversification,
+not to find a convenient replication after another asset fails.
+
+## 9. Data and execution
+
+Training history comes from **Dukascopy**. **IG** is the intended paper/live
+broker and the source for recent parity checks and executable prices. Both
+feeds use the canonical candle schema.
+
+Before any new performance experiment:
+
+- label entry and backtest entry must describe the same trade;
+- stops must use actual OHLC information;
+- bid/ask spread, slippage, and signal latency must be modeled;
+- Dukascopy-versus-IG returns and timestamps must be compared;
+- session, holiday, and daily-cutoff behavior must be explicit; and
+- trade-by-trade label/backtest parity must be tested.
+
+The old H4 backtest omitted some of this realism. Its ML and feature-ablation
+conclusions remain useful, but its PF and Sharpe are not estimates of live
+intraday profitability.
+
+## 10. Evaluation principles
+
+- Walk-forward, time-ordered validation only.
+- No lookahead; features at time *t* use only information available at *t*.
+- Out-of-fold predictions only in backtests.
+- Realistic, time-varying costs where data permits.
+- Effective sample size rather than raw overlapping row count.
+- A multiple-comparisons ledger for every research program.
+- Placebo/null testing for every new feature family.
+- ML filters are always compared with their bare primary rule.
+- Portfolio metrics include return, Sharpe/Sortino, profit factor, maximum
+  drawdown, turnover, time in cash, exposure concentration, and slippage.
+- A result is not promoted on a few favorable weeks.
+
+The H4 holdout belongs to the frozen H4 question and must not be casually
+re-used. Holdout ownership and the prospective evaluation boundary for the
+intraday program must be fixed before its first outcome is read.
+
+## 11. Build order
+
+1. Freeze this intraday design and resolve the remaining mandate decisions.
+2. Repair label/backtest/execution correctness without searching for alpha.
+3. Build H1/M30 datasets and M15-compatible execution inputs.
+4. Evaluate the pre-registered primary rule families on gold.
+5. Add ML as a challenger only to surviving rules.
+6. Re-test volatility and scheduled-event risk controls at intraday horizons.
+7. Transfer the frozen pattern to silver, then platinum and palladium.
+8. Build correlation-aware allocation with an explicit cash outcome.
+9. Paper trade in separate operational and performance-evaluation stages.
+10. Begin minimum-size live trading only after both gates pass.
+
+The detailed deliverables and decision gates are in
+[`docs/intraday_rebuild_plan.md`](docs/intraday_rebuild_plan.md).
+
+## 12. Paper trading and live progression
+
+Paper trading has two different purposes:
+
+1. **Operational shadow stage:** several weeks may be enough to find feed,
+   scheduling, reconciliation, spread, order, and restart failures. Operational
+   bugs may be corrected immediately and logged.
+2. **Frozen performance stage:** strategy logic is versioned and left unchanged
+   until a pre-registered trade count and time window are reached. A logic
+   change starts a new evaluation version.
+
+Live trading begins only at minimum viable size, with per-trade, daily,
+weekly, per-asset, and portfolio risk limits plus a global kill switch. A
+paper/shadow instance continues alongside live.
+
+## 13. Open decisions
+
+Before implementation begins, fix:
+
+- the daily flat-position cutoff and timezone/session definition;
+- whether version 1 may trade short as well as long;
+- the exact primary strategy specifications;
+- the new historical/prospective evaluation boundary;
+- risk per trade and daily/weekly loss limits; and
+- IG epics and minimum executable sizes for every asset.
+
+These are mandate decisions, not parameters to infer after reading a backtest.

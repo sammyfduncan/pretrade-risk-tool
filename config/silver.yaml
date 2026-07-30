@@ -1,4 +1,7 @@
-# Per-asset configuration — silver.
+# HISTORICAL FROZEN H4 configuration — silver.
+# The active redesign is H1 context + M30 decisions, with M15 optional; see
+# docs/intraday_rebuild_plan.md. Documentation moved first. Do not mutate this
+# transfer-control config into the intraday version.
 # TRANSFERABILITY TEST: identical to gold.yaml apart from the asset identity.
 # Do not tune this file — its purpose is to show whether the gold template
 # generalizes untouched. Divergent results here mean the template is really a
@@ -14,9 +17,7 @@
 
 asset: silver
 symbol: XAGUSD
-granularity: H4            # see CLAUDE.md "Timeframe": macro data updates daily,
-                           # so H1/M15 ask the model to time entries with a
-                           # feature that is constant across 24/96 bars.
+granularity: H4            # frozen historical value, not the active target cadence
 
 data:
   source: dukascopy        # dukascopy (deep free history, for training) | ig (broker, allowance-capped)
@@ -51,9 +52,9 @@ features:
   # result is reproducible; the features stay off.
   #
   # Turning either back on is a NEW pre-registered experiment, not a revert.
-  # `cot_mm_net_z` and `gdelt_vol_smooth7_z` remain step-4 position-SIZING
-  # candidates (they forecast volatility, not direction) — that is a different
-  # question and does not license enabling them here.
+  # Run 7 retired both COT and GDELT-attention for volatility too. The surviving
+  # historical sizing candidates were GVZ (gold) and the scheduled-event
+  # calendar; both require a new intraday gate before use.
   cot: false               # CFTC COT positioning — crowdedness, contrarian hypothesis
   gdelt: false             # GDELT news tone/attention — safe-haven hypothesis
 
@@ -146,10 +147,10 @@ model:
   calibration: isotonic          # none | isotonic | sigmoid
 
 backtest:
-  # Exits now come from the label's own barriers, so the simulated trade is the
-  # trade the model was trained to predict. Entry threshold is a quantile of the
-  # predicted distribution, not an absolute probability — an absolute 0.60 is
-  # unreachable for a calibrated model on a ~35% base rate.
+  # HISTORICAL IMPLEMENTATION CAVEAT: labels inspect high/low from the signal
+  # close, while the current vectorbt call uses close only and re-anchors stops
+  # at the delayed entry. P&L is provisional until the intraday rebuild aligns
+  # the contract. The quantile mechanics below remain the frozen H4 values.
   entry_quantile: 0.90     # go long on the top decile of predictions
   fee_pct: 0.0001          # ~half-spread per side as a fraction
   init_cash: 10000

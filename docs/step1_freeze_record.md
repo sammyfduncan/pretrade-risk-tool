@@ -1,5 +1,11 @@
 # Step 1 — freeze record and holdout pre-registration
 
+> **Historical H4 record — preserved, not the active build plan.** The user
+> selected an H1/M30 intraday redesign on 2026-07-30, with M15 as an optional
+> execution challenger. See `docs/intraday_rebuild_plan.md`. Nothing in that
+> redesign changes the results, ledger, freeze, or ownership of the H4 holdout
+> recorded here.
+
 **Written 2026-07-28, before the holdout has been read.** Frozen at commit
 `69f0527`.
 

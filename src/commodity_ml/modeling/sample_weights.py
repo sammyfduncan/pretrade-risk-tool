@@ -27,7 +27,8 @@ run. Feed that in as `sample_weight` and the model stops double-counting.
 
 This does not create information. It stops the model believing it has more
 than it does — which usually makes reported metrics slightly *worse* and more
-honest, the same trade the triple-barrier label made.
+honest. It corrects statistical overlap in the labeled sample; it does not
+validate the separate execution simulator.
 
 Scope note
 ----------
