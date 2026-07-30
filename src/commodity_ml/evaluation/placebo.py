@@ -22,14 +22,20 @@ import pandas as pd
 # floor, and it applies at BOTH ends of the range — a shift of n−3 wraps around
 # to within three observations of no shift at all, which would smuggle the real
 # alignment back in as a "placebo".
-MIN_SHIFT_PERIODS = {"cot": 52, "gdelt": 365}
+#
+# "gvz" and "calendar" are the step-2b sources (docs/step2b_vol_design.md §4):
+# GVZ is a daily FRED series; calendar is the daily scheduled-event flag frame.
+MIN_SHIFT_PERIODS = {"cot": 52, "gdelt": 365, "gvz": 365, "calendar": 365}
 
 # GDELT news volume has a strong weekly cycle — `gdelt_vol_smooth7_z` exists
 # precisely to smooth it. Shifting a daily series by a non-multiple of 7 would
 # scramble weekday phase, destroying structure the real series *has* and making
 # the null easier for the real features to beat. Whole weeks keep the placebo
-# conservative. COT is already weekly, so every shift is a whole cycle.
-SHIFT_STEP_PERIODS = {"cot": 1, "gdelt": 7}
+# conservative. COT is already weekly, so every shift is a whole cycle. The
+# same argument binds the new daily sources even harder: FOMC decisions land
+# on Wednesdays and NFP on Fridays, so a non-multiple-of-7 shift would hand
+# the real calendar an easy win over a weekday-scrambled null.
+SHIFT_STEP_PERIODS = {"cot": 1, "gdelt": 7, "gvz": 7, "calendar": 7}
 
 
 def circular_shift(frame: pd.DataFrame, periods: int) -> pd.DataFrame:

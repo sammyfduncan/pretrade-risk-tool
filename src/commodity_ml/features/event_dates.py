@@ -1,0 +1,173 @@
+"""Scheduled US macro event dates — FOMC, CPI, Employment Situation (NFP).
+
+Step 2b's F-CAL family (docs/step2b_vol_design.md §3). These are the one kind
+of "future" information a causal feature may legally contain: release
+schedules are published ~a year in advance, so at any observation date the
+market genuinely knows whether an FOMC decision or a CPI print falls inside
+the next h days. Using the *dates* is ex-ante knowledge; using the *outcomes*
+would be lookahead.
+
+Verified 2026-07-30 against the primary sources, not derived from rules of
+thumb ("NFP = first Friday" fails four times in 2023–2025 below):
+  - FOMC: federalreserve.gov/monetarypolicy/fomccalendars.htm (2021–2026)
+    and .../fomchistorical2020.htm (2020)
+  - CPI + Employment Situation: bls.gov/schedule/<year>/home.htm, 2020–2025
+
+Scheduled events only, by definition: the March 2020 emergency actions
+(Mar 2, 15 conference calls; notation votes) are excluded because they were
+not knowable in advance — a feature that "anticipated" them would be reading
+the future. The scheduled 2020-03-17/18 meeting IS included even though it
+was cancelled on Mar 15: ex ante, every market participant expected it.
+
+2025 disruption, recorded for whenever the holdout is spent: the autumn 2025
+government shutdown delayed September's CPI to Oct 24 and September's
+Employment Situation to Nov 20, and the October reference-month releases were
+skipped entirely (11 releases each instead of 12). Those replacement dates
+were NOT knowable long in advance, so F-CAL's ex-ante premise is degraded in
+the holdout period. The development window (through 2025-06-30) is unaffected.
+"""
+
+from __future__ import annotations
+
+import pandas as pd
+
+# (first day, last day). The decision/statement lands on the LAST day, which
+# is why `fomc_days` returns end dates — that is the day vol concentrates on.
+FOMC_MEETINGS = (
+    ("2020-01-28", "2020-01-29"),
+    ("2020-03-17", "2020-03-18"),  # scheduled ex ante; cancelled 2020-03-15
+    ("2020-04-28", "2020-04-29"),
+    ("2020-06-09", "2020-06-10"),
+    ("2020-07-28", "2020-07-29"),
+    ("2020-09-15", "2020-09-16"),
+    ("2020-11-04", "2020-11-05"),
+    ("2020-12-15", "2020-12-16"),
+    ("2021-01-26", "2021-01-27"),
+    ("2021-03-16", "2021-03-17"),
+    ("2021-04-27", "2021-04-28"),
+    ("2021-06-15", "2021-06-16"),
+    ("2021-07-27", "2021-07-28"),
+    ("2021-09-21", "2021-09-22"),
+    ("2021-11-02", "2021-11-03"),
+    ("2021-12-14", "2021-12-15"),
+    ("2022-01-25", "2022-01-26"),
+    ("2022-03-15", "2022-03-16"),
+    ("2022-05-03", "2022-05-04"),
+    ("2022-06-14", "2022-06-15"),
+    ("2022-07-26", "2022-07-27"),
+    ("2022-09-20", "2022-09-21"),
+    ("2022-11-01", "2022-11-02"),
+    ("2022-12-13", "2022-12-14"),
+    ("2023-01-31", "2023-02-01"),
+    ("2023-03-21", "2023-03-22"),
+    ("2023-05-02", "2023-05-03"),
+    ("2023-06-13", "2023-06-14"),
+    ("2023-07-25", "2023-07-26"),
+    ("2023-09-19", "2023-09-20"),
+    ("2023-10-31", "2023-11-01"),
+    ("2023-12-12", "2023-12-13"),
+    ("2024-01-30", "2024-01-31"),
+    ("2024-03-19", "2024-03-20"),
+    ("2024-04-30", "2024-05-01"),
+    ("2024-06-11", "2024-06-12"),
+    ("2024-07-30", "2024-07-31"),
+    ("2024-09-17", "2024-09-18"),
+    ("2024-11-06", "2024-11-07"),
+    ("2024-12-17", "2024-12-18"),
+    ("2025-01-28", "2025-01-29"),
+    ("2025-03-18", "2025-03-19"),
+    ("2025-05-06", "2025-05-07"),
+    ("2025-06-17", "2025-06-18"),
+    ("2025-07-29", "2025-07-30"),
+    # 2025-08-22 appears on the Fed calendar as a notation vote, not a
+    # scheduled meeting — excluded.
+    ("2025-09-16", "2025-09-17"),
+    ("2025-10-28", "2025-10-29"),
+    ("2025-12-09", "2025-12-10"),
+    ("2026-01-27", "2026-01-28"),
+    ("2026-03-17", "2026-03-18"),
+    ("2026-04-28", "2026-04-29"),
+    ("2026-06-16", "2026-06-17"),
+    ("2026-07-28", "2026-07-29"),
+    ("2026-09-15", "2026-09-16"),
+    ("2026-10-27", "2026-10-28"),
+    ("2026-12-08", "2026-12-09"),
+)
+
+CPI_RELEASES = (
+    "2020-01-14", "2020-02-13", "2020-03-11", "2020-04-10", "2020-05-12",
+    "2020-06-10", "2020-07-14", "2020-08-12", "2020-09-11", "2020-10-13",
+    "2020-11-12", "2020-12-10",
+    "2021-01-13", "2021-02-10", "2021-03-10", "2021-04-13", "2021-05-12",
+    "2021-06-10", "2021-07-13", "2021-08-11", "2021-09-14", "2021-10-13",
+    "2021-11-10", "2021-12-10",
+    "2022-01-12", "2022-02-10", "2022-03-10", "2022-04-12", "2022-05-11",
+    "2022-06-10", "2022-07-13", "2022-08-10", "2022-09-13", "2022-10-13",
+    "2022-11-10", "2022-12-13",
+    "2023-01-12", "2023-02-14", "2023-03-14", "2023-04-12", "2023-05-10",
+    "2023-06-13", "2023-07-12", "2023-08-10", "2023-09-13", "2023-10-12",
+    "2023-11-14", "2023-12-12",
+    "2024-01-11", "2024-02-13", "2024-03-12", "2024-04-10", "2024-05-15",
+    "2024-06-12", "2024-07-11", "2024-08-14", "2024-09-11", "2024-10-10",
+    "2024-11-13", "2024-12-11",
+    "2025-01-15", "2025-02-12", "2025-03-12", "2025-04-10", "2025-05-13",
+    "2025-06-11", "2025-07-15", "2025-08-12", "2025-09-11",
+    "2025-10-24",  # September data, shutdown-delayed; October skipped
+    "2025-12-18",  # November data
+)
+
+NFP_RELEASES = (
+    "2020-01-10", "2020-02-07", "2020-03-06", "2020-04-03", "2020-05-08",
+    "2020-06-05", "2020-07-02", "2020-08-07", "2020-09-04", "2020-10-02",
+    "2020-11-06", "2020-12-04",
+    "2021-01-08", "2021-02-05", "2021-03-05", "2021-04-02", "2021-05-07",
+    "2021-06-04", "2021-07-02", "2021-08-06", "2021-09-03", "2021-10-08",
+    "2021-11-05", "2021-12-03",
+    "2022-01-07", "2022-02-04", "2022-03-04", "2022-04-01", "2022-05-06",
+    "2022-06-03", "2022-07-08", "2022-08-05", "2022-09-02", "2022-10-07",
+    "2022-11-04", "2022-12-02",
+    "2023-01-06", "2023-02-03", "2023-03-10", "2023-04-07", "2023-05-05",
+    "2023-06-02", "2023-07-07", "2023-08-04", "2023-09-01", "2023-10-06",
+    "2023-11-03", "2023-12-08",
+    "2024-01-05", "2024-02-02", "2024-03-08", "2024-04-05", "2024-05-03",
+    "2024-06-07", "2024-07-05", "2024-08-02", "2024-09-06", "2024-10-04",
+    "2024-11-01", "2024-12-06",
+    "2025-01-10", "2025-02-07", "2025-03-07", "2025-04-04", "2025-05-02",
+    "2025-06-06", "2025-07-03", "2025-08-01", "2025-09-05",
+    "2025-11-20",  # September data, shutdown-delayed; October skipped
+    "2025-12-16",  # November data
+)
+
+# The span these tables are verified complete over. 2026 FOMC dates exist
+# above (published in advance) but BLS 2026 was only partially transcribed,
+# so the joint coverage bound is conservative and symmetric across kinds.
+COVERAGE_START = pd.Timestamp("2020-01-01")
+COVERAGE_END = pd.Timestamp("2025-12-31")
+
+
+def fomc_days() -> pd.DatetimeIndex:
+    """Decision days — the final day of each scheduled meeting."""
+    return pd.DatetimeIndex([pd.Timestamp(end) for _, end in FOMC_MEETINGS])
+
+
+def cpi_nfp_days() -> pd.DatetimeIndex:
+    return pd.DatetimeIndex(
+        sorted(pd.Timestamp(d) for d in CPI_RELEASES + NFP_RELEASES)
+    )
+
+
+def check_coverage(grid_end: pd.Timestamp, horizon_days: int) -> None:
+    """Refuse to answer 'is an event within h days?' past the verified span.
+
+    Beyond COVERAGE_END the honest answer is 'unknown', and silently
+    returning False there would fabricate a calm calendar.
+    """
+    needed = grid_end + pd.Timedelta(days=2 * horizon_days)
+    if needed.tz is not None:
+        needed = needed.tz_localize(None)
+    if needed > COVERAGE_END:
+        raise ValueError(
+            f"Calendar features need event coverage through {needed.date()} but "
+            f"the verified tables end {COVERAGE_END.date()}. Extend event_dates.py "
+            "from the primary sources (and re-verify) before extending the grid."
+        )
