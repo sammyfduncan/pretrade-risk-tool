@@ -44,6 +44,10 @@ forecasts with timestamps strictly earlier than that decision, using NumPy's
 `higher` method. The first candidates without 500 prior forecasts are a fixed
 warm-up exclusion from both arms.
 
+After that warm-up, at least 90% of otherwise eligible candidates must match an
+OOF forecast at the exact decision timestamp. Lower coverage is a data-contract
+failure, not permission to evaluate the convenient subset.
+
 At the configured one-basis-point-per-side base cost, convert each candidate's
 observed gross return to net R using its pre-trade `initial_r_pct`:
 
@@ -66,7 +70,8 @@ Also report the constant and policy arms at double historical cost.
 
 The policy passes economic development only if every condition holds:
 
-1. at least 200 matched opportunities and at least 30 in every block;
+1. forecast-match coverage is at least 90%, with at least 200 matched
+   opportunities and at least 30 in every block;
 2. policy compounded return is positive and at least 75% of constant return;
 3. policy maximum drawdown magnitude is at least 10% smaller than constant;
 4. policy trade-sequence Sharpe is strictly above constant;
