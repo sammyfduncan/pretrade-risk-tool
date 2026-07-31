@@ -7,6 +7,10 @@ joint-model outcome
 **Deployment:** impossible from this experiment alone; paper sizing remains
 disabled without a retained primary strategy and a registered economic test
 
+**Outcome:** PASS. J1 achieved pooled out-of-sample R2 `0.2284974` versus
+`0.2242097` for J0, for delta R2 `0.0042877`; four of five folds improved and
+the maximum registered placebo delta was `0.0008232`.
+
 ## 1. Known evidence and question
 
 The registered separate-family experiment is already known. B0 achieved pooled
@@ -82,3 +86,4 @@ arguments.
 | Look | Date | Item | Outcome available? |
 |---:|---|---|---|
 | 0 | 2026-07-31 | Joint design frozen from the already-known separate-family result | no joint result |
+| 1 | 2026-07-31 | Registered joint evaluation on 28,513 matched development rows and 20 calendar shifts | PASS; B0 plus GVZ plus calendar selected; `paper_enabled=False`; confirmation unopened |
