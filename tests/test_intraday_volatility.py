@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from commodity_ml.evaluation.placebo import circular_shift
 from commodity_ml.intraday.volatility import (
     ALL_FEATURES,
     BASELINE_FEATURES,
@@ -12,6 +13,7 @@ from commodity_ml.intraday.volatility import (
     IV_FEATURES,
     TARGET_COLUMN,
     build_volatility_dataset,
+    clean_gvz_observations,
     evaluate_volatility_ablation,
     walk_forward_volatility,
 )
@@ -187,3 +189,30 @@ def test_registered_feature_families_do_not_overlap():
     assert not set(BASELINE_FEATURES).intersection(IV_FEATURES)
     assert not set(BASELINE_FEATURES).intersection(CALENDAR_FEATURES)
     assert not set(IV_FEATURES).intersection(CALENDAR_FEATURES)
+
+
+def test_gvz_holiday_nans_are_non_observations_and_placebos_keep_fixed_rows():
+    raw = make_gvz()
+    raw.iloc[[20, 45, 90]] = np.nan
+    clean = clean_gvz_observations(raw)
+    shifted = circular_shift(clean.to_frame(), 17)["gvz"]
+    candles = make_m30()
+    end = candles.index[-1] + pd.Timedelta(hours=1)
+
+    observed = build_volatility_dataset(
+        candles,
+        clean,
+        development_start=pd.Timestamp("2021-01-01", tz="UTC"),
+        development_end=end,
+        releases=make_releases(),
+    )
+    placebo = build_volatility_dataset(
+        candles,
+        shifted,
+        development_start=pd.Timestamp("2021-01-01", tz="UTC"),
+        development_end=end,
+        releases=make_releases(),
+    )
+
+    assert len(clean) == len(raw) - 3
+    assert observed.frame.index.equals(placebo.frame.index)

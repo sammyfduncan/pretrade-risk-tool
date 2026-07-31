@@ -87,6 +87,12 @@ UTC`, preserving the existing conservative publication lag. It may be carried
 forward for at most five calendar days. A longer gap makes the feature missing;
 it is not filled from a later observation.
 
+FRED holiday rows whose value is missing are retained in the pinned raw
+snapshot but removed before transformation: they are dated placeholders, not
+GVZ closes. The five-day change therefore means five actual observations.
+Observed and placebo construction use the same cleaned observation index, so
+shifting values cannot change the matched price-row sample.
+
 Exactly two implied-volatility columns are registered:
 
 - `gvz_log`: log of the lagged GVZ level; and
@@ -286,6 +292,7 @@ these tests pass and this document is committed.
 |---:|---|---|---|
 | 0 | 2026-07-31 | Design written; no implementation run | no |
 | 1 | 2026-07-31 | Causal builder, OLS walk-forward, ablation, guarded CLI, and synthetic tests implemented | synthetic only |
+| 2 | 2026-07-31 | First real invocation aborted before writing a report because shifted FRED holiday NaNs changed placebo row availability; cleaned non-observations and added a fixed-row regression test | no result written |
 
 ## 12. Registered execution command
 

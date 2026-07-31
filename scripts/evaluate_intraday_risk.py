@@ -29,6 +29,7 @@ from commodity_ml.intraday.volatility import (
     IV_FEATURES,
     TARGET_COLUMN,
     build_volatility_dataset,
+    clean_gvz_observations,
     evaluate_volatility_ablation,
     fit_linear_volatility_model,
     walk_forward_volatility,
@@ -55,10 +56,10 @@ def main() -> None:
         source,
         filters=[("time", ">=", START), ("time", "<", END)],
     )
-    gvz = fetch_gvz(end="2025-06-30")
+    gvz_raw = fetch_gvz(end="2025-06-30")
     releases = scheduled_release_times(START, END)
     gvz_path, gvz_hash = _pin_snapshot(
-        gvz.to_frame(),
+        gvz_raw.to_frame(),
         PROJECT_ROOT / "data" / "raw" / "GVZCLS_intraday_risk.parquet",
         {
             "source": "https://fred.stlouisfed.org/series/GVZCLS",
@@ -66,6 +67,7 @@ def main() -> None:
             "retrieved_at": pd.Timestamp.now(tz="UTC").isoformat(),
         },
     )
+    gvz = clean_gvz_observations(gvz_raw)
     event_path, event_hash = _pin_snapshot(
         releases,
         PROJECT_ROOT / "data" / "raw" / "gold_intraday_risk_events.parquet",

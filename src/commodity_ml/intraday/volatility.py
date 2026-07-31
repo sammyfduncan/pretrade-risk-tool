@@ -102,6 +102,30 @@ class VolatilityAblation:
     folds_improved: int
 
 
+def clean_gvz_observations(gvz: pd.Series) -> pd.Series:
+    """Remove FRED non-observation rows without altering observed closes.
+
+    FRED represents US-market holidays as dated NaNs.  They are not GVZ
+    observations and therefore do not belong in a five-*observation* change.
+    Removing them before any circular shift also keeps the observed and
+    placebo availability masks identical.
+    """
+
+    if not isinstance(gvz, pd.Series):
+        raise ValueError("GVZ must be a pandas Series")
+    if not isinstance(gvz.index, pd.DatetimeIndex):
+        raise ValueError("GVZ requires a DatetimeIndex")
+    if not gvz.index.is_unique:
+        raise ValueError("GVZ observation dates must be unique")
+    clean = gvz.sort_index().dropna().astype(float)
+    if clean.empty:
+        raise ValueError("GVZ has no observed closes")
+    if not np.isfinite(clean.to_numpy()).all() or (clean <= 0).any():
+        raise ValueError("Observed GVZ closes must be finite and positive")
+    clean.name = "gvz"
+    return clean
+
+
 def build_volatility_dataset(
     candles: pd.DataFrame,
     gvz: pd.Series,
