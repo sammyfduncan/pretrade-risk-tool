@@ -15,6 +15,7 @@ from commodity_ml.intraday.volatility import (
     build_volatility_dataset,
     clean_gvz_observations,
     evaluate_volatility_ablation,
+    evaluate_joint_volatility,
     walk_forward_volatility,
 )
 
@@ -189,6 +190,30 @@ def test_registered_feature_families_do_not_overlap():
     assert not set(BASELINE_FEATURES).intersection(IV_FEATURES)
     assert not set(BASELINE_FEATURES).intersection(CALENDAR_FEATURES)
     assert not set(IV_FEATURES).intersection(CALENDAR_FEATURES)
+
+
+def test_joint_comparison_adds_calendar_to_fixed_iv_reference():
+    rng = np.random.default_rng(31)
+    n = 1_500
+    index = pd.date_range("2021-01-01", periods=n, freq="30min", tz="UTC")
+    frame = pd.DataFrame(index=index)
+    for feature in ALL_FEATURES:
+        frame[feature] = rng.normal(size=n)
+    frame[TARGET_COLUMN] = (
+        0.7 * frame[IV_FEATURES[0]]
+        + 0.5 * frame[CALENDAR_FEATURES[0]]
+        + rng.normal(0, 0.2, n)
+    )
+
+    result = evaluate_joint_volatility(frame)
+
+    assert result.reference.feature_names == BASELINE_FEATURES + IV_FEATURES
+    assert result.joint.feature_names == ALL_FEATURES
+    assert result.delta_r2_oos > 0.1
+    assert result.folds_improved == 5
+    assert result.reference.oof_prediction.index.equals(
+        result.joint.oof_prediction.index
+    )
 
 
 def test_gvz_holiday_nans_are_non_observations_and_placebos_keep_fixed_rows():

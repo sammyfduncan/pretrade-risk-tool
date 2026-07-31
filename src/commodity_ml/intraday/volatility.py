@@ -102,6 +102,17 @@ class VolatilityAblation:
     folds_improved: int
 
 
+@dataclass(frozen=True)
+class JointVolatilityComparison:
+    """Registered J1 comparison against the already-known B0 plus IV model."""
+
+    reference: WalkForwardVolatilityForecast
+    joint: WalkForwardVolatilityForecast
+    delta_r2_oos: float
+    per_fold_delta: tuple[float, ...]
+    folds_improved: int
+
+
 def clean_gvz_observations(gvz: pd.Series) -> pd.Series:
     """Remove FRED non-observation rows without altering observed closes.
 
@@ -304,6 +315,32 @@ def evaluate_volatility_ablation(
         baseline=baseline,
         augmented=augmented,
         delta_r2_oos=augmented.pooled_r2_oos - baseline.pooled_r2_oos,
+        per_fold_delta=per_fold,
+        folds_improved=sum(delta > 0 for delta in per_fold),
+    )
+
+
+def evaluate_joint_volatility(dataset: pd.DataFrame) -> JointVolatilityComparison:
+    """Compare registered J1 against J0 on identical folds and rows."""
+
+    reference_names = BASELINE_FEATURES + IV_FEATURES
+    joint_names = ALL_FEATURES
+    reference = walk_forward_volatility(dataset, reference_names)
+    joint = walk_forward_volatility(dataset, joint_names)
+    if not reference.oof_prediction.index.equals(joint.oof_prediction.index):
+        raise RuntimeError("Joint volatility comparison changed OOF rows")
+    per_fold = tuple(
+        joint_fold.r2_oos - reference_fold.r2_oos
+        for reference_fold, joint_fold in zip(
+            reference.folds,
+            joint.folds,
+            strict=True,
+        )
+    )
+    return JointVolatilityComparison(
+        reference=reference,
+        joint=joint,
+        delta_r2_oos=joint.pooled_r2_oos - reference.pooled_r2_oos,
         per_fold_delta=per_fold,
         folds_improved=sum(delta > 0 for delta in per_fold),
     )
