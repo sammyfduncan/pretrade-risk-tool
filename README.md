@@ -60,6 +60,7 @@ Historical records:
 - [`docs/intraday_risk_policy.md`](docs/intraday_risk_policy.md)
 - [`docs/intraday_joint_risk_design.md`](docs/intraday_joint_risk_design.md)
 - [`docs/intraday_risk_economic_design.md`](docs/intraday_risk_economic_design.md)
+- [`docs/cme_futures_data.md`](docs/cme_futures_data.md)
 
 ## 3. Active system design
 
@@ -227,9 +228,12 @@ not to find a convenient replication after another asset fails.
 
 ## 9. Data and execution
 
-Training history comes from **Dukascopy**. **IG** is the intended paper/live
-broker and the source for recent parity checks and executable prices. Both
-feeds use the canonical candle schema.
+Spot training history comes from **Dukascopy**. **IG** is the intended
+paper/live broker and the source for recent parity checks and executable
+prices. **Databento CME/COMEX GC** definitions, one-minute OHLCV, and
+statistics are the new futures-market research source. They remain separate
+individual contracts until a causal roll rule is preregistered; no continuous
+series is silently back-adjusted.
 
 Before any new performance experiment:
 
@@ -254,6 +258,12 @@ broker position IDs, day/week equity anchors, entry counts, kill-switch state,
 and every reserved intent ID survive a restart. Candidate datasets are likewise
 paired with checksummed manifests and exact execution-ledger reconciliation
 before the ML trainer will read them.
+
+`scripts/import_cme_gc.py` verifies Databento batch manifests and matching
+ranges, maps instrument IDs, removes calendar spreads, rejects malformed
+records, and converts split files to checksummed monthly Parquet partitions.
+It creates no active contract, feature, or strategy outcome. See
+[`docs/cme_futures_data.md`](docs/cme_futures_data.md).
 
 The old H4 backtest omitted some of this realism. Its ML and feature-ablation
 conclusions remain useful, but its PF and Sharpe are not estimates of live

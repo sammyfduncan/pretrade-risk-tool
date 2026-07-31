@@ -11,6 +11,7 @@ pyarrow                 # parquet IO
 #   dukascopy-python -> free deep XAUUSD history for model training. No account needed.
 trading-ig>=0.0.24
 dukascopy-python>=4.0
+databento>=0.82,<1     # CME/COMEX futures DBN reader; historical files are pinned locally
 python-dotenv           # loads IG credentials from .env
 
 # Feature engineering
