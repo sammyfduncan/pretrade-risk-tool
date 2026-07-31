@@ -13,7 +13,7 @@ import pandas as pd
 
 from commodity_ml.config import load_config
 from commodity_ml.evaluation.ml_metrics import overall_metrics
-from commodity_ml.intraday.ml_dataset import candidate_feature_columns
+from commodity_ml.intraday.ml_dataset import load_candidate_bundle
 from commodity_ml.modeling.walkforward import fit_final_model, walk_forward
 
 
@@ -35,7 +35,13 @@ def main() -> None:
             f"Missing {path}\nRun scripts/build_intraday_candidates.py first."
         )
 
-    dataset = pd.read_parquet(path).sort_index()
+    bundle = load_candidate_bundle(
+        path,
+        expected_strategy=args.strategy,
+        expected_source="dukascopy",
+        expected_cost_pct_per_side=cfg.backtest.fee_pct,
+    )
+    dataset = bundle.dataset.sort_index()
     if len(dataset) < args.min_candidates:
         raise SystemExit(
             f"Only {len(dataset)} executed candidates; at least "
@@ -52,7 +58,7 @@ def main() -> None:
             "development-only intraday base."
         )
 
-    feature_names = candidate_feature_columns(dataset, args.strategy)
+    feature_names = list(bundle.feature_names)
     X = dataset[feature_names]
     y = dataset["label"].astype("int8")
     exit_time = pd.to_datetime(dataset["exit_time"], utc=True)

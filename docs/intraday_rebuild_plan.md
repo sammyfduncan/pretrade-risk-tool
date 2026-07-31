@@ -582,14 +582,18 @@ Size increases occur only at pre-defined review points.
      threshold, non-overlap, and exact candidate-label tests added;
    - IG quote ingestion, UTC bar handling, account/market adapters, shifted-feed
      source parity, and a fail-closed dry paper-intent harness implemented;
-   - persisted artifact reconciliation, persistent restart/idempotency state,
-     live streaming, and actual demo-account validation remain before this phase
-     is complete.
+   - checksummed candidate/ledger manifests, exact persisted reconciliation,
+     atomic paper restart state, intent lifecycle/idempotency, exact broker
+     position-ID reconciliation, London day/week resets, and a persistent kill
+     switch implemented;
+   - wiring state to a future submit-once order adapter, live streaming, and
+     actual demo-account validation remain before this phase is complete.
 3. **Intraday data path**
    - **implemented:** granularity-specific fetch artifacts and causal completed
      H1 -> M30 joins;
    - **implemented:** development-only base builder and confirmation fence;
-   - support synchronized M15 inputs without making M15 mandatory;
+   - **implemented:** optional synchronized completed-M15 diagnostic context,
+     kept outside the frozen M30 rules and initial ML contract;
    - live-validate Dukascopy/IG parity with the user's account.
 4. **Primary rules**
    - **implemented:** exact P1/P2/P3 candidate generators and ATR-distance
@@ -734,3 +738,25 @@ a valid research result.
   paper trading never retrains.
 - No intraday raw artifacts were fetched and no P1/P2/P3 outcome or model score
   was generated or read during this implementation work.
+
+### 2026-07-31 — restart safety, artifact integrity, and optional M15 context
+
+- Added an atomic, locked JSON paper-state store under `data/runtime/`. It
+  persists day/week equity anchors, entries, exact expected broker position
+  IDs, the kill switch, and prepared/submitted/confirmed/rejected intent
+  records across process restarts.
+- A new state can only be initialized against a flat broker account. Unknown
+  open positions are never silently adopted. Intent IDs are reserved before a
+  future submit call, and all known IDs remain duplicate-blocked after restart.
+- Reconciliation now compares exact broker position IDs, not only counts.
+  London day and Monday-week boundaries reset once; a backward clock or corrupt
+  or unknown state schema fails closed.
+- Candidate datasets and their full reason-coded ledgers are now published with
+  a manifest containing source, strategy, feature order, row counts, and SHA-256
+  hashes. The trainer verifies hashes and exact row-level execution parity
+  before fitting anything.
+- Added optional causal M15 attachment. Only M15 bars whose closes are available
+  by the M30 decision may join; these diagnostic columns cannot enter P1/P2/P3
+  or the initial candidate-model feature contract.
+- No broker credentials, network data, strategy outcomes, confirmation rows, or
+  model scores were used.

@@ -316,6 +316,12 @@ class AssetConfig:
         return PROJECT_ROOT / "models" / f"{self.asset}_{strategy.lower()}_{model_kind}.joblib"
 
     @property
+    def paper_state_path(self) -> Path:
+        """Local operational state; never a model input or committed artifact."""
+
+        return PROJECT_ROOT / "data" / "runtime" / f"{self.asset}_paper_state.json"
+
+    @property
     def oof_path(self) -> Path:
         return PROJECT_ROOT / "data" / "processed" / f"{self.asset}_oof.parquet"
 

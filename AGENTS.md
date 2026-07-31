@@ -53,8 +53,9 @@ execution steps interactively, and prefer readable code over clever code.
    mandate decisions, then repair label/backtest/execution correctness before
    reading new performance outcomes. The isolated intraday resolver now covers
    quote-aware fills and the frozen risk/sizing policy; synchronized intraday
-   data/candidate generation and the candidate-only ML research trainer are now
-   implemented but have not been run on real intraday artifacts. Broker
+   data/candidate generation, checksummed artifacts, restart-safe paper state,
+   optional causal M15 context, and the candidate-only ML research trainer are
+   now implemented but have not been run on real intraday artifacts. Broker
    quote/metadata adapters, shifted-feed parity, and the non-dealing dry
    paper-intent boundary also await demo-account validation.
 4. Pre-register and evaluate at most three primary strategy families on gold:
@@ -124,13 +125,15 @@ src/commodity_ml/         # installed package (pip install -e .)
                           # GVZ implied vol, event-calendar flags, log forward RV target
   intraday/execution.py   # ACTIVE: next-bar-open OHLC trade/label contract, London cutoff,
                           # quote-aware fills, blackouts, costs, and reason-coded rejections
-  intraday/data.py        # ACTIVE: causal completed-H1 -> M30 base and session features
+  intraday/data.py        # ACTIVE: causal H1 -> M30 base; optional completed-M15 context
   intraday/strategies.py  # ACTIVE: exact frozen P1/P2/P3 long/short candidate rules
-  intraday/ml_dataset.py  # ACTIVE: explicit candidate-only feature/metadata contract
+  intraday/ml_dataset.py  # ACTIVE: candidate-only contract + checksummed ledger bundles
   intraday/risk.py        # ACTIVE: stop-based sizing, notional/min-size caps, portfolio
                           # daily/weekly loss gates and entry-count/overlap controls
   intraday/market_data.py # ACTIVE: complete-bar/freshness and spread-in-R admission gates
   intraday/paper.py       # ACTIVE: fail-closed dry order-intent construction; non-dealing
+  intraday/state.py       # ACTIVE: atomic restart/idempotency state, exact position IDs,
+                          # intent lifecycle, London equity anchors, kill switch
   evaluation/ml_metrics.py       # AUC, Brier, per-fold tables
   evaluation/trading_metrics.py  # Sharpe, profit factor, max drawdown (pure pandas, no vbt dep)
   evaluation/placebo.py   # circular-shift nulls: how much ΔAUC/ΔR² does this pipeline invent

@@ -11,7 +11,11 @@ import pandas as pd
 
 from commodity_ml.config import load_config
 from commodity_ml.intraday.execution import IntradayExecutionConfig
-from commodity_ml.intraday.ml_dataset import COMMON_FEATURES, build_candidate_dataset
+from commodity_ml.intraday.ml_dataset import (
+    COMMON_FEATURES,
+    build_candidate_dataset,
+    write_candidate_bundle,
+)
 from commodity_ml.intraday.strategies import generate_candidates
 
 
@@ -54,10 +58,15 @@ def main() -> None:
         ),
     )
     output = cfg.intraday_candidate_path(args.strategy)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    result.dataset.to_parquet(output)
+    manifest_path = write_candidate_bundle(
+        result,
+        output,
+        strategy=args.strategy,
+        source="dukascopy",
+        cost_pct_per_side=cfg.backtest.fee_pct,
+        confirmation_cutoff=cutoff,
+    )
     ledger_path = output.with_name(output.stem + "_ledger.parquet")
-    result.ledger.to_parquet(ledger_path)
 
     rejected = int((result.ledger["status"] == "rejected").sum()) if len(result.ledger) else 0
     print(
@@ -66,6 +75,7 @@ def main() -> None:
         f"  features: {len(result.feature_names)} candidate-only inputs\n"
         f"  dataset -> {output}\n"
         f"  ledger  -> {ledger_path}\n"
+        f"  manifest -> {manifest_path}\n"
         "No model was trained and no confirmation rows were read."
     )
 

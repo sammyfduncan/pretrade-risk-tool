@@ -9,6 +9,8 @@ from commodity_ml.intraday.ml_dataset import (
     METADATA_COLUMNS,
     build_candidate_dataset,
     candidate_feature_columns,
+    load_candidate_bundle,
+    write_candidate_bundle,
 )
 
 
@@ -79,3 +81,71 @@ def test_incomplete_candidate_feature_is_refused_not_silently_dropped():
 
     with pytest.raises(ValueError, match="incomplete"):
         build_candidate_dataset(frame, [candidate], strategy="P1")
+
+
+def test_candidate_bundle_round_trip_verifies_ledger_and_provenance(tmp_path):
+    frame = frame_for_candidate()
+    candidate = TradeCandidate(
+        signal_time=frame.index[0],
+        side="long",
+        stop_distance_pct=None,
+        target_distance_pct=None,
+        max_holding_bars=2,
+        strategy="P1",
+        stop_distance_abs=1.0,
+        target_r_multiple=1.5,
+    )
+    result = build_candidate_dataset(frame, [candidate], strategy="P1")
+    output = tmp_path / "p1_candidates.parquet"
+    cutoff = pd.Timestamp("2025-07-01", tz="UTC")
+
+    manifest = write_candidate_bundle(
+        result,
+        output,
+        strategy="P1",
+        source="dukascopy",
+        cost_pct_per_side=0.0001,
+        confirmation_cutoff=cutoff,
+    )
+    loaded = load_candidate_bundle(output, expected_strategy="P1")
+
+    assert manifest.exists()
+    pd.testing.assert_frame_equal(loaded.dataset, result.dataset, check_freq=False)
+    pd.testing.assert_frame_equal(loaded.ledger, result.ledger, check_freq=False)
+    assert loaded.feature_names == result.feature_names
+    with pytest.raises(ValueError, match="cost assumption mismatch"):
+        load_candidate_bundle(
+            output,
+            expected_strategy="P1",
+            expected_cost_pct_per_side=0.0002,
+        )
+
+
+def test_candidate_bundle_refuses_tampering_even_when_row_count_is_unchanged(tmp_path):
+    frame = frame_for_candidate()
+    candidate = TradeCandidate(
+        signal_time=frame.index[0],
+        side="long",
+        stop_distance_pct=None,
+        target_distance_pct=None,
+        max_holding_bars=2,
+        strategy="P1",
+        stop_distance_abs=1.0,
+        target_r_multiple=1.5,
+    )
+    result = build_candidate_dataset(frame, [candidate], strategy="P1")
+    output = tmp_path / "p1_candidates.parquet"
+    write_candidate_bundle(
+        result,
+        output,
+        strategy="P1",
+        source="dukascopy",
+        cost_pct_per_side=0.0001,
+        confirmation_cutoff=pd.Timestamp("2025-07-01", tz="UTC"),
+    )
+    tampered = pd.read_parquet(output)
+    tampered.loc[tampered.index[0], "label"] = 1 - tampered["label"].iloc[0]
+    tampered.to_parquet(output)
+
+    with pytest.raises(ValueError, match="checksum"):
+        load_candidate_bundle(output, expected_strategy="P1")

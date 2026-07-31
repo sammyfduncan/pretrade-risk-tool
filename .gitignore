@@ -221,6 +221,7 @@ __marimo__/
 # Project artifacts (never commit data, models, or reports)
 data/raw/*
 data/processed/*
+data/runtime/*
 models/*
 reports/*
 !data/raw/.gitkeep

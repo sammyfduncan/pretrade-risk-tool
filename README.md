@@ -211,6 +211,12 @@ intent. Real order submission remains deliberately disabled; account-specific
 epic, size increment, and point value must be confirmed before the dry harness
 will pass.
 
+Paper runtime facts now persist atomically under `data/runtime/`: exact expected
+broker position IDs, day/week equity anchors, entry counts, kill-switch state,
+and every reserved intent ID survive a restart. Candidate datasets are likewise
+paired with checksummed manifests and exact execution-ledger reconciliation
+before the ML trainer will read them.
+
 The old H4 backtest omitted some of this realism. Its ML and feature-ablation
 conclusions remain useful, but its PF and Sharpe are not estimates of live
 intraday profitability.
@@ -238,10 +244,12 @@ only after the full version-1 contract and gates are committed. Data from
 
 1. **Complete:** freeze the intraday mandate in plan §2.
 2. **In progress:** repair label/backtest/execution correctness without
-   searching for alpha. Broker/quote/risk dry-run controls are implemented;
-   persistent paper restart state and live validation remain.
+   searching for alpha. Broker/quote/risk dry-run controls, restart-safe paper
+   state, exact position reconciliation, and artifact integrity are implemented;
+   submit-once adapter wiring and live validation remain.
 3. **Implemented, not yet run on real artifacts:** causal H1/M30 base,
-   candidate datasets, and confirmation fence. M15 remains pending.
+   candidate datasets, confirmation fence, and optional completed-M15
+   diagnostic context.
 4. **Implemented, not yet evaluated:** exact pre-registered P1/P2/P3 candidate
    generators on gold.
 5. **Training foundation implemented:** candidate-only logistic/LightGBM

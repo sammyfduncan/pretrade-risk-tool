@@ -60,6 +60,7 @@ class PaperRuntimeState:
     week_start_equity: float
     entries_today: int
     expected_open_positions: int
+    expected_open_position_ids: tuple[str, ...] = ()
     submitted_intent_ids: tuple[str, ...] = ()
     kill_switch_active: bool = False
 
@@ -116,9 +117,15 @@ def build_paper_intent(
         reasons.append("kill_switch_active")
     if candidate.intent_id in runtime.submitted_intent_ids:
         reasons.append("duplicate_intent_id")
-    actual_open_positions = len(set(broker_open_position_ids))
+    actual_position_ids = tuple(sorted(set(broker_open_position_ids)))
+    actual_open_positions = len(actual_position_ids)
     if actual_open_positions != runtime.expected_open_positions:
         reasons.append("position_reconciliation_mismatch")
+    if (
+        runtime.expected_open_position_ids
+        and actual_position_ids != tuple(sorted(set(runtime.expected_open_position_ids)))
+    ):
+        reasons.append("position_id_reconciliation_mismatch")
     if account.currency != market.account_currency:
         reasons.append("account_currency_mismatch")
     if account.status.upper() != "ENABLED":

@@ -17,6 +17,7 @@ from commodity_ml.features.technical import atr
 LONDON = "Europe/London"
 H1_DURATION = pd.Timedelta(hours=1)
 M30_DURATION = pd.Timedelta(minutes=30)
+M15_DURATION = pd.Timedelta(minutes=15)
 
 
 def build_intraday_frame(
@@ -24,7 +25,9 @@ def build_intraday_frame(
     m30_candles: pd.DataFrame,
     *,
     source: str,
+    m15_candles: pd.DataFrame | None = None,
     max_h1_age: pd.Timedelta = pd.Timedelta(hours=2),
+    max_m15_age: pd.Timedelta = pd.Timedelta(minutes=30),
 ) -> pd.DataFrame:
     """Build the shared causal frame used by rules, labels, and later ML."""
 
@@ -67,6 +70,60 @@ def build_intraday_frame(
     session = _session_features(m30, merged["decision_time"])
     for column in session:
         merged[column] = session[column]
+    if m15_candles is not None:
+        merged = attach_m15_context(
+            merged,
+            m15_candles,
+            source=source,
+            max_m15_age=max_m15_age,
+        )
+    return merged
+
+
+def attach_m15_context(
+    frame: pd.DataFrame,
+    m15_candles: pd.DataFrame,
+    *,
+    source: str,
+    max_m15_age: pd.Timedelta = pd.Timedelta(minutes=30),
+) -> pd.DataFrame:
+    """Attach optional completed-M15 execution context to M30 decisions.
+
+    These columns are diagnostic challenger inputs only. The frozen P1/P2/P3
+    rules and initial candidate-model feature lists do not consume them.
+    """
+
+    if "decision_time" not in frame:
+        raise ValueError("M30 intraday frame is missing decision_time")
+    if max_m15_age < M15_DURATION:
+        raise ValueError("max_m15_age must be at least one M15 bar")
+    m15 = validate_candles(m15_candles, f"{source}:M15")
+    _require_grid(m15.index, M15_DURATION, "M15")
+    right = _m15_features(m15).reset_index().rename(
+        columns={"time": "m15_source_time"}
+    )
+    right["m15_available_time"] = right["m15_source_time"] + M15_DURATION
+    left = frame.reset_index().rename(columns={"time": "signal_time"})
+    merged = pd.merge_asof(
+        left.sort_values("decision_time"),
+        right.sort_values("m15_available_time"),
+        left_on="decision_time",
+        right_on="m15_available_time",
+        direction="backward",
+        tolerance=max_m15_age,
+        allow_exact_matches=True,
+    )
+    merged = merged.set_index("signal_time").sort_index()
+    merged.index = pd.DatetimeIndex(merged.index, name="time")
+    merged["m15_context_age_minutes"] = (
+        merged["decision_time"] - merged["m15_available_time"]
+    ) / pd.Timedelta(minutes=1)
+    invalid = (
+        merged["m15_available_time"].notna()
+        & (merged["m15_available_time"] > merged["decision_time"])
+    )
+    if invalid.any():  # pragma: no cover - merge_asof contract guard
+        raise AssertionError("M15 context was joined before it became available")
     return merged
 
 
@@ -107,6 +164,28 @@ def _m30_features(candles: pd.DataFrame) -> pd.DataFrame:
     out["m30_bb_width_pct"] = width / candles["close"]
     out["m30_body_pct"] = (candles["close"] - candles["open"]) / candles["close"]
     out["m30_range_pct"] = (candles["high"] - candles["low"]) / candles["close"]
+    return out
+
+
+def _m15_features(candles: pd.DataFrame) -> pd.DataFrame:
+    """Small execution-state set kept outside the initial M30 model contract."""
+
+    out = pd.DataFrame(index=candles.index)
+    ema20 = candles["close"].ewm(span=20, adjust=False, min_periods=20).mean()
+    atr14 = atr(candles, length=14)
+    returns = candles["close"].pct_change()
+    out["m15_close"] = candles["close"]
+    out["m15_ema20_dist"] = candles["close"] / ema20 - 1
+    out["m15_atr_pct"] = atr14 / candles["close"]
+    out["m15_body_pct"] = (
+        candles["close"] - candles["open"]
+    ) / candles["close"]
+    out["m15_range_pct"] = (
+        candles["high"] - candles["low"]
+    ) / candles["close"]
+    out["m15_return1"] = returns
+    out["m15_return4"] = candles["close"].pct_change(4)
+    out["m15_realized_vol4"] = returns.rolling(4).std(ddof=0)
     return out
 
 

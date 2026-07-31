@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 
 from commodity_ml.intraday.data import build_intraday_frame
+from commodity_ml.intraday.ml_dataset import COMMON_FEATURES, STRATEGY_FEATURES
 
 
 def candles(
@@ -78,3 +79,43 @@ def test_opening_range_is_hidden_until_complete_and_uses_prior_20_sessions():
     after = day.loc[(day_local.hour == 9) & (day_local.minute == 0)]
     assert before["opening_range_high"].isna().all()
     assert after["opening_range_high"].notna().all()
+
+
+def test_optional_m15_context_uses_only_completed_bars_and_is_not_a_model_input():
+    h1 = candles(start="2026-01-05", periods=120, freq="1h")
+    m30 = candles(start="2026-01-05", periods=240, freq="30min")
+    m15 = candles(start="2026-01-05", periods=480, freq="15min")
+    frame = build_intraday_frame(
+        h1,
+        m30,
+        source="test",
+        m15_candles=m15,
+    )
+    signal_time = pd.Timestamp("2026-01-06 09:00", tz="UTC")
+    row = frame.loc[signal_time]
+
+    assert row["decision_time"] == pd.Timestamp("2026-01-06 09:30", tz="UTC")
+    assert row["m15_source_time"] == pd.Timestamp("2026-01-06 09:15", tz="UTC")
+    assert row["m15_available_time"] == row["decision_time"]
+    assert row["m15_context_age_minutes"] == 0
+
+    poisoned = m15.copy()
+    poisoned.loc[
+        poisoned.index >= pd.Timestamp("2026-01-06 09:30", tz="UTC"),
+        ["open", "high", "low", "close"],
+    ] *= 100
+    rebuilt = build_intraday_frame(
+        h1,
+        m30,
+        source="test",
+        m15_candles=poisoned,
+    )
+    m15_columns = [column for column in frame if column.startswith("m15_")]
+    assert not set(m15_columns) & (
+        set(COMMON_FEATURES)
+        | {column for values in STRATEGY_FEATURES.values() for column in values}
+    )
+    pd.testing.assert_series_equal(
+        frame.loc[signal_time, m15_columns],
+        rebuilt.loc[signal_time, m15_columns],
+    )

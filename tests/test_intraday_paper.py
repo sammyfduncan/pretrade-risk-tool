@@ -145,6 +145,21 @@ def test_duplicate_or_reconciliation_mismatch_fails_before_sizing():
     assert not mismatch.allowed
     assert "position_reconciliation_mismatch" in mismatch.reasons
 
+    wrong_identity = build_paper_intent(
+        candidate("wrong-identity"),
+        account=account(),
+        market=market(),
+        quote=quote(),
+        quote_candles=quote_history(),
+        runtime=runtime(
+            expected_open_positions=1,
+            expected_open_position_ids=("EXPECTED",),
+        ),
+        broker_open_position_ids=("DIFFERENT",),
+    )
+    assert not wrong_identity.allowed
+    assert "position_id_reconciliation_mismatch" in wrong_identity.reasons
+
 
 def test_stale_quote_and_wide_spread_fail_closed():
     stale = build_paper_intent(

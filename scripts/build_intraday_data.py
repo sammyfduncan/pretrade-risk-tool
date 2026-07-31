@@ -27,6 +27,14 @@ def main() -> None:
             "diagnostic base and cannot overwrite training data"
         ),
     )
+    parser.add_argument(
+        "--include-m15",
+        action="store_true",
+        help=(
+            "Attach completed M15 diagnostic context. These columns are not "
+            "used by the frozen M30 rules or initial ML feature contract."
+        ),
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
 
@@ -34,6 +42,8 @@ def main() -> None:
         granularity: cfg.raw_path(args.source, granularity=granularity)
         for granularity in ("H1", "M30")
     }
+    if args.include_m15:
+        paths["M15"] = cfg.raw_path(args.source, granularity="M15")
     missing = [str(path) for path in paths.values() if not path.exists()]
     if missing:
         raise SystemExit(
@@ -44,12 +54,20 @@ def main() -> None:
 
     h1 = pd.read_parquet(paths["H1"])
     m30 = pd.read_parquet(paths["M30"])
+    m15 = pd.read_parquet(paths["M15"]) if args.include_m15 else None
     cutoff = cfg.holdout_ts
     if cutoff is not None:
         h1 = h1.loc[h1.index < cutoff]
         m30 = m30.loc[m30.index < cutoff]
+        if m15 is not None:
+            m15 = m15.loc[m15.index < cutoff]
 
-    frame = build_intraday_frame(h1, m30, source=args.source)
+    frame = build_intraday_frame(
+        h1,
+        m30,
+        source=args.source,
+        m15_candles=m15,
+    )
     if cutoff is not None:
         # A 23:30 M30 bar closes exactly at a midnight fence and therefore
         # belongs to the next evaluation period even though its open does not.

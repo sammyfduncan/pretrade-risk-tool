@@ -81,6 +81,13 @@ enough point-in-time IG history before it can become a model input.
 The initial artifact is marked
 `research_only_threshold_not_registered`. The paper path cannot consume it.
 
+Candidate parquet files are not trusted on filename alone. Each build publishes
+the candidate dataset, its complete reason-coded execution ledger, and a
+manifest containing provenance, program/granularity, cost assumption, row
+counts, feature order, and SHA-256 hashes. Training rechecks the hashes, cost
+configuration, and exact signal/entry/exit/label/return parity before
+constructing `X` and `y`.
+
 ## Retraining lifecycle
 
 1. Build the initial development model once, then register the candidate filter
