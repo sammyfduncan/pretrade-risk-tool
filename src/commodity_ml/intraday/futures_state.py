@@ -73,11 +73,9 @@ def build_futures_candidate_features(
     joined = spot.join(active, how="left")
     joined["spot_return_30m"] = joined["close"] / joined["open"] - 1.0
     joined["gc_basis"] = np.log(joined["gc_close"] / joined["close"])
-    london = joined.index.tz_convert(LONDON)
-    joined["_london_slot"] = london.hour * 60 + london.minute
-    basis_reference = joined.groupby(
-        ["raw_symbol", "_london_slot"], dropna=False
-    )["gc_basis"].transform(
+    basis_reference = joined.groupby("raw_symbol", dropna=False)[
+        "gc_basis"
+    ].transform(
         lambda values: values.shift(1).rolling(20, min_periods=20).median()
     )
     joined["gc_basis_deviation"] = joined["gc_basis"] - basis_reference

@@ -46,8 +46,8 @@ the causally selected contract. Add exactly six candidate inputs:
 4. `gc_side_spot_gap_30m`: candidate-side signed GC return minus spot return;
 5. `gc_open_interest_log_change`: latest published active-contract open
    interest versus its preceding distinct reference date; and
-6. `gc_basis_deviation`: active GC/spot log basis minus its preceding-20
-   same-London-slot, same-contract median.
+6. `gc_basis_deviation`: active GC/spot log basis minus its preceding-20 M30,
+   same-contract median.
 
 All rolling references exclude the current observation. Any missing input
 rejects that candidate from both the spot control and challenger. Coverage
@@ -91,3 +91,17 @@ A failure retires this F-GC/P1 configuration. No individual feature is rescued
 from a failed family and no nearby roll, lookback, threshold, strategy, or
 model is tried. A pass permits a separately frozen confirmation run; it does
 not deploy a model.
+
+## 7. Pre-outcome feasibility correction
+
+The first execution stopped before fitting any model: fold zero had fewer than
+the frozen minimum rows. A feature-availability audit showed that five inputs
+covered 893–901 of 902 candidates, while the original basis reference covered
+only 536. Requiring 20 observations at the same clock slot inside each expiring
+contract was structurally too sparse.
+
+Before any label metric or return result was generated, item 6 was corrected
+to use the preceding 20 M30 observations in the same contract. This remains a
+shifted, causal local basis reference and changes no outcome-driven choice.
+The volume-surprise feature retains its same-London-slot reference because its
+coverage was already adequate. The 90% gate and every other rule remain fixed.
