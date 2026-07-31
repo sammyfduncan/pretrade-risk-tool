@@ -105,3 +105,27 @@ to use the preceding 20 M30 observations in the same contract. This remains a
 shifted, causal local basis reference and changes no outcome-driven choice.
 The volume-surprise feature retains its same-London-slot reference because its
 coverage was already adequate. The 90% gate and every other rule remain fixed.
+
+## 8. Development outcome
+
+F-GC failed. The causal feature build retained 844 of 902 candidates (93.6%),
+so data coverage passed. The matched spot-only filter had pooled OOF AUC
+`0.5294`; adding the full futures family reduced it to `0.5187`, a delta of
+`-0.0107`. AUC improved in only two of five folds, while the best of 20 joint
+time-shift placebos achieved a `+0.0195` delta.
+
+The economic result was also negative:
+
+| Metric | matched spot filter | F-GC challenger |
+|---|---:|---:|
+| filtered trades | 234 | 218 |
+| profit factor | 0.818 | 0.862 |
+| mean net R | — | -0.100 |
+| PF at double cost | — | 0.694 |
+
+The small PF improvement does not rescue the family: it remained below one,
+mean R stayed negative, one fold fell below the minimum trade count, and the
+ranking evidence was worse than both the matched control and placebo noise.
+No individual F-GC feature, alternate roll rule, P2/P3 transfer, nonlinear
+model, or threshold will be inspected under this program. Confirmation remains
+unopened and no deployment model was created.

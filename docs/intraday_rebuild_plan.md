@@ -894,3 +894,23 @@ a valid research result.
   P1/P2/P3, all V2 variants, their ML filters, the M15 challenger, and B1 all
   failed. A future retained primary strategy must be named and committed before
   this risk overlay can be judged or enter shadow paper trading.
+
+### 2026-07-31 — causal GC futures-information gate
+
+- Imported and checksummed the full pre-confirmation Databento GC definition,
+  OHLCV-1m, and statistics jobs. The importer handles time-varying instrument
+  IDs, removes spreads, records degraded dates, and excludes the 2025-07-01
+  files before parsing their records.
+- Pre-registered one P1+logistic F-GC family with a prior-completed-session
+  volume roll, six causal futures inputs, a matched spot-only control, the
+  existing nested threshold procedure, and 20 joint time-shift placebos.
+- The first execution stopped before model fitting because the original
+  same-clock-slot basis reference was structurally sparse. A documented
+  pre-outcome feasibility correction changed it to the prior 20 same-contract
+  M30 observations; coverage then passed at 844/902 candidates (93.6%).
+- F-GC failed. OOF AUC moved `0.5294 -> 0.5187` (delta `-0.0107`), only 2/5
+  folds improved, and the placebo maximum was `+0.0195`. Filtered PF improved
+  only `0.818 -> 0.862`, mean R was `-0.100`, and double-cost PF was `0.694`.
+- No individual feature rescue, alternate roll, other strategy/model, or
+  confirmation run is permitted under this program. No deployment artifact
+  was created.

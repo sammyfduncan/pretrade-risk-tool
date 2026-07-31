@@ -61,6 +61,7 @@ Historical records:
 - [`docs/intraday_joint_risk_design.md`](docs/intraday_joint_risk_design.md)
 - [`docs/intraday_risk_economic_design.md`](docs/intraday_risk_economic_design.md)
 - [`docs/cme_futures_data.md`](docs/cme_futures_data.md)
+- [`docs/intraday_futures_design.md`](docs/intraday_futures_design.md)
 
 ## 3. Active system design
 
@@ -183,6 +184,14 @@ retired without testing neighbouring clocks or thresholds. Further work on
 benchmark price discovery requires actual futures volume/order-flow or basis
 data rather than another spot-OHLC proxy.
 
+That source was subsequently added and tested. A pre-registered causal GC
+family used prior-session volume to select the active contract and added real
+GC returns, volume surprise, open-interest change, spot/futures dislocation,
+and basis state to the matched P1 logistic filter. It failed: OOF AUC fell
+`0.5294 -> 0.5187`, only two folds improved, a shifted placebo performed much
+better, and filtered PF remained below one (`0.862`). The family is retired;
+individual-feature rescue variants were not opened.
+
 ## 7. News and event data
 
 Generic news sentiment is retired from the active direction design:
@@ -231,9 +240,10 @@ not to find a convenient replication after another asset fails.
 Spot training history comes from **Dukascopy**. **IG** is the intended
 paper/live broker and the source for recent parity checks and executable
 prices. **Databento CME/COMEX GC** definitions, one-minute OHLCV, and
-statistics are the new futures-market research source. They remain separate
-individual contracts until a causal roll rule is preregistered; no continuous
-series is silently back-adjusted.
+statistics are the futures-market research source. The pinned development
+artifact remains as separate outright contracts. The F-GC experiment created
+a causal research view using the prior completed session's volume leader; it
+did not back-adjust prices or overwrite the source contracts.
 
 Before any new performance experiment:
 
@@ -312,9 +322,9 @@ only after the full version-1 contract and gates are committed. Data from
    passed. Confirmation remains unopened and `paper_enabled=false`.
 7. **Complete, honest negative:** LBMA-PM benchmark continuation B1 failed its
    economic, temporal, double-cost, and time-placebo gates.
-8. Collect and profile IG M15/M30 bid/ask costs; then specify a point-in-time,
-   roll-aware futures-market data source before another price-discovery
-   strategy. Do not create another spot-indicator variant to occupy this step.
+8. **Complete, honest negative:** the point-in-time, roll-aware F-GC family was
+   evaluated against matched spot-only P1 and 20 placebos. It failed. IG
+   M15/M30 bid/ask cost collection still awaits account setup.
 9. Transfer a genuinely retained gold pattern to silver, then platinum and
    palladium.
 10. Build correlation-aware allocation with an explicit cash outcome.
