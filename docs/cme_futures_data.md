@@ -6,11 +6,27 @@ source for later research; IG remains the intended spot-CFD execution broker.
 
 `scripts/import_cme_gc.py` verifies every batch file against its Databento
 manifest, requires matching ranges across the three schemas, maps numeric
-instrument IDs through definitions, filters `instrument_class=F` outright
+instrument IDs through the definition history as of each record timestamp,
+filters `instrument_class=F` outright
 futures, rejects malformed OHLCV, and writes checksummed normalized artifacts.
 For a split delivery, OHLCV and statistics files are converted one at a time
 into corresponding Parquet partitions; the full history is never duplicated
 in memory.
+
+The temporal join is required because Databento may reuse an `instrument_id`
+for a different symbol later in a multi-year delivery. The importer retains
+each identity-change boundary and refuses any record that has no earlier or
+same-time definition; it never fills an old record from a future definition.
+
+The production importer fences `2025-07-01` at the file level before opening
+DBN records. A wholly post-cutoff monthly/daily file is checksum-verified but
+excluded and named in the output manifest. A file straddling the cutoff is
+refused rather than silently row-sliced.
+
+Databento condition codes are also retained. `missing` or `pending` dates stop
+the import. `degraded` dates are available but have vendor-identified quality
+risk; they are written to the manifest and must be excluded, together with
+dependent lag/rolling windows, by the later preregistered feature builder.
 
 The importer intentionally does **not**:
 

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import re
 from typing import Iterable
 
 import databento as db
@@ -20,6 +21,7 @@ import pandas as pd
 EXPECTED_DATASET = "GLBX.MDP3"
 EXPECTED_PARENT = "GC.FUT"
 SCHEMAS = ("ohlcv-1m", "statistics", "definition")
+DEVELOPMENT_END = pd.Timestamp("2025-07-01", tz="UTC")
 DAILY_REFERENCE_STAT_TYPES = {3, 6, 9, 10}
 STAT_TYPE_NAMES = {
     1: "opening_price",
@@ -43,6 +45,7 @@ class DatabentoJob:
     end: pd.Timestamp
     data_files: tuple[Path, ...]
     hashes: dict[str, str]
+    degraded_dates: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -85,13 +88,27 @@ def verify_job(directory: str | Path, *, expected_schema: str) -> DatabentoJob:
         raise ValueError(f"Unexpected Databento query fields: {mismatches}")
     if not isinstance(conditions, list) or not conditions:
         raise ValueError("Databento condition ledger is empty")
+    unknown_conditions = sorted(
+        {
+            str(item.get("condition"))
+            for item in conditions
+            if item.get("condition") not in {"available", "degraded", "pending", "missing"}
+        }
+    )
+    if unknown_conditions:
+        raise ValueError(f"Unknown Databento condition codes: {unknown_conditions}")
     unavailable = [
         item.get("date")
         for item in conditions
-        if item.get("condition") != "available"
+        if item.get("condition") in {"pending", "missing"}
     ]
     if unavailable:
         raise ValueError(f"Databento reports unavailable dates: {unavailable}")
+    degraded = tuple(
+        str(item.get("date"))
+        for item in conditions
+        if item.get("condition") == "degraded"
+    )
 
     hashes: dict[str, str] = {}
     data_files: list[Path] = []
@@ -124,6 +141,7 @@ def verify_job(directory: str | Path, *, expected_schema: str) -> DatabentoJob:
         end=end,
         data_files=tuple(sorted(data_files)),
         hashes=hashes,
+        degraded_dates=degraded,
     )
 
 
@@ -146,13 +164,10 @@ def import_gc_jobs(
 
     raw_definitions = _read_dbn_files(jobs["definition"].data_files)
     definitions = normalize_gc_definitions(raw_definitions)
-    symbol_map = definitions.set_index("instrument_id")["raw_symbol"]
-    class_map = definitions.set_index("instrument_id")["instrument_class"]
-
     raw_ohlcv = _read_dbn_files(jobs["ohlcv-1m"].data_files)
-    ohlcv = normalize_gc_ohlcv(raw_ohlcv, symbol_map, class_map)
+    ohlcv = normalize_gc_ohlcv(raw_ohlcv, definitions)
     raw_statistics = _read_dbn_files(jobs["statistics"].data_files)
-    statistics = normalize_gc_statistics(raw_statistics, symbol_map, class_map)
+    statistics = normalize_gc_statistics(raw_statistics, definitions)
     start, end = next(iter(bounds))
     report = {
         "schema_version": 1,
@@ -161,12 +176,17 @@ def import_gc_jobs(
         "start": start.isoformat(),
         "end_exclusive": end.isoformat(),
         "definition_rows_raw": len(raw_definitions),
-        "definition_instruments": len(definitions),
+        "definition_instruments": int(definitions["instrument_id"].nunique()),
+        "definition_history_periods": len(definitions),
         "outright_instruments": int(
-            (definitions["instrument_class"] == "F").sum()
+            definitions.loc[
+                definitions["instrument_class"] == "F", "instrument_id"
+            ].nunique()
         ),
         "spread_instruments": int(
-            (definitions["instrument_class"] == "S").sum()
+            definitions.loc[
+                definitions["instrument_class"] == "S", "instrument_id"
+            ].nunique()
         ),
         "ohlcv_rows_raw": len(raw_ohlcv),
         "ohlcv_rows_outright": len(ohlcv),
@@ -175,6 +195,9 @@ def import_gc_jobs(
         "statistics_rows_outright": len(statistics),
         "input_sha256": {
             schema: job.hashes for schema, job in jobs.items()
+        },
+        "degraded_source_dates": {
+            schema: list(job.degraded_dates) for schema, job in jobs.items()
         },
         "research_transformations": {
             "front_contract_selected": False,
@@ -192,6 +215,7 @@ def process_gc_jobs(
     statistics_job: str | Path,
     definition_job: str | Path,
     output: str | Path | None,
+    development_end: pd.Timestamp = DEVELOPMENT_END,
 ) -> tuple[dict, Path | None]:
     """Validate and optionally write a full delivery one monthly file at a time.
 
@@ -209,12 +233,21 @@ def process_gc_jobs(
     bounds = {(job.start, job.end) for job in jobs.values()}
     if len(bounds) != 1:
         raise ValueError("CME jobs do not share exact start/end bounds")
-    start, end = next(iter(bounds))
+    start, source_end = next(iter(bounds))
+    cutoff = _utc(development_end, "development_end")
+    if start >= cutoff:
+        raise ValueError("CME delivery begins at or after the development cutoff")
+    selected_files: dict[str, tuple[Path, ...]] = {}
+    excluded_files: dict[str, list[str]] = {}
+    for schema, job in jobs.items():
+        selected, excluded = development_files(job.data_files, cutoff=cutoff)
+        if not selected:
+            raise ValueError(f"No pre-cutoff {schema} DBN files remain")
+        selected_files[schema] = selected
+        excluded_files[schema] = [path.name for path in excluded]
 
-    raw_definitions = _read_dbn_files(jobs["definition"].data_files)
+    raw_definitions = _read_dbn_files(selected_files["definition"])
     definitions = normalize_gc_definitions(raw_definitions)
-    symbol_map = definitions.set_index("instrument_id")["raw_symbol"]
-    class_map = definitions.set_index("instrument_id")["instrument_class"]
     root = Path(output).expanduser().resolve() if output is not None else None
     output_hashes: dict[str, object] = {}
     if root is not None:
@@ -227,9 +260,9 @@ def process_gc_jobs(
     ohlcv_rows_outright = 0
     ohlcv_symbols: set[str] = set()
     ohlcv_outputs: dict[str, str] = {}
-    for path in jobs["ohlcv-1m"].data_files:
+    for path in selected_files["ohlcv-1m"]:
         raw = _read_dbn_files((path,))
-        normalized = normalize_gc_ohlcv(raw, symbol_map, class_map)
+        normalized = normalize_gc_ohlcv(raw, definitions)
         ohlcv_rows_raw += len(raw)
         ohlcv_rows_outright += len(normalized)
         ohlcv_symbols.update(normalized["raw_symbol"].astype(str).unique())
@@ -243,9 +276,9 @@ def process_gc_jobs(
     statistics_rows_raw = 0
     statistics_rows_outright = 0
     statistics_outputs: dict[str, str] = {}
-    for path in jobs["statistics"].data_files:
+    for path in selected_files["statistics"]:
         raw = _read_dbn_files((path,))
-        normalized = normalize_gc_statistics(raw, symbol_map, class_map)
+        normalized = normalize_gc_statistics(raw, definitions)
         statistics_rows_raw += len(raw)
         statistics_rows_outright += len(normalized)
         if root is not None:
@@ -260,14 +293,25 @@ def process_gc_jobs(
         "dataset": EXPECTED_DATASET,
         "parent": EXPECTED_PARENT,
         "start": start.isoformat(),
-        "end_exclusive": end.isoformat(),
+        "end_exclusive": min(source_end, cutoff).isoformat(),
+        "source_end_exclusive": source_end.isoformat(),
+        "development_cutoff_applied": source_end > cutoff,
+        "excluded_post_cutoff_files": excluded_files,
+        "degraded_source_dates": {
+            schema: list(job.degraded_dates) for schema, job in jobs.items()
+        },
         "definition_rows_raw": len(raw_definitions),
-        "definition_instruments": len(definitions),
+        "definition_instruments": int(definitions["instrument_id"].nunique()),
+        "definition_history_periods": len(definitions),
         "outright_instruments": int(
-            (definitions["instrument_class"] == "F").sum()
+            definitions.loc[
+                definitions["instrument_class"] == "F", "instrument_id"
+            ].nunique()
         ),
         "spread_instruments": int(
-            (definitions["instrument_class"] == "S").sum()
+            definitions.loc[
+                definitions["instrument_class"] == "S", "instrument_id"
+            ].nunique()
         ),
         "ohlcv_rows_raw": ohlcv_rows_raw,
         "ohlcv_rows_outright": ohlcv_rows_outright,
@@ -308,27 +352,53 @@ def normalize_gc_definitions(frame: pd.DataFrame) -> pd.DataFrame:
         "security_type",
     }
     _require_columns(frame, required, "definition")
-    ordered = frame.reset_index().sort_values("ts_recv")
-    identities = ordered.groupby("instrument_id")["raw_symbol"].nunique()
-    reused = identities[identities > 1]
-    if len(reused):
-        raise ValueError(
-            "Databento instrument IDs map to multiple symbols; temporal mapping "
-            f"is required for IDs {list(reused.index[:10])}"
-        )
-    latest = ordered.drop_duplicates("instrument_id", keep="last")
-    if (latest["exchange"] != "XCEC").any():
+    index_name = frame.index.name or "index"
+    ordered = (
+        frame.reset_index()
+        .rename(columns={index_name: "definition_time"})
+        .sort_values(["instrument_id", "definition_time"])
+    )
+    ordered["definition_time"] = pd.to_datetime(
+        ordered["definition_time"], utc=True
+    )
+    if ordered["definition_time"].isna().any():
+        raise ValueError("GC definitions contain missing receive timestamps")
+    if (ordered["exchange"] != "XCEC").any():
         raise ValueError("GC definitions contain a non-COMEX exchange")
-    if (latest["currency"] != "USD").any():
+    if (ordered["currency"] != "USD").any():
         raise ValueError("GC definitions contain a non-USD instrument")
-    if (latest["asset"] != "GC").any() or (
-        latest["security_type"] != "FUT"
+    if (ordered["asset"] != "GC").any() or (
+        ordered["security_type"] != "FUT"
     ).any():
         raise ValueError("GC definitions contain the wrong asset/security type")
-    unknown_classes = set(latest["instrument_class"].astype(str)) - {"F", "S"}
+    unknown_classes = set(ordered["instrument_class"].astype(str)) - {"F", "S"}
     if unknown_classes:
         raise ValueError(f"Unknown GC instrument classes: {sorted(unknown_classes)}")
+
+    # Definition snapshots repeat every day. Retain the first record and every
+    # identity change for each numeric ID: IDs may be recycled over a long
+    # delivery, so a single latest-value dictionary is incorrect.
+    history_columns = [
+        "raw_symbol",
+        "instrument_class",
+        "exchange",
+        "currency",
+        "expiration",
+        "activation",
+        "asset",
+        "security_type",
+        "min_price_increment",
+        "contract_multiplier",
+        "unit_of_measure",
+    ]
+    history_columns = [column for column in history_columns if column in ordered]
+    previous = ordered.groupby("instrument_id")[history_columns].shift()
+    identity_changed = previous.isna().all(axis=1) | ordered[
+        history_columns
+    ].ne(previous).any(axis=1)
+    history = ordered.loc[identity_changed].copy()
     columns = [
+        "definition_time",
         "instrument_id",
         "raw_symbol",
         "instrument_class",
@@ -342,20 +412,19 @@ def normalize_gc_definitions(frame: pd.DataFrame) -> pd.DataFrame:
         "contract_multiplier",
         "unit_of_measure",
     ]
-    available = [column for column in columns if column in latest]
-    return latest.loc[:, available].sort_values(
-        ["instrument_class", "expiration", "raw_symbol"]
+    available = [column for column in columns if column in history]
+    return history.loc[:, available].sort_values(
+        ["definition_time", "instrument_id"]
     ).reset_index(drop=True)
 
 
 def normalize_gc_ohlcv(
     frame: pd.DataFrame,
-    symbol_map: pd.Series,
-    class_map: pd.Series,
+    definitions: pd.DataFrame,
 ) -> pd.DataFrame:
     required = {"instrument_id", "open", "high", "low", "close", "volume"}
     _require_columns(frame, required, "OHLCV")
-    out = _attach_identity(frame, symbol_map, class_map, "OHLCV")
+    out = _attach_identity(frame, definitions, "OHLCV")
     out = out.loc[out["instrument_class"] == "F"].copy()
     values = out.loc[:, ["open", "high", "low", "close", "volume"]]
     if not np.isfinite(values.to_numpy(dtype=float)).all():
@@ -382,8 +451,7 @@ def normalize_gc_ohlcv(
 
 def normalize_gc_statistics(
     frame: pd.DataFrame,
-    symbol_map: pd.Series,
-    class_map: pd.Series,
+    definitions: pd.DataFrame,
 ) -> pd.DataFrame:
     required = {
         "instrument_id",
@@ -394,7 +462,7 @@ def normalize_gc_statistics(
         "stat_flags",
     }
     _require_columns(frame, required, "statistics")
-    out = _attach_identity(frame, symbol_map, class_map, "statistics")
+    out = _attach_identity(frame, definitions, "statistics")
     out = out.loc[out["instrument_class"] == "F"].copy()
     if out["ts_event"].isna().any():
         raise ValueError("CME statistics contain missing event timestamps")
@@ -461,6 +529,36 @@ def _parquet_name(path: Path) -> str:
     return path.name[: -len(suffix)] + ".parquet"
 
 
+def development_files(
+    paths: Iterable[Path],
+    *,
+    cutoff: pd.Timestamp = DEVELOPMENT_END,
+) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    """Select only files wholly before cutoff without opening their records."""
+
+    end = _utc(cutoff, "cutoff")
+    selected: list[Path] = []
+    excluded: list[Path] = []
+    pattern = re.compile(r"^glbx-mdp3-(\d{8})(?:-(\d{8}))?\.")
+    for path in sorted(paths):
+        match = pattern.match(path.name)
+        if match is None:
+            raise ValueError(f"Cannot determine DBN file date range: {path.name}")
+        first = pd.Timestamp(match.group(1), tz="UTC")
+        last = pd.Timestamp(match.group(2) or match.group(1), tz="UTC")
+        file_end = last + pd.Timedelta(days=1)
+        if file_end <= end:
+            selected.append(path)
+        elif first >= end:
+            excluded.append(path)
+        else:
+            raise ValueError(
+                f"DBN file straddles development cutoff and cannot be sliced "
+                f"silently: {path.name}"
+            )
+    return tuple(selected), tuple(excluded)
+
+
 def _atomic_parquet(frame: pd.DataFrame, path: Path, *, index: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -470,17 +568,46 @@ def _atomic_parquet(frame: pd.DataFrame, path: Path, *, index: bool) -> None:
 
 def _attach_identity(
     frame: pd.DataFrame,
-    symbol_map: pd.Series,
-    class_map: pd.Series,
+    definitions: pd.DataFrame,
     label: str,
 ) -> pd.DataFrame:
-    out = frame.copy()
-    out["raw_symbol"] = out["instrument_id"].map(symbol_map)
-    out["instrument_class"] = out["instrument_id"].map(class_map)
+    required = {
+        "definition_time",
+        "instrument_id",
+        "raw_symbol",
+        "instrument_class",
+    }
+    missing_columns = sorted(required - set(definitions.columns))
+    if missing_columns:
+        raise ValueError(
+            "CME normalized definition history missing columns: "
+            f"{missing_columns}"
+        )
+    index_name = frame.index.name or "index"
+    left = frame.reset_index().rename(columns={index_name: "_record_time"})
+    left["_row_order"] = np.arange(len(left))
+    right = definitions.loc[
+        :, ["definition_time", "instrument_id", "raw_symbol", "instrument_class"]
+    ].copy()
+    left["_record_time"] = pd.to_datetime(left["_record_time"], utc=True)
+    right["definition_time"] = pd.to_datetime(right["definition_time"], utc=True)
+    left = left.sort_values(["_record_time", "instrument_id"])
+    right = right.sort_values(["definition_time", "instrument_id"])
+    out = pd.merge_asof(
+        left,
+        right,
+        left_on="_record_time",
+        right_on="definition_time",
+        by="instrument_id",
+        direction="backward",
+        allow_exact_matches=True,
+    )
     if out[["raw_symbol", "instrument_class"]].isna().any().any():
         missing = sorted(out.loc[out["raw_symbol"].isna(), "instrument_id"].unique())
         raise ValueError(f"{label} has unmapped instrument IDs: {missing[:10]}")
-    return out
+    out = out.sort_values("_row_order").set_index("_record_time")
+    out.index.name = frame.index.name
+    return out.drop(columns=["_row_order", "definition_time"])
 
 
 def _require_columns(frame: pd.DataFrame, required: set[str], label: str) -> None:
@@ -504,3 +631,10 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _utc(value: pd.Timestamp, name: str) -> pd.Timestamp:
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        raise ValueError(f"{name} must be timezone-aware")
+    return timestamp.tz_convert("UTC")
