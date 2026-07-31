@@ -37,6 +37,20 @@ The importer intentionally does **not**:
 - turn final open interest into information available earlier that day; or
 - create a feature, signal, candidate, or strategy result.
 
+## TBBO extension
+
+The separate `scripts/import_cme_gc_tbbo.py` command handles trade-space BBO
+data for the registered order-flow experiment. It requires schema `tbbo` with
+the same `GLBX.MDP3`, `GC.FUT`, `instrument_id`, DBN, and Zstandard contract.
+It validates aggressor side, trade price/size, and the best bid/offer immediately
+before each trade; maps identities through the existing temporal definitions;
+and retains only outright futures.
+
+Start with the validation range specified in
+`docs/intraday_order_flow_design.md`. The importer may normalize that sample,
+but strategy evaluation remains blocked until a complete pre-confirmation
+delivery exists.
+
 Those choices require a separate preregistration after the complete
 development download is validated. Data at or after `2025-07-01` remains
 outside feature design and development evaluation.

@@ -914,3 +914,19 @@ a valid research result.
 - No individual feature rescue, alternate roll, other strategy/model, or
   confirmation run is permitted under this program. No deployment artifact
   was created.
+
+### 2026-07-31 — GC trade-flow successor
+
+- Selected Databento TBBO as the next genuinely distinct source. It carries
+  every trade with aggressor side and the best bid/offer state immediately
+  before that trade, while avoiding MBP-1's non-trade quote-update volume.
+- Pre-registered one OF-GC/P1-logistic family with exact 5/30-minute signed
+  flow, depth, spread, sweep, and intensity inputs; the same matched control,
+  nested threshold, economic gate, and 20 joint placebos remain mandatory.
+- Implemented a checksummed, confirmation-fenced TBBO importer; temporal
+  instrument mapping; prior-session active-contract filtering; causal minute
+  aggregation; and post-decision poisoning tests. No TBBO source data or
+  strategy outcome has been read.
+- A one-month `2025-05-01` through `2025-06-01` TBBO delivery is required only
+  for schema/coverage/size validation. Full-history acquisition and the frozen
+  performance gate remain blocked until that non-performance check passes.

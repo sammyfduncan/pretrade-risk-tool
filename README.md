@@ -62,6 +62,7 @@ Historical records:
 - [`docs/intraday_risk_economic_design.md`](docs/intraday_risk_economic_design.md)
 - [`docs/cme_futures_data.md`](docs/cme_futures_data.md)
 - [`docs/intraday_futures_design.md`](docs/intraday_futures_design.md)
+- [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md)
 
 ## 3. Active system design
 
@@ -192,6 +193,14 @@ and basis state to the matched P1 logistic filter. It failed: OOF AUC fell
 better, and filtered PF remained below one (`0.862`). The family is retired;
 individual-feature rescue variants were not opened.
 
+The next and only registered new-data challenger is GC trade flow from
+Databento TBBO. Unlike aggregate bars, TBBO exposes aggressor side and the
+pre-trade best bid/offer sizes. The checksum-verifying importer, active-contract
+mapping, causal flow aggregation, placebo gate, and synthetic anti-lookahead
+tests are implemented. Performance evaluation is blocked until a validation
+delivery establishes field and aggressor-side coverage; see
+[`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md).
+
 ## 7. News and event data
 
 Generic news sentiment is retired from the active direction design:
@@ -274,6 +283,10 @@ ranges, maps instrument IDs, removes calendar spreads, rejects malformed
 records, and converts split files to checksummed monthly Parquet partitions.
 It creates no active contract, feature, or strategy outcome. See
 [`docs/cme_futures_data.md`](docs/cme_futures_data.md).
+
+`scripts/import_cme_gc_tbbo.py` provides the separate trade-space boundary. It
+requires Databento `tbbo`, validates every pre-trade book and aggressor-side
+record, maps reused IDs temporally, and creates no strategy result.
 
 The old H4 backtest omitted some of this realism. Its ML and feature-ablation
 conclusions remain useful, but its PF and Sharpe are not estimates of live

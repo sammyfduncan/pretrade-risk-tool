@@ -20,7 +20,7 @@ import pandas as pd
 
 EXPECTED_DATASET = "GLBX.MDP3"
 EXPECTED_PARENT = "GC.FUT"
-SCHEMAS = ("ohlcv-1m", "statistics", "definition")
+SCHEMAS = ("ohlcv-1m", "statistics", "definition", "tbbo")
 DEVELOPMENT_END = pd.Timestamp("2025-07-01", tz="UTC")
 DAILY_REFERENCE_STAT_TYPES = {3, 6, 9, 10}
 STAT_TYPE_NAMES = {
@@ -608,6 +608,17 @@ def _attach_identity(
     out = out.sort_values("_row_order").set_index("_record_time")
     out.index.name = frame.index.name
     return out.drop(columns=["_row_order", "definition_time"])
+
+
+def attach_gc_identity(
+    frame: pd.DataFrame,
+    definitions: pd.DataFrame,
+    *,
+    label: str,
+) -> pd.DataFrame:
+    """Public temporal identity join for additional Databento GC schemas."""
+
+    return _attach_identity(frame, definitions, label)
 
 
 def _require_columns(frame: pd.DataFrame, required: set[str], label: str) -> None:

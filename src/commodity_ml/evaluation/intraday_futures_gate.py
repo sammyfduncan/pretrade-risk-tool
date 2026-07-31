@@ -16,6 +16,7 @@ from commodity_ml.evaluation.intraday_filter_gate import (
 
 @dataclass(frozen=True)
 class FuturesGateResult:
+    program: str
     baseline: FilterGateResult
     challenger: FilterGateResult
     baseline_auc: float
@@ -29,7 +30,7 @@ class FuturesGateResult:
 
     def report_dict(self) -> dict:
         return {
-            "program": "intraday_f_gc_p1_logistic",
+            "program": self.program,
             "coverage": self.coverage,
             "baseline_auc": self.baseline_auc,
             "challenger_auc": self.challenger_auc,
@@ -54,6 +55,7 @@ def evaluate_futures_gate(
     cost_pct_per_side: float,
     coverage: float,
     n_placebos: int = 20,
+    program: str = "intraday_f_gc_p1_logistic",
 ) -> FuturesGateResult:
     """Compare matched spot-only and futures-informed P1 logistic filters."""
 
@@ -133,6 +135,7 @@ def evaluate_futures_gate(
             f"challenger_pf_not_above_control:{challenger_pf:.4f}<={baseline_pf:.4f}"
         )
     return FuturesGateResult(
+        program=program,
         baseline=baseline,
         challenger=challenger,
         baseline_auc=baseline_auc,
