@@ -79,6 +79,8 @@ def test_opening_range_is_hidden_until_complete_and_uses_prior_20_sessions():
     after = day.loc[(day_local.hour == 9) & (day_local.minute == 0)]
     assert before["opening_range_high"].isna().all()
     assert after["opening_range_high"].notna().all()
+    assert before["opening_impulse_atr"].isna().all()
+    assert after["opening_impulse_atr"].notna().all()
 
 
 def test_optional_m15_context_uses_only_completed_bars_and_is_not_a_model_input():

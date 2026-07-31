@@ -40,6 +40,21 @@ STRATEGY_FEATURES = {
     "P1": ["opening_range_compression", "setup_distance_atr"],
     "P2": ["setup_distance_atr", "h1_regime_distance_atr"],
     "P3": ["setup_distance_atr", "h1_regime_distance_atr"],
+    "P1V2": [
+        "opening_range_compression",
+        "opening_impulse_atr",
+        "setup_distance_atr",
+    ],
+    "P2V2": [
+        "setup_distance_atr",
+        "h1_regime_distance_atr",
+        "m30_atr_regime_ratio",
+    ],
+    "P3V2": [
+        "setup_distance_atr",
+        "h1_regime_distance_atr",
+        "m30_atr_regime_ratio",
+    ],
 }
 
 METADATA_COLUMNS = [
@@ -101,7 +116,7 @@ def build_candidate_dataset(
     rows["is_long"] = (sides == "long").astype("int8").to_numpy()
     direction = np.where(rows["is_long"].to_numpy() == 1, 1.0, -1.0)
 
-    if strategy == "P1":
+    if strategy.startswith("P1"):
         boundary = np.where(
             direction > 0,
             rows["opening_range_high"],
@@ -111,7 +126,7 @@ def build_candidate_dataset(
             direction * (rows["close"].to_numpy() - boundary)
             / rows["m30_atr14"].to_numpy()
         )
-    elif strategy == "P2":
+    elif strategy.startswith("P2"):
         rows["setup_distance_atr"] = (
             (rows["close"] - rows["m30_ema20"]).abs() / rows["m30_atr14"]
         )

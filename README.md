@@ -51,6 +51,13 @@ Historical records:
 - [`docs/step2_design.md`](docs/step2_design.md)
 - [`docs/step2b_vol_design.md`](docs/step2b_vol_design.md)
 - [`docs/intraday_ml_retraining.md`](docs/intraday_ml_retraining.md)
+- [`docs/intraday_filter_gate.md`](docs/intraday_filter_gate.md)
+- [`docs/intraday_v2_design.md`](docs/intraday_v2_design.md)
+- [`docs/intraday_m15_execution_design.md`](docs/intraday_m15_execution_design.md)
+- [`docs/intraday_market_structure_research.md`](docs/intraday_market_structure_research.md)
+- [`docs/intraday_cost_measurement.md`](docs/intraday_cost_measurement.md)
+- [`docs/intraday_risk_design.md`](docs/intraday_risk_design.md)
+- [`docs/intraday_risk_policy.md`](docs/intraday_risk_policy.md)
 
 ## 3. Active system design
 
@@ -78,8 +85,8 @@ The agreed cadence is:
 
 - **H1:** higher-level trend, regime, and market context;
 - **M30:** default candidate-entry and trade-management clock;
-- **M15:** optional execution/refinement challenger, retained only if its extra
-  opportunities survive realistic spread, slippage, and latency assumptions.
+- **M15:** optional execution/refinement challenger, retained only if matched
+  M30 candidates improve under realistic spread, slippage, and latency.
 
 This is an intraday project. Positions are forced flat by 21:30 London time,
 with earlier close overrides; entries are allowed from 07:00 to before 19:30.
@@ -105,8 +112,9 @@ Each family must define its entry, side, exit, stop, maximum holding time,
 session restrictions, event restrictions, and cost assumptions before
 evaluation.
 
-The exact P1/P2/P3 rules and candidate generators are implemented. They have
-not yet been run on real intraday development artifacts or evaluated.
+The exact P1/P2/P3 rules and candidate generators are implemented and have run
+on gold development artifacts. The original rules, all three frozen V2 rules,
+and both registered M15 execution replays were honest negatives after costs.
 
 The existing RSI, MACD, Bollinger, EMA, return, ATR, volatility, candle-shape,
 and calendar features already cover the common technical-indicator families.
@@ -149,6 +157,29 @@ training command saves no deployment threshold, so a research artifact cannot
 silently become a paper model. See
 [`docs/intraday_ml_retraining.md`](docs/intraday_ml_retraining.md).
 
+Gold development training is now complete. Six strategy/model combinations
+were screened; the two registered leads, P1-logistic and P2-LightGBM, both
+failed the frozen economic filter gate after the candidate history was
+corrected to enforce scheduled-event blackouts. P1 consistently reduced losses
+but remained negative; P2 remained negative. No ML filter or deployment
+threshold is retained for intraday version 1. See
+[`docs/intraday_filter_gate.md`](docs/intraday_filter_gate.md).
+
+A separately frozen V2 primary-rule program also completed. Active-volatility
+and opening-impulse conditions improved P1/P3 gross behavior and drawdown, but
+all three V2 rules failed after the fixed two-basis-point round-trip cost; ML
+was therefore not trained on them. A subsequent matched M15 execution-only
+challenger also completed and failed: finer paths changed only three stop outcomes across
+508 matched trades, with P1V2 PF `0.937` and P3V2 PF `1.050`. See
+[`docs/intraday_v2_design.md`](docs/intraday_v2_design.md).
+
+A first commodity-specific market-structure test then targeted continuation
+through the 15:00 London LBMA gold auction. B1 failed with PF `0.851`, only one
+of five profitable blocks, and a better 16:00 non-auction placebo. It is
+retired without testing neighbouring clocks or thresholds. Further work on
+benchmark price discovery requires actual futures volume/order-flow or basis
+data rather than another spot-OHLC proxy.
+
 ## 7. News and event data
 
 Generic news sentiment is retired from the active direction design:
@@ -169,6 +200,11 @@ The useful successor is a **structured event-risk layer**:
 
 Event data is initially a risk and execution input. It becomes directional only
 under a separate pre-registered hypothesis.
+
+The historical intraday builder now enforces exact DST-aware CPI/NFP/FOMC entry
+blackouts. Because the verified joint calendar begins in 2020, candidate
+research excludes earlier rows rather than silently treating them as
+event-free.
 
 ## 8. Asset universe
 
@@ -247,18 +283,31 @@ only after the full version-1 contract and gates are committed. Data from
    searching for alpha. Broker/quote/risk dry-run controls, restart-safe paper
    state, exact position reconciliation, and artifact integrity are implemented;
    submit-once adapter wiring and live validation remain.
-3. **Implemented, not yet run on real artifacts:** causal H1/M30 base,
-   candidate datasets, confirmation fence, and optional completed-M15
-   diagnostic context.
-4. **Implemented, not yet evaluated:** exact pre-registered P1/P2/P3 candidate
-   generators on gold.
-5. **Training foundation implemented:** candidate-only logistic/LightGBM
-   research trainer. Real candidate counts and retention gates remain.
-6. Re-test volatility and scheduled-event risk controls at intraday horizons.
-7. Transfer the frozen pattern to silver, then platinum and palladium.
-8. Build correlation-aware allocation with an explicit cash outcome.
-9. Paper trade in separate operational and performance-evaluation stages.
-10. Begin minimum-size live trading only after both gates pass.
+3. **Complete on development artifacts:** causal H1/M30 base, candidate
+   datasets, confirmation fence, scheduled-event blackouts, and optional
+   completed-M15 diagnostic context.
+4. **Complete, honest negative:** exact pre-registered P1/P2/P3 controls and
+   the frozen P1V2/P2V2/P3V2 primary-rule gate ran on gold. No bare rule passed.
+5. **Complete, honest negative:** candidate-only logistic/LightGBM training and
+   the frozen nested filter gate ran on gold development data. Neither filter
+   passed; confirmation remains unopened.
+6. **Risk forecast and controls implemented; real-data gate not run:**
+   `docs/intraday_risk_design.md` fixes a two-hour observed-volatility target,
+   price/session baseline, GVZ and event-calendar ablations, placebos, and
+   pass/fail gates. `docs/intraday_risk_policy.md` fixes a downside-only
+   1.0x/0.5x/0.0x sizing ladder. The builder, five-fold OOF forecast, guarded
+   evaluation command, sizing propagation, and dry-paper enforcement pass
+   synthetic tests; no real-data forecast may be generated before both designs
+   are committed.
+7. **Complete, honest negative:** LBMA-PM benchmark continuation B1 failed its
+   economic, temporal, double-cost, and time-placebo gates.
+8. Collect and profile IG M15/M30 bid/ask costs; then specify a futures-market
+   data source before another price-discovery strategy.
+9. Transfer a genuinely retained gold pattern to silver, then platinum and
+   palladium.
+10. Build correlation-aware allocation with an explicit cash outcome.
+11. Paper trade in separate operational and performance-evaluation stages.
+12. Begin minimum-size live trading only after both gates pass.
 
 The detailed deliverables and decision gates are in
 [`docs/intraday_rebuild_plan.md`](docs/intraday_rebuild_plan.md).

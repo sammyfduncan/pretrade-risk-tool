@@ -160,6 +160,11 @@ def _m30_features(candles: pd.DataFrame) -> pd.DataFrame:
     out["m30_bb_upper"] = upper
     out["m30_ema20_dist"] = candles["close"] / ema20 - 1
     out["m30_atr_pct"] = atr14 / candles["close"]
+    prior_atr_median = out["m30_atr_pct"].shift(1).rolling(
+        20 * 48,
+        min_periods=10 * 48,
+    ).median()
+    out["m30_atr_regime_ratio"] = out["m30_atr_pct"] / prior_atr_median
     out["m30_bb_position"] = (candles["close"] - lower) / width
     out["m30_bb_width_pct"] = width / candles["close"]
     out["m30_body_pct"] = (candles["close"] - candles["open"]) / candles["close"]
@@ -235,6 +240,8 @@ def _session_features(
     opening_stats = opening.groupby("_session_date").agg(
         opening_range_high=("high", "max"),
         opening_range_low=("low", "min"),
+        opening_range_open=("open", "first"),
+        opening_range_close=("close", "last"),
         opening_bar_count=("close", "size"),
     )
     opening_stats["opening_range"] = (
@@ -253,6 +260,9 @@ def _session_features(
     opening_stats["opening_range_compression"] = (
         valid_range / opening_stats["opening_range_median20"]
     )
+    opening_stats["opening_impulse"] = (
+        opening_stats["opening_range_close"] - opening_stats["opening_range_open"]
+    ).where(opening_stats["opening_bar_count"] == 4)
 
     opening_known = minute_decision >= 9 * 60
     for column in (
@@ -261,6 +271,7 @@ def _session_features(
         "opening_range",
         "opening_range_median20",
         "opening_range_compression",
+        "opening_impulse",
     ):
         values = date_values.map(opening_stats[column])
         result[column] = values.where(opening_known)
@@ -268,6 +279,7 @@ def _session_features(
     # Normalize the prior session by volatility known through this M30 close.
     atr14 = atr(m30, length=14)
     result["previous_session_range_atr"] = result["previous_session_range"] / atr14
+    result["opening_impulse_atr"] = result["opening_impulse"] / atr14
     return result
 
 

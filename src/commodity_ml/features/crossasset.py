@@ -18,8 +18,8 @@ obeying the trend rule pays off".
 
 Honest accounting: every extra feature family tried before the holdout is
 spent is another comparison, and enough comparisons manufacture a winner. This
-one was on the pre-registered list in CLAUDE.md *before* any results were seen,
-which is what makes it principled rather than a reaction to a bad number.
+one was on the pre-registered list in `docs/step1_freeze_record.md` *before*
+any results were seen, which is what makes it principled rather than a reaction to a bad number.
 CFTC positioning and ETF flows stay unbuilt. Feature work is closed after this.
 
 Causality

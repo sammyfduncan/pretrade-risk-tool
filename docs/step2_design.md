@@ -37,7 +37,7 @@ as a tie-break if gold and silver disagree (§6.1).
 - The step-1 frozen baseline: pooled OOF AUC **0.5291** (LightGBM, meta mode),
   logistic baseline 0.4820, backtest 120 trades / PF 1.54 — not a validated
   edge (freeze record §4).
-- **Supersession note.** CLAUDE.md's run-4 statement "feature work is now
+- **Supersession note.** The then-current project context's run-4 statement "feature work is now
   closed — CFTC positioning and ETF flows stay unbuilt" was a *step-1 scope
   rule*: it forbade adding features to rescue a weak price-only result. This
   document opens a new, pre-registered feature program. The step-1 freeze
@@ -709,7 +709,8 @@ Condition 1 alone is a screen, not evidence: at these effective sample sizes
 +0.015 AUC is ~1.2–1.9 SE. The gate's evidential content is condition 3.
 
 **On failure** (the expected outcome): the family's yaml flag returns to
-false, the snapshot stays on disk, the result is written to §9 and CLAUDE.md
+false, the snapshot stays on disk, and the result is written to §9 and the
+then-current project context
 as an honest negative. **On success:** yaml expresses the retained set, the
 model is retrained, and Phase D (§10) opens with its own pre-registered
 addendum.
@@ -738,12 +739,12 @@ decision is then:
 | pass | pass | **Retained.** Family goes live in both yamls; Phase D (§10) opens. |
 | pass | fail | **Not retained.** Logged as a lead, exactly meta-labeling's status. |
 | fail | pass | **Not retained.** Same treatment — the rule is symmetric, and was written that way before either number existed. |
-| fail | fail | Retired. Honest negative to §9 and CLAUDE.md. |
+| fail | fail | Retired. Honest negative to §9 and project documentation. |
 
 **Thresholds are not relaxed to accommodate a one-of-two outcome**, and a
 one-of-two outcome does not license a third asset to break the tie — adding
 platinum to resolve a gold/silver disagreement would be the scope creep
-CLAUDE.md's asset-scope rule exists to prevent, and would multiply comparisons
+The project's asset-scope rule exists to prevent this and would multiply comparisons
 again. PGMs remain step 3.
 
 **How much is silver replication actually worth?** Less than two independent

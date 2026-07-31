@@ -11,6 +11,7 @@ import pandas as pd
 
 from commodity_ml.config import load_config
 from commodity_ml.intraday.execution import IntradayExecutionConfig
+from commodity_ml.intraday.event_blackouts import scheduled_entry_blackouts
 from commodity_ml.intraday.ml_dataset import (
     COMMON_FEATURES,
     build_candidate_dataset,
@@ -22,7 +23,11 @@ from commodity_ml.intraday.strategies import generate_candidates
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config/gold.yaml")
-    parser.add_argument("--strategy", choices=["P1", "P2", "P3"], required=True)
+    parser.add_argument(
+        "--strategy",
+        choices=["P1", "P2", "P3", "P1V2", "P2V2", "P3V2"],
+        required=True,
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
     if not cfg.intraday_base_path.exists():
@@ -42,6 +47,11 @@ def main() -> None:
             "current build_intraday_data.py before generating outcomes."
         )
 
+    # The exact-time CPI/NFP/FOMC tables are verified from 2020 onward. Earlier
+    # rows cannot honestly be treated as event-free, so they are excluded.
+    event_coverage_start = pd.Timestamp("2020-01-01", tz="UTC")
+    frame = frame.loc[frame.index >= event_coverage_start]
+
     finite_common = np.isfinite(frame[COMMON_FEATURES].astype(float)).all(axis=1)
     if not finite_common.any():
         raise SystemExit("No rows survive the deterministic intraday feature warmup")
@@ -55,6 +65,11 @@ def main() -> None:
         strategy=args.strategy,
         execution_config=IntradayExecutionConfig(
             cost_pct_per_side=cfg.backtest.fee_pct,
+            entry_blackouts=scheduled_entry_blackouts(
+                frame.index.min(),
+                pd.DatetimeIndex(frame["decision_time"]).max()
+                + pd.Timedelta(minutes=1),
+            ),
         ),
     )
     output = cfg.intraday_candidate_path(args.strategy)

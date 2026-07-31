@@ -14,6 +14,7 @@ from commodity_ml.intraday.paper import (
     PaperRuntimeState,
     build_paper_intent,
 )
+from commodity_ml.intraday.risk import VolatilityRiskDecision
 
 
 NOW = pd.Timestamp("2026-01-07 12:00", tz="UTC")
@@ -218,3 +219,54 @@ def test_unsafe_broker_minimum_size_is_rejected():
 
     assert not decision.allowed
     assert decision.reasons == ("minimum_size_exceeds_caps",)
+
+
+def volatility(multiplier: float, reason: str) -> VolatilityRiskDecision:
+    return VolatilityRiskDecision(
+        allowed=multiplier > 0,
+        multiplier=multiplier,
+        forecast=-4.0,
+        threshold_80=-3.5,
+        threshold_95=-3.0,
+        reference_count=500,
+        reason=reason,
+    )
+
+
+def test_volatility_policy_blocks_or_reduces_paper_risk_without_increasing_it():
+    blocked = build_paper_intent(
+        candidate("vol-block"),
+        account=account(),
+        market=market(),
+        quote=quote(),
+        quote_candles=quote_history(),
+        runtime=runtime(),
+        broker_open_position_ids=(),
+        volatility_risk=volatility(0.0, "forecast_at_or_above_p95"),
+    )
+    reduced = build_paper_intent(
+        candidate("vol-reduce"),
+        account=account(),
+        market=market(),
+        quote=quote(),
+        quote_candles=quote_history(),
+        runtime=runtime(),
+        broker_open_position_ids=(),
+        volatility_risk=volatility(0.5, "forecast_at_or_above_p80"),
+    )
+    full = build_paper_intent(
+        candidate("vol-full"),
+        account=account(),
+        market=market(),
+        quote=quote(),
+        quote_candles=quote_history(),
+        runtime=runtime(),
+        broker_open_position_ids=(),
+        volatility_risk=volatility(1.0, "forecast_below_p80"),
+    )
+
+    assert not blocked.allowed
+    assert blocked.reasons == ("forecast_at_or_above_p95",)
+    assert reduced.allowed and full.allowed
+    assert reduced.sizing.risk_budget == full.sizing.risk_budget / 2
+    assert reduced.intent.size <= full.intent.size

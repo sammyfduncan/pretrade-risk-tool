@@ -11,6 +11,97 @@ from dataclasses import dataclass
 import math
 
 import numpy as np
+import pandas as pd
+
+
+@dataclass(frozen=True)
+class VolatilityRiskDecision:
+    """Downside-only multiplier from a retained volatility forecast."""
+
+    allowed: bool
+    multiplier: float
+    forecast: float
+    threshold_80: float | None
+    threshold_95: float | None
+    reference_count: int
+    reason: str
+
+
+def assess_volatility_risk(
+    *,
+    forecast: float,
+    decision_time: pd.Timestamp,
+    forecast_history: pd.Series,
+    artifact_approved: bool,
+    minimum_history: int = 500,
+) -> VolatilityRiskDecision:
+    """Map a causal forecast to the frozen 1.0/0.5/0.0 risk ladder.
+
+    Only strictly earlier OOF or prospective forecasts may be supplied in
+    ``forecast_history``.  The function cannot verify their provenance, so the
+    caller must separately validate the artifact and history manifest; the
+    explicit approval flag makes that boundary fail closed.
+    """
+
+    if isinstance(minimum_history, bool) or not isinstance(minimum_history, int):
+        raise ValueError("minimum_history must be an integer")
+    if minimum_history < 1:
+        raise ValueError("minimum_history must be positive")
+    now = pd.Timestamp(decision_time)
+    if now.tzinfo is None:
+        raise ValueError("decision_time must be timezone-aware")
+    now = now.tz_convert("UTC")
+    if not artifact_approved:
+        return _blocked_volatility_decision(forecast, 0, "forecast_artifact_unapproved")
+    if not np.isfinite(forecast):
+        return _blocked_volatility_decision(forecast, 0, "forecast_non_finite")
+    if not isinstance(forecast_history, pd.Series):
+        raise ValueError("forecast_history must be a pandas Series")
+    if not isinstance(forecast_history.index, pd.DatetimeIndex):
+        raise ValueError("forecast_history requires a DatetimeIndex")
+    if forecast_history.index.tz is None:
+        raise ValueError("forecast_history timestamps must be timezone-aware")
+    history = forecast_history.copy()
+    history.index = history.index.tz_convert("UTC")
+    if not history.index.is_monotonic_increasing or not history.index.is_unique:
+        raise ValueError("forecast_history must be sorted and unique")
+    if len(history) and history.index[-1] >= now:
+        return _blocked_volatility_decision(
+            forecast,
+            len(history),
+            "forecast_history_not_strictly_prior",
+        )
+    values = history.to_numpy(dtype=float)
+    if not np.isfinite(values).all():
+        return _blocked_volatility_decision(
+            forecast,
+            len(history),
+            "forecast_history_non_finite",
+        )
+    if len(values) < minimum_history:
+        return _blocked_volatility_decision(
+            forecast,
+            len(values),
+            "insufficient_forecast_history",
+        )
+
+    threshold_80 = float(np.quantile(values, 0.80, method="higher"))
+    threshold_95 = float(np.quantile(values, 0.95, method="higher"))
+    if forecast >= threshold_95:
+        multiplier, reason = 0.0, "forecast_at_or_above_p95"
+    elif forecast >= threshold_80:
+        multiplier, reason = 0.5, "forecast_at_or_above_p80"
+    else:
+        multiplier, reason = 1.0, "forecast_below_p80"
+    return VolatilityRiskDecision(
+        allowed=multiplier > 0,
+        multiplier=multiplier,
+        forecast=float(forecast),
+        threshold_80=threshold_80,
+        threshold_95=threshold_95,
+        reference_count=len(values),
+        reason=reason,
+    )
 
 
 @dataclass(frozen=True)
@@ -152,13 +243,15 @@ def size_for_stop(
     instrument: InstrumentConstraints,
     limits: RiskLimits | None = None,
     additional_loss_per_size_unit: float = 0.0,
+    risk_multiplier: float = 1.0,
 ) -> SizingDecision:
     """Size a position without exceeding stop-risk or notional limits.
 
     Every monetary input must already be converted to the account currency.
     ``additional_loss_per_size_unit`` reserves room for explicit commission
     and adverse stop slippage. Bid/ask spread should already be reflected in
-    executable ``entry_price`` and ``stop_price``.
+    executable ``entry_price`` and ``stop_price``. ``risk_multiplier`` is a
+    downside-only policy input in ``[0, 1]``; zero refuses minimum size.
     """
 
     limits = limits or RiskLimits()
@@ -179,8 +272,10 @@ def size_for_stop(
         raise ValueError(
             "additional_loss_per_size_unit must be finite and non-negative"
         )
+    if not np.isfinite(risk_multiplier) or not 0 <= risk_multiplier <= 1:
+        raise ValueError("risk_multiplier must be finite and between 0 and 1")
 
-    risk_budget = equity * limits.risk_per_trade
+    risk_budget = equity * limits.risk_per_trade * risk_multiplier
     risk_per_size_unit = (
         abs(entry_price - stop_price) * instrument.value_per_price_unit
         + additional_loss_per_size_unit
@@ -232,3 +327,19 @@ def _binding_constraint(risk_cap_size: float, notional_cap_size: float) -> str:
     if math.isclose(risk_cap_size, notional_cap_size, rel_tol=1e-12, abs_tol=1e-12):
         return "risk_and_notional"
     return "risk" if risk_cap_size < notional_cap_size else "notional"
+
+
+def _blocked_volatility_decision(
+    forecast: float,
+    reference_count: int,
+    reason: str,
+) -> VolatilityRiskDecision:
+    return VolatilityRiskDecision(
+        allowed=False,
+        multiplier=0.0,
+        forecast=float(forecast),
+        threshold_80=None,
+        threshold_95=None,
+        reference_count=reference_count,
+        reason=reason,
+    )

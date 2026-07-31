@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 from commodity_ml.data.schema import QUOTE_COLUMNS
+from commodity_ml.intraday.cost_measurement import quote_round_trip_costs
 
 
 @dataclass(frozen=True)
@@ -94,22 +95,10 @@ def assess_spread_history(
     if candles.empty:
         raise RuntimeError("empty_quote_history")
 
-    # Open and close are synchronized quote observations. Bid/ask bar highs or
-    # lows can occur at different instants, so subtracting their extrema would
-    # manufacture a spread. Use the worse synchronized endpoint per bar.
-    endpoint_spreads = pd.DataFrame(index=candles.index)
-    for endpoint in ("open", "close"):
-        mid = (candles[f"ask_{endpoint}"] + candles[f"bid_{endpoint}"]) / 2
-        endpoint_spreads[endpoint] = (
-            candles[f"ask_{endpoint}"] - candles[f"bid_{endpoint}"]
-        ) / mid
-    spread_fraction = endpoint_spreads.max(axis=1)
-    if not np.isfinite(spread_fraction.to_numpy()).all():
-        raise RuntimeError("non_finite_spread_history")
-    if (spread_fraction < 0).any():
-        raise RuntimeError("crossed_spread_history")
-
-    round_trip_cost = spread_fraction + 2 * slippage_pct_per_side
+    round_trip_cost = quote_round_trip_costs(
+        candles,
+        slippage_pct_per_side=slippage_pct_per_side,
+    )
     cost_r = round_trip_cost / stop_distance_pct
     current = float(cost_r.iloc[-1])
     median = float(cost_r.median())

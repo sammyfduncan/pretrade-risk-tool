@@ -1,7 +1,7 @@
 """Model factories.
 
 Step-1 policy: fixed, conservative defaults — no hyperparameter tuning until
-the walk-forward harness itself is trusted (see CLAUDE.md). The LightGBM
+the walk-forward harness itself is trusted (see `docs/step1_freeze_record.md`). The LightGBM
 settings below lean toward *underfitting*: financial labels are mostly noise,
 so the regularization (min_child_samples, subsampling, shallow-ish trees)
 matters more than raw capacity.

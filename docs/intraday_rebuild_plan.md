@@ -596,20 +596,37 @@ Size increases occur only at pre-defined review points.
      kept outside the frozen M30 rules and initial ML contract;
    - live-validate Dukascopy/IG parity with the user's account.
 4. **Primary rules**
-   - **implemented:** exact P1/P2/P3 candidate generators and ATR-distance
-     candidate contract;
-   - build real development artifacts before evaluating bare controls;
-   - evaluate bare controls on gold.
+   - **implemented and evaluated:** exact P1/P2/P3 candidate generators and
+     ATR-distance candidate contract;
+   - **complete, honest negative:** the frozen opening-impulse/active-regime
+     P1V2/P2V2/P3V2 program also failed its bare economic gate. P1V2 and P3V2
+     showed small gross effects that did not clear fixed costs; see
+     `docs/intraday_v2_design.md`.
+   - **complete, honest negative:** matched M15 replay improved only three of
+     508 P1V2/P3V2 trade outcomes and failed its stability/cost gate; see
+     `docs/intraday_m15_execution_design.md`.
 5. **ML challenger**
    - **implemented:** candidate-only dataset schema and exact execution labels;
    - **implemented:** logistic/LightGBM research trainer with exit-time-purged
      OOF folds, uniqueness weighting, and no deployment threshold;
-   - pending: real candidate counts, retention threshold, bare-rule comparison,
-     calibration and placebo gates.
+   - **complete 2026-07-31 — neither filter retained:** after the event-blackout
+     correctness rebuild, P1-logistic improved PF `0.701 -> 0.970` in 5/5 folds
+     but remained negative (`-0.044R`); P2-LightGBM improved PF `0.827 ->
+     0.852` in 4/5 folds and remained negative (`-0.099R`). See
+     `docs/intraday_filter_gate.md`.
 6. **Risk layer**
-   - intraday volatility baseline;
-   - event-calendar ablation;
-   - spread/slippage regimes and position sizing.
+   - **implemented, real-data gate not run:** the causal two-hour target,
+     price/session baseline, GVZ and event-calendar ablations, five purged OOF
+     folds, placebo harness, source snapshots, and guarded evaluation CLI;
+   - **implemented but disabled:** expanding-history 1.0x/0.5x/0.0x volatility
+     risk policy, sizing-budget propagation, and dry paper-intent enforcement;
+   - `docs/intraday_risk_design.md` and `docs/intraday_risk_policy.md` must be
+     committed before the real-data command will authenticate/fetch or read an
+     outcome;
+   - **implemented:** offline IG quote-cost profiling by London slot, weekday,
+     representative stop, and overlapping candidate ledger;
+   - pending credentials/data: measured IG M15/M30 spreads and demo-fill
+     slippage.
 7. **Transfer**
    - frozen gold design on silver;
    - then platinum and palladium one at a time.
@@ -760,3 +777,96 @@ a valid research result.
   or the initial candidate-model feature contract.
 - No broker credentials, network data, strategy outcomes, confirmation rows, or
   model scores were used.
+
+### 2026-07-31 — candidate ML training and frozen filter gate
+
+- The initial candidate run exposed that scheduled-event blackouts were not
+  wired into the CLI and included 2019 outside verified calendar coverage.
+  The implementation was corrected before finalizing the research record; all
+  bundles, models, and gates were regenerated over 2020–2025. The initial
+  numbers are superseded.
+- Corrected gold development produced 902 P1, 1,111 P2, and 312 P3 executable
+  candidates. All three model pairs were trained with purged expanding OOF
+  evaluation; no threshold was saved into any model.
+- Pooled model screening left two weak leads: P1 logistic and P2 LightGBM.
+  Before inspecting deployable filtered returns, the single top-30% temporal
+  train/reference/test gate and its economic retention conditions were frozen
+  in `docs/intraday_filter_gate.md`.
+- P1 logistic reduced the OOF universe from 750 to 239 trades and improved PF
+  `0.701 -> 0.970` in all five folds, but mean R remained `-0.044` and PF fell
+  to `0.786` at double costs.
+- P2 LightGBM reduced 925 to 391 trades, with PF `0.827 -> 0.852`, mean R
+  `-0.099`, improvement in four folds, and double-cost PF `0.697`.
+- Both failed the pre-registered gate. No alternate threshold was tried, no ML
+  filter is retained for intraday version 1, and confirmation remains unopened.
+
+### 2026-07-31 — frozen V2 primary-rule research
+
+- Pre-registered one opening-impulse/active-regime variant for each existing
+  family before generating outcomes. Added only two causal state variables:
+  prior-median-relative M30 ATR and the completed London opening impulse.
+- Corrected executed samples were 323 P1V2, 305 P2V2, and 185 P3V2 trades.
+  All three failed their bare-rule economic/stability gate. Net PF was `0.928`,
+  `0.817`, and `1.000`; double-cost PF was `0.766`, `0.688`, and `0.803`.
+- P1V2 and P3V2 had positive gross means of `1.23 bp` and `2.00 bp` per trade,
+  respectively, but the fixed historical allowance is `2 bp` round trip. This
+  is a cost-sensitive lead, not a net edge. No V2 ML was trained.
+- A matched M15 execution-only challenger then replayed all 323 P1V2 and 185
+  P3V2 trades at the same entry timestamps. PF improved only `0.928 -> 0.937`
+  and `1.000 -> 1.050`; only three total stop outcomes became targets and the
+  improvement appeared in one/two of five blocks. Both failed the `1.10` and
+  double-cost gates, so M15 is not retained for these rules.
+- IG quote-based cost validation and the risk/sizing layer are next. No
+  neighboring V2 threshold will be inspected; confirmation remains unopened.
+
+### 2026-07-31 — quote-cost profiler and benchmark-window research
+
+- Added an offline cost profiler for canonical IG bid/ask candles. It reports
+  basis-point quantiles, London time slots, weekdays, representative stop-R,
+  and an optional matched candidate-ledger estimate. It makes no network call;
+  actual values await the user's confirmed demo epic and cached quote sample.
+- Pre-registered one distinct gold market-structure hypothesis before outcomes:
+  continuation through the official 15:00 London LBMA PM auction after a
+  one-ATR preceding-hour move. Four fixed non-auction clocks were registered as
+  mechanism placebos; the AM auction and COMEX settlement were excluded.
+- B1 produced 776 trades, gross PF `1.045` and net PF `0.851`; only one of five
+  blocks was profitable, max drawdown was `-14.5%`, and double-cost PF was
+  `0.695`. The 16:00 placebo PF (`0.872`) exceeded B1 (`0.851`). B1 failed and
+  no ML model was trained.
+- The next market-structure program requires point-in-time COMEX futures volume,
+  roll-aware prices/basis, or order-flow data. Dukascopy candle volume is a
+  best-quote activity measure, not centralized traded gold volume, and is not
+  relabelled as such. Confirmation remains unopened.
+
+### 2026-07-31 — intraday risk experiment pre-registration
+
+- Locked one two-hour volatility-forecast target on eligible M30 decision rows,
+  using only observed contiguous Dukascopy closes.
+- Registered a causal price/session OLS baseline and exactly two matched-row
+  additions: lagged GVZ and precise scheduled-release proximity.
+- Fixed five purged expanding folds, 20 time-shift placebos per family, a
+  five-condition retention gate, a 90% matched-coverage requirement, and
+  synthetic causality/data-integrity tests before any real-data run.
+- No real-data forecast or outcome was generated. A pass would name an input candidate,
+  not a strategy or sizing policy; `docs/intraday_risk_design.md` must be
+  committed before implementation may read real-data results.
+
+### 2026-07-31 — walk-forward volatility and conservative controls
+
+- Implemented the registered observed two-hour realized-volatility target from
+  exactly four contiguous future M30 closes. Missing target paths are
+  reason-coded; prices are never interpolated or synthesized.
+- Added the fixed price/session B0 inputs, lagged GVZ and exact event-proximity
+  families, matched-row construction, five-fold train-only-standardized OLS
+  forecasts, and registered family ablations.
+- Added a guarded real-data CLI with 20 seed-0 placebos per family, pinned GVZ
+  and event snapshots, hashes/provenance, a 90% coverage refusal, OOF output,
+  and a disabled final artifact. It refuses to run until both registrations are
+  tracked, committed, and clean.
+- Implemented the frozen expanding-rank policy: below prior p80 keeps the
+  existing cap, p80-p95 halves it, and p95+ blocks. At least 500 strictly prior
+  OOF/prospective forecasts are required. The multiplier now reaches both
+  stop-based sizing and dry paper-intent construction, but remains optional and
+  disabled until a forecast gate passes.
+- The full offline suite passes. Only synthetic forecasts were generated;
+  gold development outcomes and confirmation remain unread by this program.

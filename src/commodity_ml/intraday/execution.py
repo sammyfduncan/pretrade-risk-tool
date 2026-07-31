@@ -93,6 +93,9 @@ class IntradayExecutionConfig:
         ("P1", 1),
         ("P2", 2),
         ("P3", 1),
+        ("P1V2", 1),
+        ("P2V2", 2),
+        ("P3V2", 1),
     )
 
     def __post_init__(self) -> None:

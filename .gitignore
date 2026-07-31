@@ -229,6 +229,16 @@ reports/*
 !models/.gitkeep
 !reports/.gitkeep
 
-#llm
-CLAUDE.md 
+# Local AI/agent context. Project decisions belong in README.md and docs/.
+AGENTS.md
+CLAUDE.md
+CODEX.md
+GEMINI.md
+.cursorrules
+.agents/
 .claude/
+.codex/
+.cursor/
+.gemini/
+.windsurf/
+.github/copilot-instructions.md

@@ -28,6 +28,7 @@ from commodity_ml.intraday.market_data import (
     assess_spread_history,
     closed_quote_window,
 )
+from commodity_ml.intraday.m15_execution import replay_m30_candidates_on_m15
 from commodity_ml.intraday.paper import (
     PaperCandidate,
     PaperDecision,
@@ -89,6 +90,7 @@ __all__ = [
     "generate_all_candidates",
     "generate_candidates",
     "load_candidate_bundle",
+    "replay_m30_candidates_on_m15",
     "resolve_trade",
     "simulate_candidates",
     "size_for_stop",

@@ -7,7 +7,7 @@ Dukascopy file when available.
 
 Example:
     python scripts/audit_ig.py --config config/gold.yaml --granularity M30 \
-        --stop-distance-pct 0.01 --points 500
+        --stop-distance-pct 0.0018 --points 500
 """
 
 import argparse
@@ -44,7 +44,10 @@ def main() -> None:
         "--stop-distance-pct",
         type=float,
         required=True,
-        help="representative executable entry-to-stop distance, e.g. 0.01 for 1%%",
+        help=(
+            "representative executable entry-to-stop fraction; use the actual "
+            "strategy value (recent gold candidates are around 0.0018)"
+        ),
     )
     parser.add_argument(
         "--slippage-pct-per-side",

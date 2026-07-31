@@ -28,17 +28,22 @@ def generate_candidates(
         "P1": opening_range_breakout,
         "P2": trend_pullback,
         "P3": regime_mean_reversion,
+        "P1V2": opening_impulse_breakout,
+        "P2V2": active_trend_pullback,
+        "P3V2": active_regime_mean_reversion,
     }
     if strategy not in generators:
-        raise ValueError(f"Unknown intraday strategy {strategy!r}; expected P1, P2, or P3")
-    _validate_frame(frame)
+        raise ValueError(
+            f"Unknown intraday strategy {strategy!r}; expected P1/P2/P3 or V2"
+        )
+    _validate_frame(frame, strategy)
     return generators[strategy](frame)
 
 
 def generate_all_candidates(
     frame: pd.DataFrame,
 ) -> dict[str, list[TradeCandidate]]:
-    _validate_frame(frame)
+    _validate_frame(frame, "P1")
     return {
         "P1": opening_range_breakout(frame),
         "P2": trend_pullback(frame),
@@ -99,6 +104,22 @@ def opening_range_breakout(frame: pd.DataFrame) -> list[TradeCandidate]:
 def trend_pullback(frame: pd.DataFrame) -> list[TradeCandidate]:
     """P2: H1 trend with a bounded M30 EMA20 touch and continuation close."""
 
+    return _trend_pullback(frame, strategy="P2", require_active_strength=False)
+
+
+def active_trend_pullback(frame: pd.DataFrame) -> list[TradeCandidate]:
+    """P2V2: P2 only in strong completed-H1 and active M30 volatility."""
+
+    return _trend_pullback(frame, strategy="P2V2", require_active_strength=True)
+
+
+def _trend_pullback(
+    frame: pd.DataFrame,
+    *,
+    strategy: str,
+    require_active_strength: bool,
+) -> list[TradeCandidate]:
+
     eligible = _entry_eligible(frame)
     atr_value = frame["m30_atr14"]
     long_regime = (
@@ -125,6 +146,14 @@ def trend_pullback(frame: pd.DataFrame) -> list[TradeCandidate]:
         & (frame["close"] < frame["open"])
         & ((frame["m30_ema20"] - frame["close"]) <= 0.50 * atr_value)
     )
+    if require_active_strength:
+        active = frame["m30_atr_regime_ratio"] >= 1.0
+        strong = (
+            (frame["h1_ema20"] - frame["h1_ema50"]).abs()
+            >= frame["h1_atr14"]
+        )
+        long_signal &= active & strong
+        short_signal &= active & strong
     return _daily_candidates(
         frame,
         eligible & (long_signal | short_signal),
@@ -132,12 +161,28 @@ def trend_pullback(frame: pd.DataFrame) -> list[TradeCandidate]:
         atr_value=atr_value,
         target_r=1.5,
         timeout_bars=8,
-        strategy="P2",
+        strategy=strategy,
     )
 
 
 def regime_mean_reversion(frame: pd.DataFrame) -> list[TradeCandidate]:
     """P3: Bollinger re-entry only while completed H1 context is non-trending."""
+
+    return _regime_mean_reversion(frame, strategy="P3", require_active=False)
+
+
+def active_regime_mean_reversion(frame: pd.DataFrame) -> list[TradeCandidate]:
+    """P3V2: P3 failed excursion only when current ATR exceeds prior median."""
+
+    return _regime_mean_reversion(frame, strategy="P3V2", require_active=True)
+
+
+def _regime_mean_reversion(
+    frame: pd.DataFrame,
+    *,
+    strategy: str,
+    require_active: bool,
+) -> list[TradeCandidate]:
 
     eligible = _entry_eligible(frame)
     atr_value = frame["m30_atr14"]
@@ -160,6 +205,10 @@ def regime_mean_reversion(frame: pd.DataFrame) -> list[TradeCandidate]:
         & previous_above
         & (frame["close"] < frame["m30_bb_upper"])
     )
+    if require_active:
+        active = frame["m30_atr_regime_ratio"] >= 1.0
+        long_signal &= active
+        short_signal &= active
     return _daily_candidates(
         frame,
         eligible & (long_signal | short_signal),
@@ -167,8 +216,66 @@ def regime_mean_reversion(frame: pd.DataFrame) -> list[TradeCandidate]:
         atr_value=atr_value,
         target_r=1.0,
         timeout_bars=4,
-        strategy="P3",
+        strategy=strategy,
     )
+
+
+def opening_impulse_breakout(frame: pd.DataFrame) -> list[TradeCandidate]:
+    """P1V2: high-energy directional London opening-range continuation."""
+
+    eligible = _entry_eligible(frame)
+    local = frame.index.tz_convert(LONDON)
+    session_dates = np.asarray(local.date)
+    candidates: list[TradeCandidate] = []
+
+    for session_date in pd.unique(session_dates):
+        day = frame.loc[session_dates == session_date]
+        if day.empty:
+            continue
+        compression = day["opening_range_compression"].dropna()
+        impulse_atr = day["opening_impulse_atr"].dropna()
+        if compression.empty or impulse_atr.empty:
+            continue
+        compression_value = float(compression.iloc[-1])
+        impulse_value = float(impulse_atr.iloc[-1])
+        if not 1.0 <= compression_value <= 2.0 or abs(impulse_value) < 0.50:
+            continue
+        opening_high = float(day["opening_range_high"].dropna().iloc[-1])
+        opening_low = float(day["opening_range_low"].dropna().iloc[-1])
+        impulse_side = "long" if impulse_value > 0 else "short"
+
+        day_local = day.index.tz_convert(LONDON)
+        after_opening = day_local.hour * 60 + day_local.minute >= 9 * 60
+        rows = day.loc[after_opening & eligible.loc[day.index]]
+        for signal_time, row in rows.iterrows():
+            atr_value = row["m30_atr14"]
+            if not np.isfinite(atr_value) or atr_value <= 0:
+                continue
+            long_context = (
+                impulse_side == "long"
+                and row["h1_close"] > row["h1_ema50"]
+                and row["h1_ema50"] > row["h1_ema50_lag3"]
+            )
+            short_context = (
+                impulse_side == "short"
+                and row["h1_close"] < row["h1_ema50"]
+                and row["h1_ema50"] < row["h1_ema50_lag3"]
+            )
+            long_signal = long_context and row["close"] >= opening_high + 0.10 * atr_value
+            short_signal = short_context and row["close"] <= opening_low - 0.10 * atr_value
+            if long_signal or short_signal:
+                candidates.append(
+                    _candidate(
+                        signal_time,
+                        "long" if long_signal else "short",
+                        atr_value,
+                        target_r=1.5,
+                        timeout_bars=6,
+                        strategy="P1V2",
+                    )
+                )
+                break
+    return candidates
 
 
 def _daily_candidates(
@@ -234,7 +341,7 @@ def _candidate(
     )
 
 
-def _validate_frame(frame: pd.DataFrame) -> None:
+def _validate_frame(frame: pd.DataFrame, strategy: str) -> None:
     required = {
         "open",
         "high",
@@ -253,6 +360,10 @@ def _validate_frame(frame: pd.DataFrame) -> None:
         "opening_range_low",
         "opening_range_compression",
     }
+    if strategy.endswith("V2"):
+        required.add("m30_atr_regime_ratio")
+    if strategy == "P1V2":
+        required.add("opening_impulse_atr")
     missing = sorted(required - set(frame.columns))
     if missing:
         raise ValueError(f"Intraday frame missing strategy columns: {missing}")

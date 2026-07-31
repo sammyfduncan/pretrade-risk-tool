@@ -1,6 +1,6 @@
 # Intraday ML data and retraining protocol
 
-**Status:** implementation foundation complete; no intraday model trained yet
+**Status:** training complete; no intraday filter retained for version 1
 
 ## Role of ML
 
@@ -122,3 +122,14 @@ python scripts/train_intraday.py --config config/gold.yaml --strategy P1 --model
 Repeat candidate building/training for P2 and P3. This is not a license to
 retain all three or either model family; every retention decision still uses
 the pre-registered gates.
+
+## Version-1 outcome
+
+Gold candidate models were trained on 2026-07-31. Six strategy/model
+combinations were screened, after which P1-logistic and P2-LightGBM entered the
+single frozen nested filter gate in `docs/intraday_filter_gate.md`. A later
+correctness audit found that scheduled-event blackouts had not been passed into
+candidate execution; all candidate bundles, models, and gates were regenerated
+over the verified 2020–2025 development span without changing the registered
+model choices. Both filters still failed. The model files remain research/audit artifacts with
+`deployment_threshold=None`; none may enter paper or live decisions.

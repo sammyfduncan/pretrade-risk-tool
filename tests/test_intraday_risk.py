@@ -1,5 +1,7 @@
 """Synthetic tests for frozen intraday risk and sizing policy."""
 
+import numpy as np
+import pandas as pd
 import pytest
 
 from commodity_ml.intraday.risk import (
@@ -7,6 +9,7 @@ from commodity_ml.intraday.risk import (
     RiskLimits,
     RiskState,
     assess_risk,
+    assess_volatility_risk,
     size_for_stop,
 )
 
@@ -201,3 +204,109 @@ def test_non_multiple_minimum_size_uses_minimum_plus_broker_steps():
     assert result.allowed
     assert result.size == pytest.approx(0.65)
     assert result.planned_stop_loss <= result.risk_budget
+
+
+def forecast_history(n: int = 500) -> pd.Series:
+    index = pd.date_range("2024-01-01", periods=n, freq="30min", tz="UTC")
+    return pd.Series(np.arange(n, dtype=float), index=index)
+
+
+def test_volatility_policy_uses_frozen_expanding_rank_ladder():
+    history = forecast_history()
+    decision_time = history.index[-1] + pd.Timedelta(minutes=30)
+
+    normal = assess_volatility_risk(
+        forecast=100,
+        decision_time=decision_time,
+        forecast_history=history,
+        artifact_approved=True,
+    )
+    reduced = assess_volatility_risk(
+        forecast=450,
+        decision_time=decision_time,
+        forecast_history=history,
+        artifact_approved=True,
+    )
+    blocked = assess_volatility_risk(
+        forecast=490,
+        decision_time=decision_time,
+        forecast_history=history,
+        artifact_approved=True,
+    )
+
+    assert normal.multiplier == 1.0
+    assert reduced.multiplier == 0.5
+    assert blocked.multiplier == 0.0
+    assert not blocked.allowed
+    assert normal.threshold_80 == 400
+    assert normal.threshold_95 == 475
+
+
+def test_volatility_policy_fails_closed_without_approval_or_history():
+    history = forecast_history(499)
+    decision_time = history.index[-1] + pd.Timedelta(minutes=30)
+
+    unapproved = assess_volatility_risk(
+        forecast=0.0,
+        decision_time=decision_time,
+        forecast_history=history,
+        artifact_approved=False,
+    )
+    warming = assess_volatility_risk(
+        forecast=0.0,
+        decision_time=decision_time,
+        forecast_history=history,
+        artifact_approved=True,
+    )
+
+    assert unapproved.reason == "forecast_artifact_unapproved"
+    assert warming.reason == "insufficient_forecast_history"
+    assert unapproved.multiplier == warming.multiplier == 0.0
+
+
+def test_volatility_policy_rejects_future_dated_reference_history():
+    history = forecast_history()
+    result = assess_volatility_risk(
+        forecast=0.0,
+        decision_time=history.index[-1],
+        forecast_history=history,
+        artifact_approved=True,
+    )
+    assert result.reason == "forecast_history_not_strictly_prior"
+    assert not result.allowed
+
+
+def test_risk_multiplier_can_only_reduce_sizing_budget():
+    instrument = InstrumentConstraints(
+        min_size=0.1,
+        size_increment=0.1,
+        value_per_price_unit=1.0,
+    )
+    full = size_for_stop(
+        equity=100_000,
+        entry_price=2_500,
+        stop_price=2_490,
+        notional_per_size_unit=2_500,
+        instrument=instrument,
+    )
+    half = size_for_stop(
+        equity=100_000,
+        entry_price=2_500,
+        stop_price=2_490,
+        notional_per_size_unit=2_500,
+        instrument=instrument,
+        risk_multiplier=0.5,
+    )
+    blocked = size_for_stop(
+        equity=100_000,
+        entry_price=2_500,
+        stop_price=2_490,
+        notional_per_size_unit=2_500,
+        instrument=instrument,
+        risk_multiplier=0.0,
+    )
+
+    assert half.risk_budget == pytest.approx(full.risk_budget / 2)
+    assert half.size <= full.size
+    assert not blocked.allowed
+    assert blocked.risk_budget == 0

@@ -4,7 +4,7 @@ pandas>=2.2,<3          # pinned <3: pandas-ta-classic / vectorbt not yet valida
 pyarrow                 # parquet IO
 
 # Data acquisition
-# Two sources, deliberately (see CLAUDE.md "Where training data comes from"):
+# Two sources, deliberately (see README.md "Data and execution"):
 #   trading-ig       -> IG broker API: epic lookup, recent bars, and live/paper execution later.
 #                       Historical allowance is only 10,000 price points per WEEK, so it
 #                       cannot supply years of intraday history.

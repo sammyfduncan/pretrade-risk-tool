@@ -26,6 +26,8 @@ def base_frame() -> pd.DataFrame:
     frame["opening_range_high"] = np.nan
     frame["opening_range_low"] = np.nan
     frame["opening_range_compression"] = np.nan
+    frame["opening_impulse_atr"] = np.nan
+    frame["m30_atr_regime_ratio"] = 1.0
     return frame
 
 
@@ -86,3 +88,61 @@ def test_p3_requires_nontrend_and_previous_band_excursion_reentry():
     assert len(match) == 1 and match[0].side == "long"
     assert match[0].target_r_multiple == 1.0
     assert match[0].max_holding_bars == 4
+
+
+def test_p1v2_requires_high_energy_directional_opening():
+    frame = base_frame()
+    post_nine = frame.index.hour >= 9
+    frame.loc[post_nine, "opening_range_high"] = 101.0
+    frame.loc[post_nine, "opening_range_low"] = 99.0
+    frame.loc[post_nine, "opening_range_compression"] = 1.2
+    frame.loc[post_nine, "opening_impulse_atr"] = 0.7
+    signal = pd.Timestamp("2026-01-05 09:30", tz="UTC")
+    frame.loc[signal, "close"] = 101.2
+
+    candidates = generate_candidates(frame, "P1V2")
+
+    assert len(candidates) == 1
+    assert candidates[0].side == "long"
+    assert candidates[0].strategy == "P1V2"
+
+    low_energy = frame.copy()
+    low_energy.loc[post_nine, "opening_impulse_atr"] = 0.4
+    assert generate_candidates(low_energy, "P1V2") == []
+
+
+def test_p2v2_requires_strong_h1_separation_and_active_atr():
+    frame = base_frame()
+    frame["h1_ema20"] = 102.5
+    frame["h1_ema50"] = 100.0
+    frame["h1_close"] = 103.0
+    frame["m30_atr_regime_ratio"] = 1.1
+    signal = pd.Timestamp("2026-01-05 10:00", tz="UTC")
+    frame.loc[signal, ["open", "low", "close"]] = [99.9, 99.7, 100.4]
+
+    candidates = generate_candidates(frame, "P2V2")
+
+    assert any(candidate.signal_time == signal for candidate in candidates)
+    inactive = frame.copy()
+    inactive["m30_atr_regime_ratio"] = 0.9
+    assert generate_candidates(inactive, "P2V2") == []
+
+
+def test_p3v2_requires_active_atr_regime():
+    frame = base_frame()
+    frame["h1_ema20"] = 100.1
+    frame["h1_ema50"] = 100.0
+    frame["h1_ema50_lag3"] = 99.9
+    frame["m30_atr_regime_ratio"] = 1.1
+    previous = pd.Timestamp("2026-01-05 10:00", tz="UTC")
+    signal = pd.Timestamp("2026-01-05 10:30", tz="UTC")
+    frame.loc[previous, "close"] = 97.5
+    frame.loc[signal, "close"] = 98.2
+
+    assert any(
+        candidate.signal_time == signal
+        for candidate in generate_candidates(frame, "P3V2")
+    )
+    inactive = frame.copy()
+    inactive["m30_atr_regime_ratio"] = 0.9
+    assert generate_candidates(inactive, "P3V2") == []

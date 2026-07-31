@@ -28,6 +28,7 @@ from commodity_ml.intraday.risk import (
     RiskLimits,
     RiskState,
     SizingDecision,
+    VolatilityRiskDecision,
     assess_risk,
     size_for_stop,
 )
@@ -90,6 +91,7 @@ class PaperDecision:
     spread: SpreadAssessment | None
     sizing: SizingDecision | None
     intent: PaperOrderIntent | None
+    volatility: VolatilityRiskDecision | None = None
 
 
 def build_paper_intent(
@@ -106,6 +108,7 @@ def build_paper_intent(
     max_snapshot_age: pd.Timedelta = pd.Timedelta(seconds=60),
     slippage_pct_per_side: float = 0.00005,
     limits: RiskLimits | None = None,
+    volatility_risk: VolatilityRiskDecision | None = None,
 ) -> PaperDecision:
     """Construct one dry order intent only when every release blocker passes."""
 
@@ -168,6 +171,19 @@ def build_paper_intent(
             spread=None,
             sizing=None,
             intent=None,
+            volatility=volatility_risk,
+        )
+
+    if volatility_risk is not None and not volatility_risk.allowed:
+        return PaperDecision(
+            allowed=False,
+            reasons=(volatility_risk.reason,),
+            flatten_required=False,
+            risk=risk,
+            spread=None,
+            sizing=None,
+            intent=None,
+            volatility=volatility_risk,
         )
 
     try:
@@ -191,6 +207,7 @@ def build_paper_intent(
             spread=None,
             sizing=None,
             intent=None,
+            volatility=volatility_risk,
         )
 
     current_cost_r = (
@@ -208,6 +225,7 @@ def build_paper_intent(
             spread=spread,
             sizing=None,
             intent=None,
+            volatility=volatility_risk,
         )
 
     entry_price = quote.ask if candidate.side == "long" else quote.bid
@@ -233,6 +251,9 @@ def build_paper_intent(
         ),
         limits=limits,
         additional_loss_per_size_unit=explicit_loss_per_size,
+        risk_multiplier=(
+            volatility_risk.multiplier if volatility_risk is not None else 1.0
+        ),
     )
     if not sizing.allowed:
         return PaperDecision(
@@ -243,6 +264,7 @@ def build_paper_intent(
             spread=spread,
             sizing=sizing,
             intent=None,
+            volatility=volatility_risk,
         )
 
     intent = PaperOrderIntent(
@@ -266,6 +288,7 @@ def build_paper_intent(
         spread=spread,
         sizing=sizing,
         intent=intent,
+        volatility=volatility_risk,
     )
 
 
