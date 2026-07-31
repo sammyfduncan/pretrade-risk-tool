@@ -1,6 +1,6 @@
 # Intraday commodity-system rebuild plan
 
-**Status:** MANDATE FROZEN — broker/risk correctness foundation implemented
+**Status:** VOLATILITY FORECAST RETAINED — DIRECTIONAL PRIMARY STILL UNRESOLVED
 
 **Decision date:** 2026-07-30
 
@@ -615,14 +615,18 @@ Size increases occur only at pre-defined review points.
      0.852` in 4/5 folds and remained negative (`-0.099R`). See
      `docs/intraday_filter_gate.md`.
 6. **Risk layer**
-   - **implemented, real-data gate not run:** the causal two-hour target,
-     price/session baseline, GVZ and event-calendar ablations, five purged OOF
-     folds, placebo harness, source snapshots, and guarded evaluation CLI;
+   - **implemented and passed on development:** the causal two-hour B0 forecast
+     achieved OOS R2 `0.2032`; GVZ and the event calendar each passed their
+     matched placebo gates;
+   - **joint model retained:** after a separate preregistration, adding the
+     calendar to B0+GVZ raised OOS R2 `0.2242 -> 0.2285`, improved 4/5 folds,
+     and beat the maximum registered placebo delta (`0.00429 > 0.00082`);
    - **implemented but disabled:** expanding-history 1.0x/0.5x/0.0x volatility
      risk policy, sizing-budget propagation, and dry paper-intent enforcement;
-   - `docs/intraday_risk_design.md` and `docs/intraday_risk_policy.md` must be
-     committed before the real-data command will authenticate/fetch or read an
-     outcome;
+   - **implemented and fail-closed:** a matched constant-risk versus
+     volatility-risk economic gate. It cannot read real strategy P&L until one
+     specifically named M30 primary strategy has an independently passing
+     primary-gate report;
    - **implemented:** offline IG quote-cost profiling by London slot, weekday,
      representative stop, and overlapping candidate ledger;
    - pending credentials/data: measured IG M15/M30 spreads and demo-fill
@@ -870,3 +874,23 @@ a valid research result.
   disabled until a forecast gate passes.
 - The full offline suite passes. Only synthetic forecasts were generated;
   gold development outcomes and confirmation remain unread by this program.
+
+### 2026-07-31 — volatility forecast gates and matched economic boundary
+
+- The registered development run used 28,513 matched rows with 99.48% coverage.
+  B0 passed with pooled OOS R2 `0.2032`; F-IV added `0.0210` in 5/5 folds and
+  F-CAL added `0.0052` in 4/5 folds, both above their placebo maxima.
+- Because both families passed, the frozen rule initially selected B0 rather
+  than choosing the stronger family after seeing results. A new joint design
+  was then committed before its first outcome.
+- The joint B0+GVZ+calendar model passed: R2 `0.2285`, incremental R2 `0.00429`
+  over B0+GVZ, 4/5 improved folds, and placebo maximum `0.00082`. The joint
+  forecast is retained with `paper_enabled=false`; confirmation was not read.
+- Added a synthetic-tested matched economic evaluator for the frozen
+  1.0x/0.5x/0.0x ladder. It preserves blocked opportunities as zero-return
+  matched rows, uses strictly prior OOF forecast ranks, and refuses low exact
+  timestamp coverage.
+- The real economic command is deliberately blocked before loading trade P&L:
+  P1/P2/P3, all V2 variants, their ML filters, the M15 challenger, and B1 all
+  failed. A future retained primary strategy must be named and committed before
+  this risk overlay can be judged or enter shadow paper trading.

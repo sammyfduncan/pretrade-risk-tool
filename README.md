@@ -58,6 +58,8 @@ Historical records:
 - [`docs/intraday_cost_measurement.md`](docs/intraday_cost_measurement.md)
 - [`docs/intraday_risk_design.md`](docs/intraday_risk_design.md)
 - [`docs/intraday_risk_policy.md`](docs/intraday_risk_policy.md)
+- [`docs/intraday_joint_risk_design.md`](docs/intraday_joint_risk_design.md)
+- [`docs/intraday_risk_economic_design.md`](docs/intraday_risk_economic_design.md)
 
 ## 3. Active system design
 
@@ -291,18 +293,18 @@ only after the full version-1 contract and gates are committed. Data from
 5. **Complete, honest negative:** candidate-only logistic/LightGBM training and
    the frozen nested filter gate ran on gold development data. Neither filter
    passed; confirmation remains unopened.
-6. **Risk forecast and controls implemented; real-data gate not run:**
-   `docs/intraday_risk_design.md` fixes a two-hour observed-volatility target,
-   price/session baseline, GVZ and event-calendar ablations, placebos, and
-   pass/fail gates. `docs/intraday_risk_policy.md` fixes a downside-only
-   1.0x/0.5x/0.0x sizing ladder. The builder, five-fold OOF forecast, guarded
-   evaluation command, sizing propagation, and dry-paper enforcement pass
-   synthetic tests; no real-data forecast may be generated before both designs
-   are committed.
+6. **Risk forecast retained; economic use still disabled:** the two-hour B0
+   baseline passed at OOS R2 `0.2032`; GVZ and the event calendar passed their
+   separate placebo gates. A subsequently pre-registered joint model passed at
+   R2 `0.2285`, so B0+GVZ+calendar is the retained forecast. The downside-only
+   1.0x/0.5x/0.0x ladder and a matched economic evaluator are implemented, but
+   the evaluator refuses to read strategy P&L because no primary rule has
+   passed. Confirmation remains unopened and `paper_enabled=false`.
 7. **Complete, honest negative:** LBMA-PM benchmark continuation B1 failed its
    economic, temporal, double-cost, and time-placebo gates.
-8. Collect and profile IG M15/M30 bid/ask costs; then specify a futures-market
-   data source before another price-discovery strategy.
+8. Collect and profile IG M15/M30 bid/ask costs; then specify a point-in-time,
+   roll-aware futures-market data source before another price-discovery
+   strategy. Do not create another spot-indicator variant to occupy this step.
 9. Transfer a genuinely retained gold pattern to silver, then platinum and
    palladium.
 10. Build correlation-aware allocation with an explicit cash outcome.
