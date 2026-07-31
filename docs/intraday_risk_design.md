@@ -30,8 +30,9 @@ A pass only qualifies a feature family for a separately pre-registered
 downside-only sizing or restriction policy.
 
 The experiment will not run until this document is committed. The future CLI
-must refuse a dirty version of this file unless an explicit diagnostic override
-is supplied; an override can debug code but cannot produce a registered result.
+must refuse a dirty version of this file or its evaluation harness. Diagnostic
+code may be exercised only on synthetic data and cannot produce a registered
+result.
 
 ## 2. Known evidence before this registration
 
@@ -293,6 +294,7 @@ these tests pass and this document is committed.
 | 0 | 2026-07-31 | Design written; no implementation run | no |
 | 1 | 2026-07-31 | Causal builder, OLS walk-forward, ablation, guarded CLI, and synthetic tests implemented | synthetic only |
 | 2 | 2026-07-31 | First real invocation aborted before writing a report because shifted FRED holiday NaNs changed placebo row availability; cleaned non-observations and added a fixed-row regression test | no result written |
+| 3 | 2026-07-31 | Corrected retry stopped before evaluation when FRED DNS was unavailable; changed the harness to verify and reuse the already-pinned raw GVZ snapshot before attempting a fetch | no result written |
 
 ## 12. Registered execution command
 

@@ -39,6 +39,11 @@ DESIGN_DOCS = (
     "docs/intraday_risk_design.md",
     "docs/intraday_risk_policy.md",
 )
+HARNESS_FILES = (
+    "scripts/evaluate_intraday_risk.py",
+    "src/commodity_ml/intraday/volatility.py",
+)
+GVZ_SNAPSHOT = PROJECT_ROOT / "data" / "raw" / "GVZCLS_intraday_risk.parquet"
 START = pd.Timestamp("2021-01-01", tz="UTC")
 END = pd.Timestamp("2025-07-01", tz="UTC")
 N_PLACEBOS = 20
@@ -56,17 +61,8 @@ def main() -> None:
         source,
         filters=[("time", ">=", START), ("time", "<", END)],
     )
-    gvz_raw = fetch_gvz(end="2025-06-30")
+    gvz_raw, gvz_path, gvz_hash = _load_or_fetch_gvz()
     releases = scheduled_release_times(START, END)
-    gvz_path, gvz_hash = _pin_snapshot(
-        gvz_raw.to_frame(),
-        PROJECT_ROOT / "data" / "raw" / "GVZCLS_intraday_risk.parquet",
-        {
-            "source": "https://fred.stlouisfed.org/series/GVZCLS",
-            "series": "GVZCLS",
-            "retrieved_at": pd.Timestamp.now(tz="UTC").isoformat(),
-        },
-    )
     gvz = clean_gvz_observations(gvz_raw)
     event_path, event_hash = _pin_snapshot(
         releases,
@@ -284,7 +280,8 @@ def _shift_releases(
 
 
 def _require_committed_design() -> None:
-    for document in DESIGN_DOCS:
+    guarded = DESIGN_DOCS + HARNESS_FILES
+    for document in guarded:
         tracked = subprocess.run(
             ["git", "ls-files", "--error-unmatch", document],
             cwd=PROJECT_ROOT,
@@ -293,11 +290,11 @@ def _require_committed_design() -> None:
         )
         if tracked.returncode:
             raise SystemExit(
-                f"{document} is not committed. Commit both risk registrations "
-                "before generating a real-data forecast."
+                f"{document} is not committed. Commit the risk registrations "
+                "and evaluation harness before generating a real-data forecast."
             )
     dirty = subprocess.run(
-        ["git", "status", "--porcelain", "--", *DESIGN_DOCS],
+        ["git", "status", "--porcelain", "--", *guarded],
         cwd=PROJECT_ROOT,
         capture_output=True,
         text=True,
@@ -305,9 +302,41 @@ def _require_committed_design() -> None:
     )
     if dirty.stdout.strip():
         raise SystemExit(
-            "Risk registration has uncommitted changes. Commit it before "
-            "generating a real-data forecast."
+            "Risk registration or evaluation harness has uncommitted changes. "
+            "Commit it before generating a real-data forecast."
         )
+
+
+def _load_or_fetch_gvz() -> tuple[pd.Series, Path, str]:
+    sidecar = GVZ_SNAPSHOT.with_suffix(".meta.json")
+    if GVZ_SNAPSHOT.exists():
+        if not sidecar.exists():
+            raise RuntimeError(
+                f"Pinned GVZ snapshot has no provenance sidecar: {sidecar}"
+            )
+        metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        actual = _sha256(GVZ_SNAPSHOT)
+        expected = metadata.get("sha256")
+        if not expected or actual != expected:
+            raise RuntimeError("Pinned GVZ snapshot checksum mismatch")
+        frame = pd.read_parquet(GVZ_SNAPSHOT)
+        if list(frame.columns) != ["gvz"]:
+            raise RuntimeError(
+                f"Pinned GVZ snapshot schema mismatch: {list(frame.columns)}"
+            )
+        return frame["gvz"], GVZ_SNAPSHOT, actual
+
+    gvz = fetch_gvz(end="2025-06-30")
+    path, digest = _pin_snapshot(
+        gvz.to_frame(),
+        GVZ_SNAPSHOT,
+        {
+            "source": "https://fred.stlouisfed.org/series/GVZCLS",
+            "series": "GVZCLS",
+            "retrieved_at": pd.Timestamp.now(tz="UTC").isoformat(),
+        },
+    )
+    return gvz, path, digest
 
 
 def _pin_snapshot(
