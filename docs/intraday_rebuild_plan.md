@@ -927,6 +927,13 @@ a valid research result.
   instrument mapping; prior-session active-contract filtering; causal minute
   aggregation; and post-decision poisoning tests. No TBBO source data or
   strategy outcome has been read.
-- A one-month `2025-05-01` through `2025-06-01` TBBO delivery is required only
-  for schema/coverage/size validation. Full-history acquisition and the frozen
-  performance gate remain blocked until that non-performance check passes.
+- A one-month `2025-05-01` through `2025-06-01` TBBO delivery was requested only
+  for schema/coverage/size validation; it was not a performance sample.
+- The delivered sample included 1 June and ended 2 June exclusive. It passed:
+  2.70 million causally active trades, 97.29% explicit aggressor sides, and
+  99.9992% valid active pre-trade books. Twenty-one invalid active startup
+  records are reason-coded and excluded without imputation.
+- Added partition-streamed minute aggregation and proved it matches a single
+  in-memory frame. The sample produced 46,080 causal minute rows without
+  reading labels or returns. Full development acquisition is now justified;
+  the strategy gate remains unopened.

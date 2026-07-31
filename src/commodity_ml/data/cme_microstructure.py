@@ -31,6 +31,7 @@ TBBO_COLUMNS = (
     "bid_ct_00",
     "ask_ct_00",
     "sequence",
+    "book_valid",
 )
 
 
@@ -69,16 +70,17 @@ def normalize_gc_tbbo(
     numeric = out.loc[
         :, ["price", "size", "bid_px_00", "ask_px_00", "bid_sz_00", "ask_sz_00"]
     ].astype(float)
-    if not np.isfinite(numeric.to_numpy()).all():
-        raise ValueError("TBBO contains non-finite trade/book values")
-    if (out["price"] <= 0).any() or (out["size"] <= 0).any():
-        raise ValueError("TBBO trade price and size must be positive")
-    if (out["bid_px_00"] <= 0).any() or (out["ask_px_00"] <= 0).any():
-        raise ValueError("TBBO best prices must be positive")
-    if (out["bid_px_00"] >= out["ask_px_00"]).any():
-        raise ValueError("TBBO contains crossed or locked pre-trade books")
-    if (out["bid_sz_00"] <= 0).any() or (out["ask_sz_00"] <= 0).any():
-        raise ValueError("TBBO best sizes must be positive")
+    if (out["size"] <= 0).any():
+        raise ValueError("TBBO trade size must be positive")
+    out["book_valid"] = (
+        np.isfinite(numeric).all(axis=1)
+        & (out["price"] > 0)
+        & (out["bid_px_00"] > 0)
+        & (out["ask_px_00"] > 0)
+        & (out["bid_sz_00"] > 0)
+        & (out["ask_sz_00"] > 0)
+        & (out["bid_px_00"] < out["ask_px_00"])
+    )
     if out["ts_event"].isna().any():
         raise ValueError("TBBO contains missing event timestamps")
     keep = [column for column in TBBO_COLUMNS if column in out]
@@ -111,6 +113,8 @@ def process_gc_tbbo_job(
     raw_rows = 0
     outright_rows = 0
     sided_rows = 0
+    valid_book_rows = 0
+    valid_sided_rows = 0
     symbols: set[str] = set()
     for path in selected:
         raw = db.DBNStore.from_file(path).to_df()
@@ -118,6 +122,10 @@ def process_gc_tbbo_job(
         raw_rows += len(raw)
         outright_rows += len(normalized)
         sided_rows += int(normalized["side"].isin(["A", "B"]).sum())
+        valid_book_rows += int(normalized["book_valid"].sum())
+        valid_sided_rows += int(
+            (normalized["book_valid"] & normalized["side"].isin(["A", "B"])).sum()
+        )
         symbols.update(normalized["raw_symbol"].astype(str).unique())
         if root is not None:
             target = root / "tbbo" / _parquet_name(path)
@@ -142,6 +150,12 @@ def process_gc_tbbo_job(
         "outright_rows": outright_rows,
         "sided_rows": sided_rows,
         "sided_coverage": sided_rows / outright_rows if outright_rows else 0.0,
+        "valid_book_rows": valid_book_rows,
+        "invalid_book_rows": outright_rows - valid_book_rows,
+        "valid_book_coverage": valid_book_rows / outright_rows if outright_rows else 0.0,
+        "valid_book_sided_coverage": (
+            valid_sided_rows / valid_book_rows if valid_book_rows else 0.0
+        ),
         "outright_symbols": len(symbols),
         "input_sha256": job.hashes,
         "output_sha256": output_hashes,

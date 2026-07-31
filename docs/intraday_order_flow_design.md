@@ -3,7 +3,7 @@
 **Frozen:** 2026-07-31 before obtaining or inspecting GC TBBO data  
 **Development:** P1 candidates and exchange records strictly before `2025-07-01`  
 **Confirmation:** `2025-07-01` onward remains unopened  
-**Status:** importer, causal feature core, and gate complete; source delivery not yet present
+**Status:** validation passed; full development delivery not yet present
 
 ## 1. Why this is a different mechanism
 
@@ -101,3 +101,36 @@ multiple-comparisons ledger. Failure retires the entire family: no single
 window, feature, model, threshold, P2/P3 transfer, or nearby definition is
 rescued. A pass permits a separately frozen confirmation construction; it does
 not create a live or paper model.
+
+## 6. Non-performance validation outcome
+
+The pinned sample job `GLBX-20260731-YS9X3DAYXC` covers `2025-05-01` through
+`2025-06-02` exclusive (the UI included 1 June). It passed every manifest hash
+and reported no degraded dates.
+
+| Structural measurement | Result |
+|---|---:|
+| compressed DBN size | 68 MB |
+| raw TBBO trades | 3,211,804 |
+| outright trades | 2,981,510 |
+| valid outright pre-trade books | 99.9737% |
+| causal active-contract trades | 2,697,591 |
+| explicit active `A`/`B` sides | 97.2927% |
+| valid active pre-trade books | 99.9992% |
+| invalid active book records | 21 |
+
+The 21 invalid active records were identifiable session-opening `N` events
+with crossed startup snapshots. They are retained with `book_valid=false` in
+the normalized source and excluded before aggregation; nothing is imputed.
+
+The unlabeled streaming builder produced 46,080 causal minute rows. This stage
+caught and fixed two correctness defects before performance work: unsigned
+book-size subtraction could wrap negative depth imbalance, and a calendar grid
+could make the 20-session intensity reference count closed-session gaps. Tests
+now pin signed floating-point depth arithmetic, prior observed sessions,
+partition/single-frame equivalence, and post-decision poisoning.
+
+The feasibility stage therefore passes. A full monthly-split development
+delivery is justified. At the sample's rate, 66 months would be roughly
+4–5 GB compressed, but the vendor's order estimate is authoritative. No label,
+candidate return, model score, or strategy result was read.

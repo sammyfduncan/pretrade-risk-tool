@@ -44,7 +44,9 @@ data for the registered order-flow experiment. It requires schema `tbbo` with
 the same `GLBX.MDP3`, `GC.FUT`, `instrument_id`, DBN, and Zstandard contract.
 It validates aggressor side, trade price/size, and the best bid/offer immediately
 before each trade; maps identities through the existing temporal definitions;
-and retains only outright futures.
+and retains only outright futures. Incomplete, locked, or crossed pre-trade
+books are retained with `book_valid=false` for audit and excluded from feature
+aggregation rather than repaired.
 
 Start with the validation range specified in
 `docs/intraday_order_flow_design.md`. The importer may normalize that sample,

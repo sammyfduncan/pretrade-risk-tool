@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -105,6 +107,58 @@ def build_active_order_flow(
 ) -> pd.DataFrame:
     """Aggregate active-contract TBBO records into causal minute windows."""
 
+    selections = completed_session_selections(ohlcv, definitions)
+    minute = aggregate_active_tbbo_minutes(
+        tbbo, selections, tick_size=tick_size
+    )
+    return build_order_flow_from_minutes(minute, selections)
+
+
+def build_active_order_flow_partitions(
+    paths: Iterable[str | Path],
+    ohlcv: pd.DataFrame,
+    definitions: pd.DataFrame,
+    *,
+    tick_size: float = 0.1,
+) -> pd.DataFrame:
+    """Stream normalized monthly TBBO partitions into one minute feature frame."""
+
+    selections = completed_session_selections(ohlcv, definitions)
+    chunks: list[pd.DataFrame] = []
+    for path in paths:
+        tbbo = pd.read_parquet(path)
+        chunks.append(
+            aggregate_active_tbbo_minutes(tbbo, selections, tick_size=tick_size)
+        )
+    if not chunks:
+        raise ValueError("No normalized TBBO partitions were provided")
+    minute = pd.concat(chunks).sort_index()
+    if minute.index.has_duplicates:
+        symbol_count = minute.groupby(level=0)["raw_symbol"].nunique()
+        if (symbol_count > 1).any():
+            raise ValueError("TBBO partitions disagree on active contract by minute")
+        minute = minute.groupby(level=0, sort=True).agg(
+            raw_symbol=("raw_symbol", "first"),
+            signed_volume=("signed_volume", "sum"),
+            total_volume=("total_volume", "sum"),
+            depth_weighted=("depth_weighted", "sum"),
+            spread_weighted=("spread_weighted", "sum"),
+            signed_sweep_volume=("signed_sweep_volume", "sum"),
+            trade_count=("trade_count", "sum"),
+        )
+    return build_order_flow_from_minutes(minute, selections)
+
+
+def aggregate_active_tbbo_minutes(
+    tbbo: pd.DataFrame,
+    selections: pd.DataFrame,
+    *,
+    tick_size: float = 0.1,
+) -> pd.DataFrame:
+    """Reduce one TBBO partition to additive active-contract minute statistics."""
+
+    if tick_size <= 0 or not np.isfinite(tick_size):
+        raise ValueError("tick_size must be finite and positive")
     _require_utc_index(tbbo, "TBBO")
     required = {
         "raw_symbol",
@@ -114,10 +168,13 @@ def build_active_order_flow(
         "ask_px_00",
         "bid_sz_00",
         "ask_sz_00",
+        "book_valid",
     }
     if missing := sorted(required - set(tbbo)):
         raise ValueError(f"Normalized TBBO missing columns: {missing}")
-    selections = completed_session_selections(ohlcv, definitions)
+    tbbo = tbbo.loc[tbbo["book_valid"].astype(bool)].copy()
+    if tbbo.empty:
+        raise ValueError("TBBO contains no valid pre-trade books")
     left = tbbo.reset_index().rename(columns={tbbo.index.name: "receive_time"})
     mapped = pd.merge_asof(
         left.sort_values("receive_time"),
@@ -136,10 +193,12 @@ def build_active_order_flow(
     if mapped["side_sign"].isna().any():
         raise ValueError("TBBO contains an unsupported aggressor side")
     size = mapped["size"].astype(float)
-    total_depth = mapped["bid_sz_00"] + mapped["ask_sz_00"]
+    bid_size = mapped["bid_sz_00"].astype(float)
+    ask_size = mapped["ask_sz_00"].astype(float)
+    total_depth = bid_size + ask_size
     mapped["signed_volume"] = mapped["side_sign"] * size
     mapped["depth_weighted"] = (
-        (mapped["bid_sz_00"] - mapped["ask_sz_00"]) / total_depth
+        (bid_size - ask_size) / total_depth
     ) * size
     mapped["spread_weighted"] = (
         (mapped["ask_px_00"] - mapped["bid_px_00"]) / tick_size
@@ -166,6 +225,15 @@ def build_active_order_flow(
     )
     if (mapped.groupby("minute")["raw_symbol"].nunique() > 1).any():
         raise ValueError("Active contract changes inside a TBBO minute")
+    minute.index = pd.DatetimeIndex(minute.index, name="minute")
+    return minute
+
+
+def build_order_flow_from_minutes(
+    minute: pd.DataFrame,
+    selections: pd.DataFrame,
+) -> pd.DataFrame:
+    """Apply trailing causal windows to additive minute statistics."""
 
     grid = pd.date_range(minute.index.min(), minute.index.max(), freq="1min", tz="UTC")
     flow = minute.reindex(grid)
@@ -216,9 +284,12 @@ def build_active_order_flow(
     slot = pd.Series(london.hour * 60 + london.minute, index=result.index)
     count_series = pd.Series(count_5.to_numpy(), index=result.index)
     log_count = np.log1p(count_series).where(count_series > 0)
-    prior = log_count.groupby(slot).transform(
-        lambda values: values.shift(1).rolling(20, min_periods=20).median()
-    )
+    prior = pd.Series(np.nan, index=result.index, dtype=float)
+    observed = log_count.notna()
+    for _, values in log_count.loc[observed].groupby(slot.loc[observed]):
+        prior.loc[values.index] = values.shift(1).rolling(
+            20, min_periods=20
+        ).median()
     result["gc_trade_intensity_surprise_5m"] = log_count - prior
     return result
 

@@ -197,8 +197,9 @@ The next and only registered new-data challenger is GC trade flow from
 Databento TBBO. Unlike aggregate bars, TBBO exposes aggressor side and the
 pre-trade best bid/offer sizes. The checksum-verifying importer, active-contract
 mapping, causal flow aggregation, placebo gate, and synthetic anti-lookahead
-tests are implemented. Performance evaluation is blocked until a validation
-delivery establishes field and aggressor-side coverage; see
+tests are implemented. The one-month validation delivery passed with 97.29%
+explicit active-contract aggressor sides and 99.9992% valid active books.
+Performance evaluation is blocked until the full development delivery exists; see
 [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md).
 
 ## 7. News and event data
