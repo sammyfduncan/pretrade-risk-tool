@@ -4,8 +4,8 @@
 reading any intraday-risk outcome  
 **Scope:** gold development data from `2021-01-01` through `2025-06-30`  
 **Confirmation:** `2025-07-01` onward remains unopened  
-**Status:** implementation complete on synthetic data; real-data evaluation has
-not run  
+**Status:** development evaluation complete; B0, F-IV, and F-CAL passed their
+registered information gates, with B0 retained by the frozen selection rule
 **Deployment:** impossible from this experiment alone; no primary strategy is
 currently retained
 
@@ -295,6 +295,7 @@ these tests pass and this document is committed.
 | 1 | 2026-07-31 | Causal builder, OLS walk-forward, ablation, guarded CLI, and synthetic tests implemented | synthetic only |
 | 2 | 2026-07-31 | First real invocation aborted before writing a report because shifted FRED holiday NaNs changed placebo row availability; cleaned non-observations and added a fixed-row regression test | no result written |
 | 3 | 2026-07-31 | Corrected retry stopped before evaluation when FRED DNS was unavailable; changed the harness to verify and reuse the already-pinned raw GVZ snapshot before attempting a fetch | no result written |
+| 4 | 2026-07-31 | Registered development evaluation on 28,513 matched rows and 40 placebos | B0 R2 OOS 0.2032 passed; F-IV delta R2 0.0210 passed 5/5 folds; F-CAL delta R2 0.0052 passed 4/5 folds; frozen both-pass rule selects B0 only; confirmation unopened |
 
 ## 12. Registered execution command
 

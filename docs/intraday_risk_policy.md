@@ -2,8 +2,8 @@
 
 **Design locked:** 2026-07-31 before generating any intraday-risk forecast  
 **Depends on:** `docs/intraday_risk_design.md`  
-**Status:** policy and paper-intent integration implemented; disabled until the
-forecast gate passes  
+**Status:** B0 forecast gate passed and B0 is the registered selection; policy
+remains disabled pending a retained primary strategy and registered economic test
 **Direction:** unchanged; this policy may only reduce or block risk
 
 ## 1. Purpose
@@ -88,3 +88,4 @@ mapping improves returns or drawdown.
 |---:|---|---|---|
 | 0 | 2026-07-31 | Mapping written; no forecast generated | no |
 | 1 | 2026-07-31 | Expanding-rank control and sizing integration tested on synthetic values | synthetic only |
+| 2 | 2026-07-31 | Registered development forecast gate completed; both auxiliary families passed separately | B0 selected under the frozen both-pass rule; `paper_enabled=False`; no strategy P&L read and confirmation unopened |
