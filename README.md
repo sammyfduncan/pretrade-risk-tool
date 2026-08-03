@@ -389,9 +389,12 @@ only after the full version-1 contract and gates are committed. Data from
    version-one input contract, deterministic cash/margin/cost calculations,
    portfolio snapshot, stress scenarios, fail-closed decisions, JSON CLI, and
    initial tests are implemented.
-10. Calibrate forecast-range and spread stresses historically, then add a
-    read-only IG adapter without changing the frozen risk policy after seeing
-    individual trade outcomes.
+10. **Development calibration complete:** 243,598 causal OOF gold/silver rows
+    now calibrate 60/120/180/240-minute range and adverse-excursion quantiles;
+    every cell passed its data-quality gate with approximately nominal p95
+    coverage. The final profile is deliberately stale for current live use,
+    and Dukascopy spreads cannot substitute for IG. Next add a fresh read-only
+    market/account adapter without changing the frozen risk policy.
 11. Paper log intended trades and compare assessed risk with realised adverse
     excursion, slippage, spread, margin and loss. Directional strategy
     performance remains a separate question.

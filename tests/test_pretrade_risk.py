@@ -3,9 +3,11 @@ from __future__ import annotations
 from copy import deepcopy
 import json
 
+import pandas as pd
 import pytest
 
 from commodity_ml.intraday.pretrade_risk import evaluate_pretrade_payload
+from commodity_ml.intraday.risk_calibration import CalibratedRiskLookup
 
 
 def valid_payload() -> dict:
@@ -25,6 +27,8 @@ def valid_payload() -> dict:
             "max_slippage_points_per_side": 0.05,
         },
         "account": {
+            "account_type": "SPREADBET",
+            "status": "ENABLED",
             "currency": "GBP",
             "equity": 100_000.0,
             "available_funds": 80_000.0,
@@ -35,11 +39,14 @@ def valid_payload() -> dict:
         "instrument": {
             "instrument": "XAUUSD",
             "epic": "SYNTHETIC.GOLD.SPREADBET",
+            "instrument_type": "COMMODITIES",
+            "expiry": "DFB",
             "account_currency": "GBP",
             "min_size": 0.1,
             "size_increment": 0.1,
             "value_per_price_unit": 1.0,
             "margin_rate": 0.05,
+            "margin_rate_max_size": None,
             "commission_per_size_per_side": 0.0,
         },
         "market": {
@@ -48,6 +55,7 @@ def valid_payload() -> dict:
             "bid": 2399.9,
             "ask": 2400.1,
             "market_open": True,
+            "quote_delay_seconds": 0,
             "scheduled_event_blackout_active": False,
             "median_spread_points": 0.2,
             "p95_spread_points": 0.4,
@@ -250,3 +258,32 @@ def test_short_trade_uses_symmetric_geometry_and_signed_exposure():
 
     assert report.decision == "ALLOW"
     assert report.portfolio["proposed_signed_one_pct_move"] == pytest.approx(-240.0)
+
+
+def test_trusted_historical_calibration_adds_quantile_scenarios():
+    calibration = CalibratedRiskLookup(
+        instrument="XAUUSD",
+        side="long",
+        horizon_minutes=180,
+        london_slot_minute=11 * 60,
+        profile_as_of=pd.Timestamp("2026-07-01T10:00:00Z"),
+        sample_count=252,
+        range_points={"p50": 8.0, "p80": 12.0, "p95": 18.0, "p99": 25.0},
+        adverse_points={"p50": 4.0, "p80": 7.0, "p95": 11.0, "p99": 16.0},
+        reference_spread_points={
+            "p50": 0.2,
+            "p80": 0.3,
+            "p95": 0.4,
+            "p99": 0.6,
+        },
+    )
+
+    report = evaluate_pretrade_payload(
+        valid_payload(), historical_calibration=calibration
+    )
+
+    assert report.decision == "ALLOW"
+    names = {scenario["name"] for scenario in report.scenarios}
+    assert "historical_total_range_p95" in names
+    assert "historical_side_adverse_p95" in names
+    assert report.market_risk["historical_calibration"]["sample_count"] == 252

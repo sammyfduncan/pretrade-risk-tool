@@ -6,18 +6,43 @@ import argparse
 import json
 from pathlib import Path
 
+import pandas as pd
+
 from commodity_ml.intraday.pretrade_risk import evaluate_pretrade_payload
+from commodity_ml.intraday.risk_calibration import lookup_calibrated_risk
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="Version-1 input JSON")
     parser.add_argument("--output", type=Path, help="Optional report JSON path")
+    parser.add_argument(
+        "--calibration-profile",
+        type=Path,
+        help=(
+            "Optional development profile. Refused when its exact "
+            "instrument/horizon/clock row is missing or more than 90 days old."
+        ),
+    )
     args = parser.parse_args()
 
     try:
         payload = json.loads(args.input.read_text(encoding="utf-8"))
-        report = evaluate_pretrade_payload(payload)
+        calibration = None
+        if args.calibration_profile:
+            trade = payload.get("trade_intent") or {}
+            calibration = lookup_calibrated_risk(
+                pd.read_parquet(args.calibration_profile),
+                instrument=trade.get("instrument"),
+                decision_time=pd.Timestamp(trade.get("decision_time")),
+                horizon_minutes=trade.get("holding_period_minutes"),
+                entry_price=trade.get("entry_price"),
+                side=trade.get("side"),
+            )
+        report = evaluate_pretrade_payload(
+            payload,
+            historical_calibration=calibration,
+        )
         encoded = json.dumps(
             report.to_dict(), indent=2, sort_keys=True, allow_nan=False
         ) + "\n"

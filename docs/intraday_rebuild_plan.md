@@ -1028,3 +1028,24 @@ a valid research result.
   increment, margin rate or account values. It creates and submits no order.
   Historical scenario calibration and a read-only IG adapter are the next
   stages; paper execution remains separately disabled.
+
+### 2026-08-03 — development-only historical risk calibration
+
+- Froze four holding horizons (60/120/180/240 minutes), exact London-clock
+  conditioning, a prior-252/minimum-126 causal window, and p50/p80/p95/p99
+  range/adverse/spread measurements before reading calibration outcomes.
+- Built 243,598 strictly-prior OOF rows across gold and silver. All eight
+  asset/horizon cells passed with 90.9%-91.0% calibrated-row availability and
+  approximately nominal 94.9%-95.2% realised coverage for p95 range and
+  long/short adverse excursion.
+- The retained gold two-hour volatility forecast had meaningful OOF
+  association with total range (log correlation `0.5643`) but weak association
+  with side-specific adverse excursion (`0.1031` long, `0.1141` short). It
+  remains range-risk information, not directional evidence.
+- Added a fail-closed exact asset/horizon/London-clock lookup and historical
+  quantile scenarios to the offline evaluator. The profile expires after 90
+  days; because its last observation is 2025-06-30, it cannot be presented as
+  current in 2026.
+- Dukascopy spread quantiles remain diagnostics only. IG spread measurement,
+  current account/product facts, paper sizing and order submission are still
+  disabled. Confirmation and strategy P&L were not read.

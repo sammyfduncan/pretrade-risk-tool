@@ -29,12 +29,23 @@ class IGConfig:
     # spread bets. Confirm these two values from the demo-account order ticket.
     size_increment: float | None = None
     value_per_price_unit: float | None = None  # account currency, per size unit
+    # Normally parsed from the account-specific market's margin bands. These
+    # are manual fallbacks only when the response omits a usable percentage.
+    margin_rate: float | None = None
+    margin_rate_max_size: float | None = None
 
     def __post_init__(self) -> None:
-        for name in ("size_increment", "value_per_price_unit"):
+        for name in (
+            "size_increment",
+            "value_per_price_unit",
+            "margin_rate",
+            "margin_rate_max_size",
+        ):
             value = getattr(self, name)
             if value is not None and value <= 0:
                 raise ValueError(f"data.ig.{name} must be positive when configured")
+        if self.margin_rate is not None and self.margin_rate > 1:
+            raise ValueError("data.ig.margin_rate must be a decimal fraction <= 1")
 
 
 @dataclass(frozen=True)

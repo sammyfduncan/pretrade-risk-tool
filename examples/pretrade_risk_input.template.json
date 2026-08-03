@@ -14,6 +14,8 @@
     "max_slippage_points_per_side": null
   },
   "account": {
+    "account_type": null,
+    "status": null,
     "currency": null,
     "equity": null,
     "available_funds": null,
@@ -24,11 +26,14 @@
   "instrument": {
     "instrument": "XAUUSD",
     "epic": null,
+    "instrument_type": null,
+    "expiry": null,
     "account_currency": null,
     "min_size": null,
     "size_increment": null,
     "value_per_price_unit": null,
     "margin_rate": null,
+    "margin_rate_max_size": null,
     "commission_per_size_per_side": 0.0
   },
   "market": {
@@ -37,6 +42,7 @@
     "bid": null,
     "ask": null,
     "market_open": null,
+    "quote_delay_seconds": null,
     "scheduled_event_blackout_active": null,
     "median_spread_points": null,
     "p95_spread_points": null,

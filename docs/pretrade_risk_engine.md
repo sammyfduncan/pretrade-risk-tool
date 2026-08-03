@@ -1,8 +1,8 @@
 # Quantitative pre-trade risk engine — version 1 contract
 
-**Status:** offline foundation in implementation  
-**Decision date:** 2026-08-03  
-**Assets:** spot gold (`XAUUSD`) and spot silver (`XAGUSD`) spread bets  
+**Status:** offline foundation plus development-only historical calibration
+**Decision date:** 2026-08-03
+**Assets:** spot gold (`XAUUSD`) and spot silver (`XAGUSD`) spread bets
 **Scope:** technical and mathematical risk assessment, not directional or
 fundamental forecasting
 
@@ -143,7 +143,10 @@ per-side commission `c`:
 - initial margin = `gross exposure * margin_rate`.
 
 The engine reports planned-stop loss plus hypothetical 1.5x and 2x spread
-stresses. If an approved horizon-matched forecast range is supplied, it also
+stresses. A fresh, exact historical calibration lookup adds p50/p80/p95/p99
+total-range scenarios and p80/p95/p99 side-specific adverse-excursion
+scenarios. These quantiles describe historical coverage and are not guaranteed
+future probabilities. If an approved horizon-matched forecast range is supplied, it also
 reports adverse one-, two- and three-range moves and a gap-through-stop stress
 of half one forecast range beyond the stop. These scenarios have no assigned
 probability and are not value-at-risk.
@@ -164,8 +167,10 @@ version and a JSON-serializable calculation record.
 
 1. Offline schemas, deterministic calculations, scenarios and JSON report.
 2. JSON CLI and fail-closed examples/tests.
-3. Historical calibration of range scenarios and spread regimes without
-   assigning invented probabilities.
+3. **Complete on the frozen development window:** historical calibration of
+   range, side-specific adverse excursion and reference spread regimes without
+   assigning invented probabilities. The resulting profile is intentionally
+   stale for current live use and Dukascopy spreads are not broker-eligible.
 4. Read-only IG snapshot adapter for account, epic, quote and margin facts.
 5. Gold/silver portfolio aggregation and report UI.
 6. Prospective paper logging: predicted risk versus realised excursion,

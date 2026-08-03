@@ -32,6 +32,8 @@ data:
     # They are account-currency/product facts, not values to copy from examples.
     size_increment: null
     value_per_price_unit: null  # account-currency P&L for size 1 and a 1.0 price move
+    margin_rate: null           # optional manual fallback; decimal, never guessed
+    margin_rate_max_size: null  # maximum size for which the fallback rate is valid
 
 features:
   technical: true          # price-path indicators — strong on volatility, weak on direction

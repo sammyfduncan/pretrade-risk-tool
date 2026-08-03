@@ -15,6 +15,8 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
+from commodity_ml.intraday.risk_calibration import CalibratedRiskLookup
+
 
 DecisionStatus = Literal["ALLOW", "REDUCE", "BLOCK", "INCOMPLETE"]
 Side = Literal["long", "short"]
@@ -43,6 +45,8 @@ class TradeIntent:
 
 @dataclass(frozen=True)
 class AccountSnapshot:
+    account_type: str | None
+    status: str | None
     currency: str | None
     equity: float | None
     available_funds: float | None
@@ -55,11 +59,14 @@ class AccountSnapshot:
 class InstrumentSpec:
     instrument: str | None
     epic: str | None
+    instrument_type: str | None
+    expiry: str | None
     account_currency: str | None
     min_size: float | None
     size_increment: float | None
     value_per_price_unit: float | None
     margin_rate: float | None
+    margin_rate_max_size: float | None = None
     commission_per_size_per_side: float | None = 0.0
 
 
@@ -70,6 +77,7 @@ class MarketRiskSnapshot:
     bid: float | None
     ask: float | None
     market_open: bool | None
+    quote_delay_seconds: int | None
     scheduled_event_blackout_active: bool | None
     median_spread_points: float | None = None
     p95_spread_points: float | None = None
@@ -169,6 +177,7 @@ def evaluate_pretrade_risk(
     market: MarketRiskSnapshot,
     existing_positions: Sequence[ExistingPosition] = (),
     policy: PreTradeRiskPolicy | None = None,
+    historical_calibration: CalibratedRiskLookup | None = None,
 ) -> PreTradeRiskReport:
     """Evaluate one proposed trade under the deterministic version-1 policy."""
 
@@ -183,6 +192,8 @@ def evaluate_pretrade_risk(
         warnings.append("p95_spread_history_unavailable")
     if not market.volatility_artifact_approved:
         warnings.append("volatility_forecast_not_approved_for_sizing")
+    if historical_calibration is None:
+        warnings.append("historical_range_calibration_unavailable_or_stale")
 
     if missing:
         return _empty_report(
@@ -220,6 +231,14 @@ def evaluate_pretrade_risk(
         reasons.append("invalid_allow_overnight_flag")
     if not isinstance(market.market_open, bool):
         reasons.append("invalid_market_open_flag")
+    if (
+        isinstance(market.quote_delay_seconds, bool)
+        or not isinstance(market.quote_delay_seconds, int)
+        or market.quote_delay_seconds < 0
+    ):
+        reasons.append("invalid_quote_delay")
+    elif market.quote_delay_seconds != 0:
+        reasons.append("delayed_quote")
     if not isinstance(market.scheduled_event_blackout_active, bool):
         reasons.append("invalid_scheduled_event_blackout_flag")
     if not isinstance(market.volatility_artifact_approved, bool):
@@ -228,8 +247,22 @@ def evaluate_pretrade_risk(
         reasons.append("instrument_mismatch")
     if market.epic != instrument.epic:
         reasons.append("quote_epic_mismatch")
+    if historical_calibration is not None and not _calibration_matches(
+        historical_calibration,
+        intent,
+        decision_time,
+    ):
+        reasons.append("historical_calibration_context_mismatch")
     if account.currency != instrument.account_currency:
         reasons.append("account_currency_mismatch")
+    if str(account.status).upper() != "ENABLED":
+        reasons.append("account_not_enabled")
+    if str(account.account_type).upper() != "SPREADBET":
+        reasons.append("unsupported_account_type")
+    if str(instrument.instrument_type).upper() != "COMMODITIES":
+        reasons.append("unsupported_instrument_type")
+    if str(instrument.expiry).upper() not in ("DFB", "-"):
+        reasons.append("unsupported_expiring_instrument")
     if not all(_positive(value) for value in (entry, stop, target, equity)):
         reasons.append("non_positive_trade_or_equity_value")
     if not all(_positive(value) for value in (bid, ask)) or ask < bid:
@@ -238,6 +271,10 @@ def evaluate_pretrade_risk(
         reasons.append("invalid_instrument_sizing_fact")
     if not _finite_between(margin_rate, 0, 1, include_lower=False):
         reasons.append("invalid_margin_rate")
+    if instrument.margin_rate_max_size is not None and not _positive(
+        instrument.margin_rate_max_size
+    ):
+        reasons.append("invalid_margin_rate_max_size")
     if not _non_negative(commission) or not _non_negative(slippage):
         reasons.append("invalid_cost_allowance")
     if available_funds < 0:
@@ -388,13 +425,24 @@ def evaluate_pretrade_risk(
     )
     margin_room = max(0.0, min(available_funds, policy_margin_room))
     margin_cap_size = margin_room / margin_per_size
-    raw_cap = min(risk_cap_size, notional_cap_size, margin_cap_size)
+    margin_schedule_cap_size = (
+        float(instrument.margin_rate_max_size)
+        if instrument.margin_rate_max_size is not None
+        else math.inf
+    )
+    raw_cap = min(
+        risk_cap_size,
+        notional_cap_size,
+        margin_cap_size,
+        margin_schedule_cap_size,
+    )
     recommended_size = _floor_broker_size(raw_cap, min_size, size_increment)
     binding_constraint = _binding_constraint(
         {
             "risk": risk_cap_size,
             "notional": notional_cap_size,
             "margin": margin_cap_size,
+            "margin_schedule_scope": margin_schedule_cap_size,
         }
     )
     if recommended_size <= 0:
@@ -483,6 +531,7 @@ def evaluate_pretrade_risk(
         market=market,
         holding_period_minutes=int(intent.holding_period_minutes),
         warnings=warnings,
+        historical_calibration=historical_calibration,
     )
     proposed_signed_one_pct = (
         (1.0 if intent.side == "long" else -1.0)
@@ -540,6 +589,19 @@ def evaluate_pretrade_risk(
             "forecast_range_points": market.forecast_range_points,
             "forecast_horizon_minutes": market.forecast_horizon_minutes,
             "scheduled_event_blackout_active": market.scheduled_event_blackout_active,
+            "quote_delay_seconds": market.quote_delay_seconds,
+            "historical_calibration": (
+                {
+                    "profile_as_of": historical_calibration.profile_as_of.isoformat(),
+                    "sample_count": historical_calibration.sample_count,
+                    "range_points": historical_calibration.range_points,
+                    "adverse_points": historical_calibration.adverse_points,
+                    "broker_spread_eligible": historical_calibration.broker_spread_eligible,
+                    "volatility_sizing_approved": historical_calibration.volatility_sizing_approved,
+                }
+                if historical_calibration is not None
+                else None
+            ),
         },
         portfolio={
             "existing_position_count": len(existing_positions),
@@ -565,7 +627,11 @@ def evaluate_pretrade_risk(
     )
 
 
-def evaluate_pretrade_payload(payload: Mapping[str, Any]) -> PreTradeRiskReport:
+def evaluate_pretrade_payload(
+    payload: Mapping[str, Any],
+    *,
+    historical_calibration: CalibratedRiskLookup | None = None,
+) -> PreTradeRiskReport:
     """Parse the documented JSON shape and evaluate it."""
 
     intent_data = dict(payload.get("trade_intent") or {})
@@ -593,6 +659,7 @@ def evaluate_pretrade_payload(payload: Mapping[str, Any]) -> PreTradeRiskReport:
             for item in position_data
         ),
         policy=PreTradeRiskPolicy(**policy_data) if policy_data else None,
+        historical_calibration=historical_calibration,
     )
 
 
@@ -632,6 +699,8 @@ def _missing_required_inputs(
         "trade_intent.allow_overnight": intent.allow_overnight,
         "trade_intent.max_slippage_points_per_side": intent.max_slippage_points_per_side,
         "account.currency": account.currency,
+        "account.account_type": account.account_type,
+        "account.status": account.status,
         "account.equity": account.equity,
         "account.available_funds": account.available_funds,
         "account.day_start_equity": account.day_start_equity,
@@ -639,6 +708,8 @@ def _missing_required_inputs(
         "account.entries_today": account.entries_today,
         "instrument.instrument": instrument.instrument,
         "instrument.epic": instrument.epic,
+        "instrument.instrument_type": instrument.instrument_type,
+        "instrument.expiry": instrument.expiry,
         "instrument.account_currency": instrument.account_currency,
         "instrument.min_size": instrument.min_size,
         "instrument.size_increment": instrument.size_increment,
@@ -650,6 +721,7 @@ def _missing_required_inputs(
         "market.bid": market.bid,
         "market.ask": market.ask,
         "market.market_open": market.market_open,
+        "market.quote_delay_seconds": market.quote_delay_seconds,
         "market.scheduled_event_blackout_active": market.scheduled_event_blackout_active,
     }
     missing = [name for name, value in required.items() if value is None or value == ""]
@@ -757,6 +829,7 @@ def _build_scenarios(
     market: MarketRiskSnapshot,
     holding_period_minutes: int,
     warnings: list[str],
+    historical_calibration: CalibratedRiskLookup | None,
 ) -> list[dict[str, Any]]:
     scenarios: list[dict[str, Any]] = []
     for name, spread_multiplier in (
@@ -774,6 +847,28 @@ def _build_scenarios(
             )
         )
         scenarios.append(_scenario(name, loss, equity))
+
+    if historical_calibration is not None:
+        for label in ("p50", "p80", "p95", "p99"):
+            range_loss = size * (
+                historical_calibration.range_points[label] * value_per_point
+                + _cost_per_size(
+                    spread, slippage, value_per_point, commission
+                )
+            )
+            row = _scenario(f"historical_total_range_{label}", range_loss, equity)
+            row["historical_quantile"] = int(label[1:]) / 100
+            scenarios.append(row)
+        for label in ("p80", "p95", "p99"):
+            adverse_loss = size * (
+                historical_calibration.adverse_points[label] * value_per_point
+                + _cost_per_size(
+                    spread, slippage, value_per_point, commission
+                )
+            )
+            row = _scenario(f"historical_side_adverse_{label}", adverse_loss, equity)
+            row["historical_quantile"] = int(label[1:]) / 100
+            scenarios.append(row)
 
     if not market.volatility_artifact_approved:
         return scenarios
@@ -913,6 +1008,7 @@ def _limitations() -> tuple[str, ...]:
         "This report evaluates risk conditional on the supplied trade; it does not predict direction or profitability.",
         "A protective stop is not a guaranteed maximum loss because gaps, slippage, delay and closure can bypass it.",
         "Forecast scenarios are deterministic stresses with no assigned probability and are not value-at-risk.",
+        "Historical quantiles describe development-sample coverage and are not guaranteed future probabilities.",
         "Broker contract, currency, margin and quote facts must be verified against the intended account and epic.",
     )
 
@@ -934,6 +1030,30 @@ def _trade_summary(intent: TradeIntent, epic: str | None) -> dict[str, Any]:
         "holding_period_minutes": intent.holding_period_minutes,
         "allow_overnight": intent.allow_overnight,
     }
+
+
+def _calibration_matches(
+    calibration: CalibratedRiskLookup,
+    intent: TradeIntent,
+    decision_time: pd.Timestamp,
+) -> bool:
+    local = decision_time.tz_convert(LONDON)
+    slot = local.hour * 60 + local.minute
+    return bool(
+        calibration.instrument == intent.instrument
+        and calibration.side == intent.side
+        and calibration.horizon_minutes == intent.holding_period_minutes
+        and calibration.london_slot_minute == slot
+        and calibration.profile_as_of < decision_time
+        and decision_time - calibration.profile_as_of <= pd.Timedelta(days=90)
+        and calibration.sample_count >= 126
+        and calibration.broker_spread_eligible is False
+        and all(
+            _positive(value)
+            for values in (calibration.range_points, calibration.adverse_points)
+            for value in values.values()
+        )
+    )
 
 
 def _optional_timestamp(value: Any, field: str) -> pd.Timestamp | None:
