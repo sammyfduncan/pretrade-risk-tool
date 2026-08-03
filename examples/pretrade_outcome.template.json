@@ -1,0 +1,19 @@
+{
+  "intent_id": "must-match-a-prior-allow-or-reduce-assessment",
+  "entry_time": null,
+  "exit_time": null,
+  "filled_size": null,
+  "expected_entry_price": null,
+  "actual_entry_price": null,
+  "actual_exit_price": null,
+  "max_adverse_excursion_points": null,
+  "max_favorable_excursion_points": null,
+  "realized_spread_points": null,
+  "adverse_slippage_points": null,
+  "fees": null,
+  "peak_margin": null,
+  "realized_pnl": null,
+  "source": "IG_DEMO",
+  "source_reference": null,
+  "notes": null
+}

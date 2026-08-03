@@ -59,6 +59,7 @@ inside its `runtime` object or supplied on the command line:
 python3 scripts/evaluate_ig_pretrade_risk.py \
   examples/ig_pretrade_intent.json \
   --config config/gold.yaml \
+  --portfolio-config config/silver.yaml \
   --day-start-equity 10000 \
   --week-start-equity 10000 \
   --entries-today 0 \
@@ -67,6 +68,21 @@ python3 scripts/evaluate_ig_pretrade_risk.py \
 
 `--event-state clear` is an assertion about a checked mechanical calendar, not
 a default. Omitting it leaves the state unknown and therefore incomplete.
+`--portfolio-config` supplies the confirmed epic and point value needed to
+value an existing position in the other metal; it does not fetch that market
+or generate another trade.
+
+Render the resulting JSON as a standalone local report:
+
+```bash
+python3 scripts/render_pretrade_risk_report.py \
+  reports/ig_pretrade_risk.json \
+  --output reports/ig_pretrade_risk.html
+```
+
+The HTML is static, self-contained, print-friendly and escapes report text. It
+performs no broker or network action and repeats that order authority is
+disabled.
 
 ## Live validation still required
 

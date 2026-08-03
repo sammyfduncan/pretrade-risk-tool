@@ -66,6 +66,7 @@ Historical records:
 - [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md)
 - [`docs/pretrade_risk_engine.md`](docs/pretrade_risk_engine.md)
 - [`docs/pretrade_ig_snapshot.md`](docs/pretrade_ig_snapshot.md)
+- [`docs/pretrade_paper_observations.md`](docs/pretrade_paper_observations.md)
 
 ## 3. Active system design
 
@@ -391,7 +392,10 @@ only after the full version-1 contract and gates are committed. Data from
    portfolio snapshot, stress scenarios, fail-closed decisions, JSON CLI, and
     initial tests are implemented. A read-only IG adapter now maps current
     account, epic, quote, scoped margin, spread and open-position facts into
-    this contract, with explicit provenance and no order authority.
+    this contract, with explicit provenance and no order authority. Confirmed
+    gold/silver configs can map cross-metal positions, and a standalone static
+    HTML renderer turns either offline or IG-wrapper JSON into an auditable
+    human-readable report.
 10. **Development calibration complete:** 243,598 causal OOF gold/silver rows
     now calibrate 60/120/180/240-minute range and adverse-excursion quantiles;
     every cell passed its data-quality gate with approximately nominal p95
@@ -399,9 +403,11 @@ only after the full version-1 contract and gates are committed. Data from
     and Dukascopy spreads cannot substitute for IG. Current use still needs the
     exact account epic/product sizing facts, runtime loss anchors, current
     event state and a live bounded IG validation run.
-11. Paper log intended trades and compare assessed risk with realised adverse
-    excursion, slippage, spread, margin and loss. Directional strategy
-    performance remains a separate question.
+11. **Prospective ledger implemented; collection pending:** immutable
+    pre-outcome assessments can now be paired later with validated paper
+    execution, adverse/favourable excursion, spread, slippage, margin and P&L.
+    The summary is descriptive and directional strategy performance remains a
+    separate question.
 12. Connect `ALLOW` decisions to the dry paper-intent boundary only after
     operational validation; minimum-size live execution still requires a
     separately authorised and passed release stage.

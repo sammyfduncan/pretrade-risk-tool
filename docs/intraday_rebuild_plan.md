@@ -1072,3 +1072,38 @@ a valid research result.
   mechanical event-calendar state is supplied. No order submission was
   enabled and the stale 2025 development calibration was not presented as
   current.
+
+### 2026-08-03 — cross-metal aggregation and static risk report
+
+- Extended the read-only CLI with explicit additional portfolio configs, so a
+  gold assessment can value an existing silver position (and vice versa) only
+  when that position's epic and point value are confirmed. Conflicting epic
+  mappings are refused.
+- Retained the frozen one-open-position policy. Existing cross-metal stop risk,
+  gross exposure, signed one-percent exposure and margin flow through the same
+  portfolio calculations rather than being assessed as independent trades.
+- Added a self-contained, dependency-free HTML renderer for offline and IG
+  wrapper reports. It presents decisions, reasons, sizing, cost-inclusive stop
+  risk, margin, portfolio exposure, stresses, limitations and provenance; it
+  performs no broker action or additional calculation.
+- Added escaping, incomplete-report, IG-provenance and no-external-asset tests.
+  Live visual validation awaits the first account-specific report, but the
+  offline report/portfolio implementation stage is complete.
+
+### 2026-08-03 — prospective paper-risk observation ledger
+
+- Added an append-only SQLite evidence boundary: a risk report is registered
+  before an outcome exists, then exactly one separately timestamped realised
+  observation may be attached to its intent id after exit.
+- Exact retries are idempotent. Changed content under an existing assessment or
+  outcome id, an outcome without a prior assessment, an outcome for a blocked
+  or incomplete assessment, and entry before assessment are all refused.
+- The outcome schema contains only measured paper facts: fill/exit prices and
+  times, filled size, MAE/MFE, spread, adverse slippage, fees, peak margin, P&L
+  and source. No missing value is predicted or imputed.
+- Added descriptive summaries for execution/risk calibration, including
+  size-adjusted planned-stop exceedance. These statistics make no expectancy,
+  forecast-skill or causal claim.
+- Synthetic immutability, ordering, validation, idempotency and summary tests
+  pass. Live population and a valid executable-quote MAE/MFE collector still
+  await the IG demo runtime.

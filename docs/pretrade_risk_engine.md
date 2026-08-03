@@ -180,8 +180,12 @@ version and a JSON-serializable calculation record.
 4. **Implemented, pending account-specific configuration/live validation:**
    read-only IG snapshot adapter for account, epic, quote, recent same-session
    spread, open-position and scoped margin facts. It has no order authority.
-5. Gold/silver portfolio aggregation and report UI.
-6. Prospective paper logging: predicted risk versus realised excursion,
-   slippage, cost and loss.
+5. **Implemented offline:** gold/silver existing-position aggregation and a
+   dependency-free static HTML report. Cross-metal broker mapping requires
+   both account-specific configs; ambiguous margin allocation fails closed.
+6. **Implemented foundation, awaiting prospective observations:** immutable
+   pre-outcome assessment logging followed by separately validated realised
+   excursion, slippage, spread, margin and P&L observations. No outcome is
+   predicted or backfilled.
 7. Only after operational validation, connect `ALLOW` decisions to the existing
    dry-run paper-intent path. Order submission remains a separate authority.

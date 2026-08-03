@@ -25,6 +25,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("input", type=Path, help="JSON containing trade_intent")
     parser.add_argument("--config", default="config/gold.yaml")
+    parser.add_argument(
+        "--portfolio-config",
+        action="append",
+        default=[],
+        help=(
+            "Additional configured metal YAML used only to map existing IG "
+            "positions (repeat for gold/silver)"
+        ),
+    )
     parser.add_argument("--points", type=int, default=250)
     parser.add_argument("--day-start-equity", type=float)
     parser.add_argument("--week-start-equity", type=float)
@@ -47,6 +56,23 @@ def main() -> None:
             "then set it in the selected config. No epic is guessed."
         )
     try:
+        portfolio_configs = [cfg, *(load_config(path) for path in args.portfolio_config)]
+        epic_to_instrument: dict[str, str] = {}
+        point_values: dict[str, float] = {}
+        for portfolio_cfg in portfolio_configs:
+            configured_epic = portfolio_cfg.data.ig.epic
+            if configured_epic:
+                prior = epic_to_instrument.get(configured_epic)
+                if prior is not None and prior != portfolio_cfg.symbol:
+                    raise ValueError(
+                        f"epic {configured_epic!r} maps to both {prior} and "
+                        f"{portfolio_cfg.symbol}"
+                    )
+                epic_to_instrument[configured_epic] = portfolio_cfg.symbol
+            if portfolio_cfg.data.ig.value_per_price_unit is not None:
+                point_values[portfolio_cfg.symbol] = (
+                    portfolio_cfg.data.ig.value_per_price_unit
+                )
         source = json.loads(args.input.read_text(encoding="utf-8"))
         trade_intent = source.get("trade_intent")
         if not isinstance(trade_intent, dict):
@@ -106,6 +132,8 @@ def main() -> None:
                 if args.event_state != "unknown"
                 else runtime.get("scheduled_event_blackout_active")
             ),
+            epic_to_instrument=epic_to_instrument,
+            value_per_price_unit_by_instrument=point_values,
             now=now,
         )
         if isinstance(source.get("policy"), dict):

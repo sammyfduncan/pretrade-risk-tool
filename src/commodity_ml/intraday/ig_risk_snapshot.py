@@ -200,7 +200,10 @@ def build_ig_read_only_snapshot(
 
     mappings = dict(epic_to_instrument or {})
     if epic:
-        mappings.setdefault(epic, instrument_symbol)
+        mapped = mappings.get(epic)
+        if mapped is not None and mapped != instrument_symbol:
+            issues.append("configured_epic_maps_to_multiple_instruments")
+        mappings[epic] = instrument_symbol
     point_values = dict(value_per_price_unit_by_instrument or {})
     if value_per_price_unit is not None:
         point_values.setdefault(instrument_symbol, float(value_per_price_unit))
