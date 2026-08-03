@@ -3,7 +3,7 @@
 **Frozen:** 2026-07-31 before obtaining or inspecting GC TBBO data  
 **Development:** P1 candidates and exchange records strictly before `2025-07-01`  
 **Confirmation:** `2025-07-01` onward remains unopened  
-**Status:** validation passed; full development delivery not yet present
+**Status:** complete — honest negative; OF-GC retired
 
 ## 1. Why this is a different mechanism
 
@@ -23,7 +23,7 @@ stream of non-trade book updates carried by MBP-1/MBO.
 
 ## 2. Data contract and feasibility stage
 
-The required Databento batch query is:
+The original validation query was:
 
 - dataset: `GLBX.MDP3`;
 - parent: `GC.FUT`;
@@ -31,15 +31,35 @@ The required Databento batch query is:
 - output symbology: `instrument_id`;
 - encoding: DBN;
 - compression: Zstandard; and
-- monthly file splitting for the eventual full history.
+- monthly file splitting for the validation history.
 
 First obtain only `2025-05-01` through `2025-06-01` as a non-performance
 validation delivery. It will test schema fields, aggressor-side coverage,
 timestamp/definition mapping, active-contract coverage, compressed size, and
 processing time. No candidate labels or returns may be joined in that stage.
-The full `2020-01-01` through `2025-07-01` delivery is justified only if the
-sample has at least 95% explicit `A`/`B` aggressor sides and the normalized
-pipeline passes.
+The sample had to reach at least 95% explicit `A`/`B` aggressor sides and pass
+the normalized pipeline before any development acquisition.
+
+### 2.1 Pre-outcome cost-feasibility amendment (2026-07-31)
+
+The vendor quoted approximately $400 for continuous parent-symbol TBBO history.
+That cost is not proportionate to one unconfirmed family. No label, return,
+model score, or OF-GC performance result had been read when this amendment was
+made.
+
+Development acquisition is therefore restricted to the exact 30 minutes before
+each already-frozen P1 decision and to the raw GC contract selected by the
+already-frozen prior-completed-session rule. Candidate times and prior-session
+volume determine the request; outcomes do not. Overlapping windows for the same
+contract are merged. `scripts/plan_cme_gc_tbbo_windows.py` writes the auditable,
+checksummed request plan. Exact cost must be checked with Databento metadata
+before any download.
+
+This sparse design cannot honestly construct a preceding-20-session
+same-clock trade-count baseline without acquiring many additional disjoint
+windows. The registered intensity-surprise input is therefore withdrawn before
+performance evaluation. The five direct measurements below remain frozen.
+Coverage and retention thresholds are unchanged; this is not a relaxed gate.
 
 `scripts/import_cme_gc_tbbo.py` verifies every source checksum and query field,
 maps reused instrument IDs through definitions as of receive time, retains
@@ -59,7 +79,7 @@ are trailing and include no post-decision event.
 
 ## 4. Registered OF-GC family
 
-Add exactly six inputs to the matched P1 logistic filter:
+Add exactly five inputs to the matched P1 logistic filter:
 
 1. `gc_side_aggressive_imbalance_5m`: candidate-side signed aggressive volume
    imbalance over the preceding five minutes;
@@ -69,9 +89,7 @@ Add exactly six inputs to the matched P1 logistic filter:
 4. `gc_spread_ticks_5m`: trade-size-weighted pre-trade spread in GC ticks over
    five minutes;
 5. `gc_side_sweep_imbalance_5m`: candidate-side signed volume from trades at
-   least as large as displayed opposing best size, divided by total volume;
-6. `gc_trade_intensity_surprise_5m`: log five-minute trade count minus the
-   preceding-20-session median at the same London clock minute.
+   least as large as displayed opposing best size, divided by total volume.
 
 `B` means buy aggressor and `A` sell aggressor. `N` contributes to total
 activity but zero signed flow. Current observations are excluded from every
@@ -80,7 +98,7 @@ historical reference. A missing feature removes the candidate from both arms.
 ## 5. Evaluation and retention gate
 
 The matched control remains P1 + logistic with the frozen spot-only features.
-The challenger adds all six OF-GC inputs. Both use identical candidates,
+The challenger adds all five OF-GC inputs. Both use identical candidates,
 labels, costs, uniqueness weights, five outer folds, exit-time purges,
 chronological reference tails, and the frozen 30% threshold rule.
 
@@ -130,7 +148,50 @@ could make the 20-session intensity reference count closed-session gaps. Tests
 now pin signed floating-point depth arithmetic, prior observed sessions,
 partition/single-frame equivalence, and post-decision poisoning.
 
-The feasibility stage therefore passes. A full monthly-split development
-delivery is justified. At the sample's rate, 66 months would be roughly
-4–5 GB compressed, but the vendor's order estimate is authoritative. No label,
-candidate return, model score, or strategy result was read.
+The feasibility stage therefore passes, but the quoted full-history cost was
+rejected under §2.1. Only the frozen sparse candidate-window plan may be priced
+or acquired. No label, candidate return, model score, or strategy result was
+read.
+
+## 7. Sparse acquisition quote
+
+On 2026-08-03, `Historical.metadata.get_cost` quoted all 901 planned windows at
+**$7.2312 total**. The plan contains 450.5 requested hours across 29 raw
+contracts, covers 901/902 frozen P1 candidates (99.89%), and has a maximum
+single-window quote of $0.0775. One initial candidate is excluded because it
+precedes the first completed CME session and therefore has no causal active
+contract selection. The quote used metadata only: no paid endpoint was called,
+no data was transmitted, and no strategy outcome was read.
+
+Acquisition remained blocked until the user explicitly authorized the $7.24
+ceiling. The request plan, per-window quotes, and resumable quote/download
+ledgers are gitignored research artifacts.
+
+## 8. Development outcome (2026-08-03)
+
+The user authorized the $7.24 ceiling and the API downloaded all 901 planned
+windows for the frozen $7.2312 quote. The checksummed delivery contains
+3,466,268 outright TBBO trades: 98.57% have an explicit aggressor side and
+99.99994% have a valid pre-trade book. The six dataset-degraded dates already
+present in the aggregate CME condition ledger were carried into the conservative
+quality exclusion. No confirmation record at or after `2025-07-01` was read.
+
+OF-GC **failed** its registered gate:
+
+| Measurement | Matched control | OF-GC challenger |
+|---|---:|---:|
+| matched coverage | 94.5% | 94.5% |
+| pooled OOF AUC | 0.5511 | 0.5301 |
+| filtered trades | 236 | 233 |
+| filtered profit factor | 0.955 | 0.931 |
+
+The AUC delta was `-0.0210`; zero of five folds improved, while the best of 20
+joint circular-shift placebos achieved `+0.0068`. Challenger mean R was `-0.068`
+and profit factor at double cost was `0.755`. It therefore failed the AUC,
+fold-consistency, placebo, economic, and matched-control conditions.
+
+This is stronger than a marginal miss: the direct order-flow family worsened
+both discrimination and trading economics on the identical candidate sample.
+Under the frozen failure rule, no individual feature, nearby window, alternate
+model, P2/P3 transfer, or confirmation test may be used to rescue OF-GC. The
+family is retired and no deployment artifact was created.

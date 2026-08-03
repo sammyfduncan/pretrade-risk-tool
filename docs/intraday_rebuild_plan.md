@@ -921,7 +921,7 @@ a valid research result.
   every trade with aggressor side and the best bid/offer state immediately
   before that trade, while avoiding MBP-1's non-trade quote-update volume.
 - Pre-registered one OF-GC/P1-logistic family with exact 5/30-minute signed
-  flow, depth, spread, sweep, and intensity inputs; the same matched control,
+  flow, depth, spread, and sweep inputs; the same matched control,
   nested threshold, economic gate, and 20 joint placebos remain mandatory.
 - Implemented a checksummed, confirmation-fenced TBBO importer; temporal
   instrument mapping; prior-session active-contract filtering; causal minute
@@ -935,5 +935,74 @@ a valid research result.
   records are reason-coded and excluded without imputation.
 - Added partition-streamed minute aggregation and proved it matches a single
   in-memory frame. The sample produced 46,080 causal minute rows without
-  reading labels or returns. Full development acquisition is now justified;
-  the strategy gate remains unopened.
+  reading labels or returns.
+- Rejected the approximately $400 continuous-history quote before opening the
+  strategy gate. Acquisition is now limited to the active raw contract in the
+  30 minutes preceding each frozen P1 decision. The acquisition-heavy
+  20-session intensity feature was withdrawn pre-outcome; all original pass
+  thresholds remain unchanged.
+- Databento's free metadata endpoint subsequently quoted the complete sparse
+  plan at $7.2312: 901 windows, 450.5 requested hours, 29 raw contracts, and
+  99.89% candidate coverage. No paid endpoint has been called; acquisition
+  still requires explicit approval.
+- The user authorized the $7.24 ceiling; all 901 windows were downloaded and
+  checksum-verified. Normalization retained 3.47 million outright trades with
+  98.57% explicit sides and 99.99994% valid pre-trade books.
+- OF-GC failed honestly. Matched coverage passed at 94.5%, but AUC fell
+  `0.5511 -> 0.5301` (delta `-0.0210`), zero of five folds improved, and the
+  best placebo delta was `+0.0068`. Filtered PF fell `0.955 -> 0.931`, mean R
+  was `-0.068`, and double-cost PF was `0.755`. The family is retired without
+  feature rescue, strategy/model transfer, or confirmation access.
+
+### 2026-08-03 — final P4 macro-impulse family frozen
+
+- Frozen one final outright-gold directional mechanism before acquiring or
+  inspecting its development inputs: aligned M30 `ZN` Treasury-price and `6E`
+  Euro-FX impulses, with contemporaneous non-extended gold confirmation.
+- Fixed prior-session active-contract selection, a previous-60 same-London-slot
+  median/MAD standardization, `|z| >= 1` agreement, first signal per day,
+  1 ATR stop, 1.5R target, six-bar timeout, existing event blackouts, and all
+  execution costs before outcomes.
+- Fixed a hard gate: at least 90% causal coverage, 200 trades and 30 per block,
+  PF at least 1.10, positive mean R, four profitable blocks, PF above one at
+  double cost, and observed PF above all 20 joint time-shift placebos.
+- Implemented causal driver construction, exact P4 candidates, placebo and
+  performance gates, outcome-blind normalization, a metadata-only acquisition
+  planner, and a separate downloader that refuses any quote above an explicit
+  user-authorized dollar ceiling or any automatic paid retry.
+- No ZN/6E data has been authorized by this design entry. P4 failure closes
+  version-one outright-gold directional discovery without threshold, driver,
+  model, target, or timeout rescue variants.
+- The metadata-only quote subsequently completed at `$18.939715769142` for all
+  four requests. No dates are missing or pending. Six dataset-degraded dates
+  are frozen as ineligible. The quote did not call a paid endpoint and does not
+  authorize acquisition.
+- The user authorized the `$18.94` ceiling. All four files downloaded and
+  checksum-verified. Normalization retained 2.19 million outright ZN and 2.48
+  million outright 6E bars; 55 pre-definition ZN rows were excluded rather
+  than mapped with future identity.
+- P4 failed its frozen gate despite passing coverage (97.85%) and sample-size
+  requirements (857 executed trades). PF was `0.851`, mean R `-0.096`, only
+  one of five blocks was profitable, double-cost PF was `0.695`, and the best
+  placebo PF was higher at `0.913`. Confirmation remains unopened, no ML was
+  trained, and version-one outright-gold directional discovery is closed.
+
+### 2026-08-03 — RV1 gold–silver relative value
+
+- Opened one separately scoped mechanism after closing outright-gold direction:
+  prior-1,000-observation gold/silver hedge beta, same-clock residual surprise,
+  `|z| >= 2`, gross-normalized two-leg reversal, and first signal per day.
+- Fetched and pinned free Dukascopy M30 bid/ask histories for both legs. Exact
+  synchronization retained 64,955 rows at 99.995% coverage, with no filling,
+  duplicates, or crossed open/close quotes.
+- Implemented bid/ask next-open entries, close-observed portfolio barriers,
+  frozen weights, six-bar timeout, event blackouts, historical spread execution,
+  explicit cost allowance, two spread/cost stresses, and 20 joint-state shifts.
+- RV1 failed: 1,014 trades, balanced 50/50 by side, PF `0.303`, mean R `-1.256`,
+  zero profitable blocks, double-stress PF `0.083`, and max drawdown `-43.98%`.
+  Observed PF exceeded the placebo maximum `0.274`, but remained untradeable.
+- A fixed-clock midpoint audit found next-M30 PF `1.042` and only `0.126 bp`
+  mean return, against `4.739 bp` average historical two-leg spread drag before
+  the additional `1 bp` round-trip allowance. The tiny effect cannot pay costs.
+- RV1 is retired without cost deletion, threshold/beta/exit variants, or ML.
+  Confirmation remains unopened and paper trading remains disabled.

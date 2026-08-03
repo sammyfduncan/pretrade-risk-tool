@@ -20,7 +20,6 @@ ORDER_FLOW_FEATURES = (
     "gc_side_depth_imbalance_5m",
     "gc_spread_ticks_5m",
     "gc_side_sweep_imbalance_5m",
-    "gc_trade_intensity_surprise_5m",
 )
 
 
@@ -43,15 +42,34 @@ def build_order_flow_candidate_features(
 ) -> OrderFlowFeatureResult:
     """Attach the frozen OF-GC family at each candidate's decision time."""
 
-    if tick_size <= 0 or not np.isfinite(tick_size):
-        raise ValueError("tick_size must be finite and positive")
-    for frame, label in ((spot_m30, "spot M30"), (candidates, "candidates")):
+    market = build_active_order_flow(tbbo, ohlcv, definitions, tick_size=tick_size)
+    return build_order_flow_candidate_features_from_state(
+        spot_m30,
+        candidates,
+        market,
+        degraded_dates=degraded_dates,
+    )
+
+
+def build_order_flow_candidate_features_from_state(
+    spot_m30: pd.DataFrame,
+    candidates: pd.DataFrame,
+    market: pd.DataFrame,
+    *,
+    degraded_dates: tuple[str, ...] | list[str] = (),
+) -> OrderFlowFeatureResult:
+    """Attach the frozen OF-GC family from a validated causal minute state."""
+
+    for frame, label in (
+        (spot_m30, "spot M30"),
+        (candidates, "candidates"),
+        (market, "order-flow state"),
+    ):
         _require_utc_index(frame, label)
     if "decision_time" not in spot_m30 or "is_long" not in candidates:
         raise ValueError("Order-flow construction requires decision_time and is_long")
     if len(candidates.index.difference(spot_m30.index)):
         raise ValueError("Candidate timestamps are missing from spot M30")
-    market = build_active_order_flow(tbbo, ohlcv, definitions, tick_size=tick_size)
     decisions = pd.DatetimeIndex(
         pd.to_datetime(spot_m30.loc[candidates.index, "decision_time"], utc=True)
     )
@@ -71,9 +89,6 @@ def build_order_flow_candidate_features(
     features["gc_spread_ticks_5m"] = rows["gc_spread_ticks_5m"].to_numpy()
     features["gc_side_sweep_imbalance_5m"] = side * rows[
         "gc_sweep_imbalance_5m"
-    ].to_numpy()
-    features["gc_trade_intensity_surprise_5m"] = rows[
-        "gc_trade_intensity_surprise_5m"
     ].to_numpy()
     finite = pd.Series(
         np.isfinite(features.to_numpy(dtype=float)).all(axis=1),

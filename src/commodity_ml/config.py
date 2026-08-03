@@ -298,7 +298,7 @@ class AssetConfig:
 
     def intraday_candidate_path(self, strategy: str) -> Path:
         strategy = strategy.upper()
-        if strategy not in ("P1", "P2", "P3", "P1V2", "P2V2", "P3V2"):
+        if strategy not in ("P1", "P2", "P3", "P1V2", "P2V2", "P3V2", "P4"):
             raise ValueError("Unknown intraday strategy version")
         return (
             PROJECT_ROOT
@@ -309,7 +309,7 @@ class AssetConfig:
 
     def intraday_model_path(self, strategy: str, model_kind: str) -> Path:
         strategy = strategy.upper()
-        if strategy not in ("P1", "P2", "P3", "P1V2", "P2V2", "P3V2"):
+        if strategy not in ("P1", "P2", "P3", "P1V2", "P2V2", "P3V2", "P4"):
             raise ValueError("Unknown intraday strategy version")
         if model_kind not in ("logistic", "lightgbm"):
             raise ValueError("model_kind must be logistic or lightgbm")

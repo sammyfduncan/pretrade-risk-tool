@@ -46,7 +46,6 @@ def test_observation_past_the_end_has_no_outcome(daily_close):
     beyond = daily_close.index[-2]
     assert all(np.isnan(v) for v in forward_outcomes(daily_close, beyond, 20))
 
-
 def test_forward_return_is_measured_strictly_forward(daily_close):
     t0 = daily_close.index[100]
     ret, vol = forward_outcomes(daily_close, t0, 10)

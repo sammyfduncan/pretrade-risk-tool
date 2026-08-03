@@ -11,6 +11,7 @@ from commodity_ml.data.cme import (
     development_files,
     normalize_gc_definitions,
     normalize_gc_ohlcv,
+    normalize_futures_ohlcv,
     normalize_gc_statistics,
     verify_job,
 )
@@ -138,6 +139,32 @@ def test_ohlcv_never_uses_a_future_definition():
     )
     with pytest.raises(ValueError, match="unmapped instrument IDs"):
         normalize_gc_ohlcv(bars, normalize_gc_definitions(definition_frame()))
+
+
+def test_generic_normalizer_can_exclude_but_never_future_map_early_rows():
+    bars = pd.DataFrame(
+        {
+            "instrument_id": [1, 1],
+            "open": [3300.0, 3300.0],
+            "high": [3301.0, 3301.0],
+            "low": [3299.0, 3299.0],
+            "close": [3300.5, 3300.5],
+            "volume": [25, 25],
+        },
+        index=pd.DatetimeIndex(
+            ["2025-04-30T23:59:00Z", "2025-05-01T00:01:00Z"],
+            name="ts_event",
+        ),
+    )
+    result = normalize_futures_ohlcv(
+        bars,
+        normalize_gc_definitions(definition_frame()),
+        label="GC",
+        drop_unmapped=True,
+    )
+
+    assert list(result.index) == [pd.Timestamp("2025-05-01T00:01:00Z")]
+    assert result.attrs["unmapped_rows_dropped"] == 1
 
 
 def test_job_verification_refuses_manifest_tampering(tmp_path):

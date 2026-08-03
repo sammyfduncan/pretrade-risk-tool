@@ -199,8 +199,41 @@ pre-trade best bid/offer sizes. The checksum-verifying importer, active-contract
 mapping, causal flow aggregation, placebo gate, and synthetic anti-lookahead
 tests are implemented. The one-month validation delivery passed with 97.29%
 explicit active-contract aggressor sides and 99.9992% valid active books.
-Performance evaluation is blocked until the full development delivery exists; see
+The approximately $400 full-history quote was rejected before outcomes were
+opened. A pre-outcome amendment now requests only the active raw contract in the
+30 minutes preceding each frozen P1 decision; the acquisition-heavy intensity
+feature was removed while every pass threshold stayed fixed. Performance
+evaluation remained blocked until the sparse development delivery existed. The exact
+metadata quote for all 901 windows was $7.2312; the acquisition was authorized
+and completed. OF-GC then
+failed: AUC fell `0.5511 -> 0.5301`, no fold improved, and filtered PF fell
+`0.955 -> 0.931`. The family is retired and confirmation remains unopened. See
 [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md).
+
+The final version-one outright-gold directional family was frozen as P4:
+an aligned M30 impulse in 10-Year T-Note (`ZN`) and Euro FX (`6E`) futures,
+confirmed by a non-extended gold candle. It is deliberately a bare economic
+rule, not another ML feature search. The causal active-contract state,
+same-clock robust standardization, exact candidate rule, 20 joint time-shift
+placebos, performance gate, charge-capped downloader, and outcome-blind
+normalizer are implemented and synthetic-tested. The metadata-only Databento
+quote was `$18.9397`; acquisition completed under the explicit ceiling, with
+all six degraded dates excluded. P4 then failed decisively despite 97.85%
+coverage and 857 trades: PF `0.851`, mean R `-0.096`, one profitable block out
+of five, double-cost PF `0.695`, and a better maximum placebo PF of `0.913`.
+P4 is retired without rescue variants, and version-one outright-gold
+directional discovery is now closed. See
+[`docs/intraday_macro_impulse_design.md`](docs/intraday_macro_impulse_design.md).
+
+The first separately scoped relative-value family, RV1, then tested causal
+gold–silver residual reversal with two executable bid/ask legs. It also failed:
+1,014 balanced trades produced PF `0.303`, mean R `-1.256`, zero profitable
+blocks, and `-43.98%` maximum drawdown. A fixed-clock audit found only a tiny
+frictionless tendency (next-M30 midpoint PF `1.042`) against average historical
+two-leg spread drag of `4.739 bp` before the extra allowance. RV1 is retired;
+its failure is an economic cost/edge mismatch, not evidence that an ML filter
+is missing. See
+[`docs/intraday_relative_value_design.md`](docs/intraday_relative_value_design.md).
 
 ## 7. News and event data
 

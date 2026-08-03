@@ -340,6 +340,23 @@ def process_gc_jobs(
 
 
 def normalize_gc_definitions(frame: pd.DataFrame) -> pd.DataFrame:
+    return normalize_futures_definitions(
+        frame,
+        expected_asset="GC",
+        expected_exchange="XCEC",
+    )
+
+
+def normalize_futures_definitions(
+    frame: pd.DataFrame,
+    *,
+    expected_asset: str,
+    expected_exchange: str | None = None,
+) -> pd.DataFrame:
+    """Normalize temporal outright/spread identity for one futures parent."""
+
+    if not expected_asset:
+        raise ValueError("expected_asset must be non-empty")
     required = {
         "instrument_id",
         "raw_symbol",
@@ -363,17 +380,23 @@ def normalize_gc_definitions(frame: pd.DataFrame) -> pd.DataFrame:
     )
     if ordered["definition_time"].isna().any():
         raise ValueError("GC definitions contain missing receive timestamps")
-    if (ordered["exchange"] != "XCEC").any():
-        raise ValueError("GC definitions contain a non-COMEX exchange")
+    if expected_exchange is not None and (ordered["exchange"] != expected_exchange).any():
+        raise ValueError(
+            f"{expected_asset} definitions contain an unexpected exchange"
+        )
     if (ordered["currency"] != "USD").any():
-        raise ValueError("GC definitions contain a non-USD instrument")
-    if (ordered["asset"] != "GC").any() or (
+        raise ValueError(f"{expected_asset} definitions contain a non-USD instrument")
+    if (ordered["asset"] != expected_asset).any() or (
         ordered["security_type"] != "FUT"
     ).any():
-        raise ValueError("GC definitions contain the wrong asset/security type")
+        raise ValueError(
+            f"{expected_asset} definitions contain the wrong asset/security type"
+        )
     unknown_classes = set(ordered["instrument_class"].astype(str)) - {"F", "S"}
     if unknown_classes:
-        raise ValueError(f"Unknown GC instrument classes: {sorted(unknown_classes)}")
+        raise ValueError(
+            f"Unknown {expected_asset} instrument classes: {sorted(unknown_classes)}"
+        )
 
     # Definition snapshots repeat every day. Retain the first record and every
     # identity change for each numeric ID: IDs may be recycled over a long
@@ -422,31 +445,51 @@ def normalize_gc_ohlcv(
     frame: pd.DataFrame,
     definitions: pd.DataFrame,
 ) -> pd.DataFrame:
+    return normalize_futures_ohlcv(frame, definitions, label="GC")
+
+
+def normalize_futures_ohlcv(
+    frame: pd.DataFrame,
+    definitions: pd.DataFrame,
+    *,
+    label: str,
+    drop_unmapped: bool = False,
+) -> pd.DataFrame:
+    """Normalize one-minute outright bars using only prior definitions."""
+
     required = {"instrument_id", "open", "high", "low", "close", "volume"}
     _require_columns(frame, required, "OHLCV")
-    out = _attach_identity(frame, definitions, "OHLCV")
+    out = _attach_identity(
+        frame,
+        definitions,
+        f"{label} OHLCV",
+        allow_unmapped=drop_unmapped,
+    )
+    unmapped_rows_dropped = int(out.attrs.get("unmapped_rows_dropped", 0))
     out = out.loc[out["instrument_class"] == "F"].copy()
     values = out.loc[:, ["open", "high", "low", "close", "volume"]]
     if not np.isfinite(values.to_numpy(dtype=float)).all():
-        raise ValueError("CME OHLCV contains non-finite values")
+        raise ValueError(f"{label} OHLCV contains non-finite values")
     if (out[["open", "high", "low", "close"]] <= 0).any().any():
-        raise ValueError("CME OHLCV contains non-positive prices")
+        raise ValueError(f"{label} OHLCV contains non-positive prices")
     if (out["volume"] <= 0).any():
-        raise ValueError("CME OHLCV records must represent positive traded volume")
+        raise ValueError(f"{label} OHLCV records must represent positive traded volume")
     bad = (
         (out["high"] < out[["open", "close", "low"]].max(axis=1))
         | (out["low"] > out[["open", "close", "high"]].min(axis=1))
     )
     if bad.any():
-        raise ValueError(f"CME OHLCV has {int(bad.sum())} invalid ranges")
+        raise ValueError(f"{label} OHLCV has {int(bad.sum())} invalid ranges")
     if ((out.index.second != 0) | (out.index.microsecond != 0)).any():
-        raise ValueError("CME OHLCV timestamps are not minute aligned")
+        raise ValueError(f"{label} OHLCV timestamps are not minute aligned")
     pairs = pd.MultiIndex.from_arrays([out.index, out["instrument_id"]])
     if pairs.duplicated().any():
-        raise ValueError("CME OHLCV has duplicate instrument-minute records")
-    return out.loc[
+        raise ValueError(f"{label} OHLCV has duplicate instrument-minute records")
+    result = out.loc[
         :, ["instrument_id", "raw_symbol", "open", "high", "low", "close", "volume"]
     ].sort_index()
+    result.attrs["unmapped_rows_dropped"] = unmapped_rows_dropped
+    return result
 
 
 def normalize_gc_statistics(
@@ -570,6 +613,8 @@ def _attach_identity(
     frame: pd.DataFrame,
     definitions: pd.DataFrame,
     label: str,
+    *,
+    allow_unmapped: bool = False,
 ) -> pd.DataFrame:
     required = {
         "definition_time",
@@ -602,12 +647,18 @@ def _attach_identity(
         direction="backward",
         allow_exact_matches=True,
     )
-    if out[["raw_symbol", "instrument_class"]].isna().any().any():
+    unmapped = out[["raw_symbol", "instrument_class"]].isna().any(axis=1)
+    if unmapped.any() and not allow_unmapped:
         missing = sorted(out.loc[out["raw_symbol"].isna(), "instrument_id"].unique())
         raise ValueError(f"{label} has unmapped instrument IDs: {missing[:10]}")
+    unmapped_rows_dropped = int(unmapped.sum())
+    if unmapped_rows_dropped:
+        out = out.loc[~unmapped].copy()
     out = out.sort_values("_row_order").set_index("_record_time")
     out.index.name = frame.index.name
-    return out.drop(columns=["_row_order", "definition_time"])
+    result = out.drop(columns=["_row_order", "definition_time"])
+    result.attrs["unmapped_rows_dropped"] = unmapped_rows_dropped
+    return result
 
 
 def attach_gc_identity(
