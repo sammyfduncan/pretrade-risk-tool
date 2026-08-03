@@ -65,6 +65,7 @@ Historical records:
 - [`docs/intraday_futures_design.md`](docs/intraday_futures_design.md)
 - [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md)
 - [`docs/pretrade_risk_engine.md`](docs/pretrade_risk_engine.md)
+- [`docs/pretrade_ig_snapshot.md`](docs/pretrade_ig_snapshot.md)
 
 ## 3. Active system design
 
@@ -385,16 +386,19 @@ only after the full version-1 contract and gates are committed. Data from
 8. **Complete, honest negative:** the point-in-time, roll-aware F-GC family was
    evaluated against matched spot-only P1 and 20 placebos. It failed. IG
    M15/M30 bid/ask cost collection still awaits account setup.
-9. **In progress:** build the offline gold/silver pre-trade risk engine. The
+9. **Implemented foundation:** build the offline gold/silver pre-trade risk engine. The
    version-one input contract, deterministic cash/margin/cost calculations,
    portfolio snapshot, stress scenarios, fail-closed decisions, JSON CLI, and
-   initial tests are implemented.
+    initial tests are implemented. A read-only IG adapter now maps current
+    account, epic, quote, scoped margin, spread and open-position facts into
+    this contract, with explicit provenance and no order authority.
 10. **Development calibration complete:** 243,598 causal OOF gold/silver rows
     now calibrate 60/120/180/240-minute range and adverse-excursion quantiles;
     every cell passed its data-quality gate with approximately nominal p95
     coverage. The final profile is deliberately stale for current live use,
-    and Dukascopy spreads cannot substitute for IG. Next add a fresh read-only
-    market/account adapter without changing the frozen risk policy.
+    and Dukascopy spreads cannot substitute for IG. Current use still needs the
+    exact account epic/product sizing facts, runtime loss anchors, current
+    event state and a live bounded IG validation run.
 11. Paper log intended trades and compare assessed risk with realised adverse
     excursion, slippage, spread, margin and loss. Directional strategy
     performance remains a separate question.

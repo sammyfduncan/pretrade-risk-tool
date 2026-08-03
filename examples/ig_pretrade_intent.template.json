@@ -1,0 +1,22 @@
+{
+  "trade_intent": {
+    "intent_id": "replace-with-stable-id",
+    "instrument": "XAUUSD",
+    "side": "long",
+    "order_type": "market",
+    "decision_time": null,
+    "entry_price": null,
+    "stop_price": null,
+    "target_price": null,
+    "requested_size": null,
+    "holding_period_minutes": 180,
+    "allow_overnight": false,
+    "max_slippage_points_per_side": null
+  },
+  "runtime": {
+    "day_start_equity": null,
+    "week_start_equity": null,
+    "entries_today": null,
+    "scheduled_event_blackout_active": null
+  }
+}

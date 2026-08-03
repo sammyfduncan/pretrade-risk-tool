@@ -148,6 +148,44 @@ def test_quote_for_a_different_epic_is_blocked():
     assert report.reasons == ("quote_epic_mismatch",)
 
 
+def test_delayed_quote_is_blocked_even_when_fresh():
+    payload = valid_payload()
+    payload["market"]["quote_delay_seconds"] = 15
+
+    report = evaluate_pretrade_payload(payload)
+
+    assert report.decision == "BLOCK"
+    assert report.reasons == ("delayed_quote",)
+
+
+def test_v1_refuses_wrong_account_or_product_contract():
+    payload = valid_payload()
+    payload["account"]["account_type"] = "CFD"
+    payload["instrument"]["instrument_type"] = "CURRENCIES"
+    payload["instrument"]["expiry"] = "SEP-26"
+
+    report = evaluate_pretrade_payload(payload)
+
+    assert report.decision == "BLOCK"
+    assert report.reasons == (
+        "unsupported_account_type",
+        "unsupported_instrument_type",
+        "unsupported_expiring_instrument",
+    )
+
+
+def test_margin_rate_band_scope_is_a_hard_size_cap():
+    payload = valid_payload()
+    payload["trade_intent"]["requested_size"] = None
+    payload["instrument"]["margin_rate_max_size"] = 5.05
+
+    report = evaluate_pretrade_payload(payload)
+
+    assert report.decision == "ALLOW"
+    assert report.sizing["recommended_max_size"] == pytest.approx(5.0)
+    assert report.sizing["binding_constraint"] == "margin_schedule_scope"
+
+
 def test_session_event_and_loss_gates_accumulate_reason_codes():
     payload = valid_payload()
     payload["trade_intent"]["decision_time"] = "2026-08-03T19:00:00Z"

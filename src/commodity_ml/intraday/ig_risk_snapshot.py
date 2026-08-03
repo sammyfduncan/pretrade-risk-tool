@@ -213,8 +213,10 @@ def build_ig_read_only_snapshot(
     issues.extend(position_issues)
 
     intent = dict(trade_intent)
-    intent.setdefault("instrument", instrument_symbol)
-    intent.setdefault("decision_time", current.isoformat())
+    if intent.get("instrument") in (None, ""):
+        intent["instrument"] = instrument_symbol
+    if intent.get("decision_time") in (None, ""):
+        intent["decision_time"] = current.isoformat()
     if str(intent.get("order_type") or "").lower() == "market":
         supplied = intent.get("entry_price")
         intent["entry_price"] = quote.mid

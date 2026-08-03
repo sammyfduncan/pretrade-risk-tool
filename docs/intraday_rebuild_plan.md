@@ -1049,3 +1049,26 @@ a valid research result.
 - Dukascopy spread quantiles remain diagnostics only. IG spread measurement,
   current account/product facts, paper sizing and order submission are still
   disabled. Confirmation and strategy P&L were not read.
+
+### 2026-08-03 — read-only IG risk snapshot adapter
+
+- Added a pure adapter from current IG account, market, quote, bounded M30
+  bid/ask history and open-position responses into the frozen pre-trade risk
+  contract. The adapter and CLI contain no create, amend or close call and set
+  `order_authority=false` in their audit output.
+- Added explicit broker gates for enabled spread-bet accounts, non-expiring
+  commodity instruments, exact epic agreement, real-time quotes and scoped
+  percentage margin. Tier-one margin is never extended beyond its published
+  size band.
+- Added causal closed-bar, same-London-session IG median/p95 spread measurement.
+  Insufficient observations remain unavailable rather than falling back to
+  Dukascopy or future bars.
+- Added conservative open-position parsing. Unknown stops, unmapped epics or
+  point values fail incomplete; aggregate used margin is assigned to a lone
+  position, while multiple-position allocation is refused.
+- Synthetic integration tests pass. A live report remains blocked until the
+  exact regional epic, demo-ticket size increment and point value are entered,
+  runtime day/week anchors and entry count are available, and the current
+  mechanical event-calendar state is supplied. No order submission was
+  enabled and the stale 2025 development calibration was not presented as
+  current.
