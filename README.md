@@ -68,6 +68,7 @@ Historical records:
 - [`docs/pretrade_ig_snapshot.md`](docs/pretrade_ig_snapshot.md)
 - [`docs/pretrade_paper_observations.md`](docs/pretrade_paper_observations.md)
 - [`docs/pretrade_quote_path.md`](docs/pretrade_quote_path.md)
+- [`docs/ig_stream_recorder.md`](docs/ig_stream_recorder.md)
 
 ## 3. Active system design
 
@@ -409,8 +410,9 @@ only after the full version-1 contract and gates are committed. Data from
     execution, adverse/favourable excursion, spread, slippage, margin and P&L.
     The summary is descriptive and directional strategy performance remains a
     separate question. Executable bid/ask path validation and long-bid/
-    short-ask MAE/MFE construction are implemented; the live IG stream recorder
-    that supplies those observations remains pending.
+    short-ask MAE/MFE construction are implemented. The raw IG tick recorder
+    and outage-aware exporter are also implemented; their first authenticated
+    demo-account validation remains pending.
 12. Connect `ALLOW` decisions to the dry paper-intent boundary only after
     operational validation; minimum-size live execution still requires a
     separately authorised and passed release stage.

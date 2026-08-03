@@ -42,7 +42,8 @@ derive MAE/MFE from valid executable broker quotes; this foundation does not
 pretend that midpoint or research candles are broker executions.
 
 The offline executable-path builder and its stricter bid/ask rules are defined
-in `docs/pretrade_quote_path.md`. A live IG stream recorder is still pending.
+in `docs/pretrade_quote_path.md`. The IG recorder is implemented but its first
+authenticated demo validation is still pending.
 
 ## Commands
 

@@ -1,7 +1,7 @@
 # Executable quote-path measurement
 
-**Status:** offline measurement and outcome construction implemented; live IG
-stream capture pending  
+**Status:** offline measurement and outcome construction implemented; IG stream
+recorder implemented but first authenticated demo validation pending
 **Purpose:** measure realised paper-trade path risk without midpoint or candle
 substitution
 
@@ -66,11 +66,10 @@ The command produces:
 The P&L difference is diagnostic because broker financing, currency conversion
 or product semantics may differ. It is not silently forced to zero.
 
-## Remaining live component
+## Remaining live validation
 
-The project does not yet record a continuous IG Lightstreamer bid/ask path.
-That is the next account-dependent task. The recorder must preserve original
-UTC observation timestamps and raw bid/ask values, associate a bounded slice
-with each intent, survive reconnects visibly, and never fill a disconnect.
-Only after the exact epics and streaming fields have been validated on the demo
-account should its files feed this measurement layer.
+The Lightstreamer recorder and outage-aware path exporter are implemented in
+`scripts/record_ig_quotes.py` and `scripts/export_ig_quote_path.py`; see
+`docs/ig_stream_recorder.md`. They have not yet connected to the user's demo
+account. Only after the exact epics and emitted fields are validated should an
+exported path feed this measurement layer.

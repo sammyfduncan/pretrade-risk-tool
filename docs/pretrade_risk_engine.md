@@ -187,6 +187,7 @@ version and a JSON-serializable calculation record.
    pre-outcome assessment logging followed by separately validated realised
    excursion, slippage, spread, margin and P&L observations. No outcome is
    predicted or backfilled. Executable bid/ask path validation and outcome
-   construction are implemented; live stream capture remains pending.
+   construction plus an outage-aware IG stream recorder are implemented; the
+   first account-specific streaming validation remains pending.
 7. Only after operational validation, connect `ALLOW` decisions to the existing
    dry-run paper-intent path. Order submission remains a separate authority.

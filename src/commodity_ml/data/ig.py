@@ -38,8 +38,8 @@ SOURCE = "ig"
 WEEKLY_HISTORICAL_ALLOWANCE = 10_000
 
 
-def get_service():
-    """Authenticate against IG and return a live IGService."""
+def create_service():
+    """Construct an unauthenticated IG service after validating credentials."""
     from trading_ig import IGService
 
     missing = [
@@ -55,7 +55,7 @@ def get_service():
             "(use a DEMO account key while developing)."
         )
 
-    service = IGService(
+    return IGService(
         username=os.environ["IG_USERNAME"],
         password=os.environ["IG_PASSWORD"],
         api_key=os.environ["IG_API_KEY"],
@@ -63,6 +63,11 @@ def get_service():
         acc_number=os.environ.get("IG_ACC_NUMBER") or None,
         use_rate_limiter=True,  # trading-ig throttles us below IG's per-minute cap
     )
+
+
+def get_service():
+    """Authenticate against IG and return a live IGService."""
+    service = create_service()
     service.create_session()
     return service
 

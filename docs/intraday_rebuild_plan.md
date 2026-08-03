@@ -1126,3 +1126,24 @@ a valid research result.
 - The account-dependent IG streaming recorder is still pending. Disconnects
   must remain explicit missing data; this layer will refuse rather than repair
   them.
+
+### 2026-08-03 — IG raw tick recorder and outage-aware export
+
+- Added append-only SQLite capture for raw `CHART:{epic}:TICK` `BID`, `OFR` and
+  millisecond `UTM` updates. Broker UTC time and local receipt UTC time are both
+  retained; duplicates are preserved and no update is merged or filled.
+- Bypassed the installed library's naive local-time ticker conversion by
+  parsing `UTM` directly as timezone-aware UTC.
+- Added connection/subscription/error/lost-update evidence. A bounded trade
+  path is refused unless connected at entry and free of disconnects, server or
+  subscription errors, lost updates and invalid updates through exit.
+- Added current-account, enabled-spread-bet, commodity, non-expiry, zero-delay,
+  streaming-availability and exact-epic gates before subscription. The CLI
+  contains no order operation.
+- Added a Parquet exporter with exact path metadata and SHA-256 plus synthetic
+  tests for UTC parsing, raw preservation, duplicate preservation, missing
+  connection state and outage invalidation.
+- Live discovery/validation did not run because the current project `.env`
+  does not contain IG credentials and both config epics remain unset. No epic
+  was guessed. The implementation is not operationally approved until a demo
+  stream run validates the actual account products and reconnect behavior.
