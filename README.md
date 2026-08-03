@@ -1,6 +1,7 @@
 # Intraday Multi-Commodity Algorithmic Trading System
 
-**Status:** Active intraday redesign after a completed H4 research program
+**Status:** Active quantitative pre-trade risk-engine build after the honest
+closure of version-one directional discovery
 
 **Canonical implementation plan:** [`docs/intraday_rebuild_plan.md`](docs/intraday_rebuild_plan.md)
 
@@ -63,6 +64,7 @@ Historical records:
 - [`docs/cme_futures_data.md`](docs/cme_futures_data.md)
 - [`docs/intraday_futures_design.md`](docs/intraday_futures_design.md)
 - [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md)
+- [`docs/pretrade_risk_engine.md`](docs/pretrade_risk_engine.md)
 
 ## 3. Active system design
 
@@ -83,6 +85,22 @@ In compact form:
 `primary setup → optional ML filter → volatility/event sizing → allocator → execution`
 
 Every learned component must beat the transparent rule it modifies.
+
+### Active product direction: quantitative pre-trade risk
+
+The principal build is now a point-in-time decision-support tool for intended
+gold and silver spread bets. A user supplies the trade geometry, account state,
+verified broker contract facts, executable quote, quantitative volatility/cost
+state, and any existing metals positions. The engine returns `ALLOW`, `REDUCE`,
+`BLOCK`, or `INCOMPLETE` with cash-at-stop risk, cost-adjusted reward/risk,
+margin and exposure, portfolio impact, and deterministic stress scenarios.
+
+This does not revive the failed directional models. It predicts neither price
+direction nor geopolitical outcomes and does not interpret news. It provides a
+technical and mathematical framework for assessing risk conditional on a trade
+the user or a future validated strategy already intends to take. The offline
+version-one contract is frozen in
+[`docs/pretrade_risk_engine.md`](docs/pretrade_risk_engine.md).
 
 ## 4. Trading cadence
 
@@ -263,20 +281,15 @@ event-free.
 
 ## 8. Asset universe
 
-The planned sequence is:
+The active version is deliberately restricted to the project's current metals:
 
-1. **Gold** — development asset
-2. **Silver** — untouched transferability control
-3. **Platinum** — first new asset
-4. **Palladium** — conditional on broker availability, spread, gaps, and
-   executable liquidity
+1. **Gold (`XAUUSD`)**
+2. **Silver (`XAGUSD`)**
 
-Copper is the leading candidate for a later expansion beyond precious metals
-because it adds a more distinct industrial-demand mechanism. Energy and
-agriculture remain later possibilities, not current scope.
-
-Assets are added to test transferability and improve portfolio diversification,
-not to find a convenient replication after another asset fails.
+Platinum, palladium, copper, energy, agriculture, and FX are outside the active
+risk-engine contract. Adding an asset requires its own verified broker product
+facts, cost history, volatility calibration, session behavior, and admission
+record; it is not a way to escape a negative result on gold or silver.
 
 ## 9. Data and execution
 
@@ -372,11 +385,19 @@ only after the full version-1 contract and gates are committed. Data from
 8. **Complete, honest negative:** the point-in-time, roll-aware F-GC family was
    evaluated against matched spot-only P1 and 20 placebos. It failed. IG
    M15/M30 bid/ask cost collection still awaits account setup.
-9. Transfer a genuinely retained gold pattern to silver, then platinum and
-   palladium.
-10. Build correlation-aware allocation with an explicit cash outcome.
-11. Paper trade in separate operational and performance-evaluation stages.
-12. Begin minimum-size live trading only after both gates pass.
+9. **In progress:** build the offline gold/silver pre-trade risk engine. The
+   version-one input contract, deterministic cash/margin/cost calculations,
+   portfolio snapshot, stress scenarios, fail-closed decisions, JSON CLI, and
+   initial tests are implemented.
+10. Calibrate forecast-range and spread stresses historically, then add a
+    read-only IG adapter without changing the frozen risk policy after seeing
+    individual trade outcomes.
+11. Paper log intended trades and compare assessed risk with realised adverse
+    excursion, slippage, spread, margin and loss. Directional strategy
+    performance remains a separate question.
+12. Connect `ALLOW` decisions to the dry paper-intent boundary only after
+    operational validation; minimum-size live execution still requires a
+    separately authorised and passed release stage.
 
 The detailed deliverables and decision gates are in
 [`docs/intraday_rebuild_plan.md`](docs/intraday_rebuild_plan.md).

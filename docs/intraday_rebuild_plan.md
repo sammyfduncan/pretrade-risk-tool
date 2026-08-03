@@ -1,6 +1,7 @@
 # Intraday commodity-system rebuild plan
 
-**Status:** VOLATILITY FORECAST RETAINED — DIRECTIONAL PRIMARY STILL UNRESOLVED
+**Status:** VERSION-ONE DIRECTIONAL DISCOVERY CLOSED — QUANTITATIVE PRE-TRADE
+RISK ENGINE ACTIVE
 
 **Decision date:** 2026-07-30
 
@@ -1006,3 +1007,24 @@ a valid research result.
   the additional `1 bp` round-trip allowance. The tiny effect cannot pay costs.
 - RV1 is retired without cost deletion, threshold/beta/exit variants, or ML.
   Confirmation remains unopened and paper trading remains disabled.
+
+### 2026-08-03 — quantitative pre-trade risk engine foundation
+
+- Reframed the next product stage around point-in-time risk assessment for the
+  current gold and silver spread-betting instruments, without claiming a new
+  directional edge or interpreting geopolitical/news content.
+- Froze a version-one input contract covering trade geometry, account state,
+  verified broker instrument facts, executable quote/cost state, optional
+  approved volatility state, deterministic event blackouts, and existing
+  precious-metals positions.
+- Implemented the offline calculation core: cost-inclusive stop risk, net
+  target reward, broker-step sizing, gross exposure, initial margin, daily and
+  weekly loss gates, portfolio stop risk, signed one-percent exposure, and
+  spread/range/gap stresses with no assigned probabilities.
+- Implemented fail-closed `ALLOW`, `REDUCE`, `BLOCK`, and `INCOMPLETE`
+  decisions with stable reason codes, JSON serialization, a network-free CLI,
+  an intentionally incomplete template, and synthetic tests.
+- The engine never guesses the user's IG epic, point value, minimum size,
+  increment, margin rate or account values. It creates and submits no order.
+  Historical scenario calibration and a read-only IG adapter are the next
+  stages; paper execution remains separately disabled.

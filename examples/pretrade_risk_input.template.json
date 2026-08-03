@@ -1,0 +1,49 @@
+{
+  "trade_intent": {
+    "intent_id": "replace-with-stable-id",
+    "instrument": "XAUUSD",
+    "side": "long",
+    "order_type": "market",
+    "decision_time": null,
+    "entry_price": null,
+    "stop_price": null,
+    "target_price": null,
+    "requested_size": null,
+    "holding_period_minutes": 180,
+    "allow_overnight": false,
+    "max_slippage_points_per_side": null
+  },
+  "account": {
+    "currency": null,
+    "equity": null,
+    "available_funds": null,
+    "day_start_equity": null,
+    "week_start_equity": null,
+    "entries_today": 0
+  },
+  "instrument": {
+    "instrument": "XAUUSD",
+    "epic": null,
+    "account_currency": null,
+    "min_size": null,
+    "size_increment": null,
+    "value_per_price_unit": null,
+    "margin_rate": null,
+    "commission_per_size_per_side": 0.0
+  },
+  "market": {
+    "epic": null,
+    "as_of": null,
+    "bid": null,
+    "ask": null,
+    "market_open": null,
+    "scheduled_event_blackout_active": null,
+    "median_spread_points": null,
+    "p95_spread_points": null,
+    "forecast_range_points": null,
+    "forecast_horizon_minutes": null,
+    "volatility_percentile": null,
+    "volatility_artifact_approved": false
+  },
+  "existing_positions": []
+}
