@@ -1,0 +1,17 @@
+{
+  "intent_id": "must-match-a-prior-allow-or-reduce-assessment",
+  "side": "long",
+  "entry_time": null,
+  "exit_time": null,
+  "filled_size": null,
+  "expected_entry_price": null,
+  "actual_entry_price": null,
+  "actual_exit_price": null,
+  "value_per_price_unit": null,
+  "fees": null,
+  "peak_margin": null,
+  "realized_pnl": null,
+  "source": "IG_DEMO",
+  "source_reference": null,
+  "notes": null
+}

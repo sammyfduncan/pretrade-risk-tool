@@ -1107,3 +1107,22 @@ a valid research result.
 - Synthetic immutability, ordering, validation, idempotency and summary tests
   pass. Live population and a valid executable-quote MAE/MFE collector still
   await the IG demo runtime.
+
+### 2026-08-03 — executable quote-path outcome measurement
+
+- Added strict top-of-book path validation and outcome construction. Long
+  excursion is measured on bids and short excursion on asks; midpoint and OHLC
+  substitution, interpolation, forward-fill and post-exit observations are
+  prohibited.
+- Separated entry/exit spread and adverse slippage measurements. Broker fills,
+  P&L, fees and peak margin remain sourced observations with a mandatory source
+  reference rather than reconstructed truth.
+- Frozen default coverage refusals at five seconds around entry/exit and 120
+  seconds internally. Thresholds, path boundaries, quote counts and maximum
+  gap are audited alongside hashes of the exact quote/execution inputs.
+- Added independent simple price-unit P&L parity as a diagnostic difference,
+  not an override of broker P&L. Synthetic long/short, sparse, crossed,
+  duplicate, naive-time and candle-substitution tests pass.
+- The account-dependent IG streaming recorder is still pending. Disconnects
+  must remain explicit missing data; this layer will refuse rather than repair
+  them.

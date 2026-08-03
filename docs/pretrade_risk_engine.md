@@ -186,6 +186,7 @@ version and a JSON-serializable calculation record.
 6. **Implemented foundation, awaiting prospective observations:** immutable
    pre-outcome assessment logging followed by separately validated realised
    excursion, slippage, spread, margin and P&L observations. No outcome is
-   predicted or backfilled.
+   predicted or backfilled. Executable bid/ask path validation and outcome
+   construction are implemented; live stream capture remains pending.
 7. Only after operational validation, connect `ALLOW` decisions to the existing
    dry-run paper-intent path. Order submission remains a separate authority.

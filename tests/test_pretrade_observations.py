@@ -54,8 +54,10 @@ def outcome(intent_id: str = "paper-1", pnl: float = -250) -> PaperTradeOutcome:
         actual_exit_price=2375,
         max_adverse_excursion_points=26,
         max_favorable_excursion_points=4,
-        realized_spread_points=0.4,
-        adverse_slippage_points=0.2,
+        entry_spread_points=0.4,
+        exit_spread_points=0.5,
+        entry_adverse_slippage_points=0.2,
+        exit_adverse_slippage_points=0.1,
         fees=0,
         peak_margin=1200,
         realized_pnl=pnl,
@@ -128,6 +130,6 @@ def test_outcome_validation_rejects_naive_time_and_negative_observations():
         PaperTradeOutcome.from_mapping(value)
 
     value = outcome().to_dict()
-    value["realized_spread_points"] = -0.1
+    value["entry_spread_points"] = -0.1
     with pytest.raises(ValueError, match="non-negative"):
         PaperTradeOutcome.from_mapping(value)

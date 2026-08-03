@@ -31,7 +31,7 @@ being treated as executed evidence.
 - actual timezone-aware entry and exit times;
 - filled size and expected/actual entry plus actual exit price;
 - measured maximum adverse and favourable excursion in price points;
-- realised entry spread and adverse slippage in points;
+- realised entry/exit spreads and entry/exit adverse slippage in points;
 - actual fees, peak margin and realised P&L; and
 - an explicit source such as `IG_DEMO`, a broker deal/source reference, and
   optional notes.
@@ -40,6 +40,9 @@ All prices and filled size must be positive. Excursion, spread, slippage, fees
 and margin are non-negative. P&L is signed. A trade-path collector must later
 derive MAE/MFE from valid executable broker quotes; this foundation does not
 pretend that midpoint or research candles are broker executions.
+
+The offline executable-path builder and its stricter bid/ask rules are defined
+in `docs/pretrade_quote_path.md`. A live IG stream recorder is still pending.
 
 ## Commands
 
@@ -72,7 +75,7 @@ subcommand to select another path.
 ## Current summary scope
 
 The summary reports assessment counts, completed outcomes, realised P&L, MAE,
-spread and slippage distributions, and how often realised loss exceeded the
+entry/exit spread and slippage distributions, and how often realised loss exceeded the
 registered size-adjusted planned-stop loss. These are descriptive operational
 and calibration diagnostics. They do not establish strategy profitability,
 forecast skill or causality.

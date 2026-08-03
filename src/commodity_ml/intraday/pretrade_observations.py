@@ -32,8 +32,10 @@ class PaperTradeOutcome:
     actual_exit_price: float
     max_adverse_excursion_points: float
     max_favorable_excursion_points: float
-    realized_spread_points: float
-    adverse_slippage_points: float
+    entry_spread_points: float
+    exit_spread_points: float
+    entry_adverse_slippage_points: float
+    exit_adverse_slippage_points: float
     fees: float
     peak_margin: float
     realized_pnl: float
@@ -61,8 +63,10 @@ class PaperTradeOutcome:
         for name in (
             "max_adverse_excursion_points",
             "max_favorable_excursion_points",
-            "realized_spread_points",
-            "adverse_slippage_points",
+            "entry_spread_points",
+            "exit_spread_points",
+            "entry_adverse_slippage_points",
+            "exit_adverse_slippage_points",
             "fees",
             "peak_margin",
         ):
@@ -275,9 +279,13 @@ class PretradeObservationStore:
             "max_adverse_excursion_points": _distribution(
                 outcomes, "max_adverse_excursion_points"
             ),
-            "realized_spread_points": _distribution(outcomes, "realized_spread_points"),
-            "adverse_slippage_points": _distribution(
-                outcomes, "adverse_slippage_points"
+            "entry_spread_points": _distribution(outcomes, "entry_spread_points"),
+            "exit_spread_points": _distribution(outcomes, "exit_spread_points"),
+            "entry_adverse_slippage_points": _distribution(
+                outcomes, "entry_adverse_slippage_points"
+            ),
+            "exit_adverse_slippage_points": _distribution(
+                outcomes, "exit_adverse_slippage_points"
             ),
             "limitations": [
                 "Descriptive prospective observations only; no causal or profitability claim.",
