@@ -132,6 +132,7 @@ def test_read_only_snapshot_can_feed_complete_engine_assessment():
         day_start_equity=100_000,
         week_start_equity=100_000,
         entries_today=0,
+        kill_switch_active=False,
         scheduled_event_blackout_active=False,
         now=NOW,
     )

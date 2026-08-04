@@ -21,7 +21,8 @@
     "available_funds": null,
     "day_start_equity": null,
     "week_start_equity": null,
-    "entries_today": 0
+    "entries_today": 0,
+    "kill_switch_active": null
   },
   "instrument": {
     "instrument": "XAUUSD",

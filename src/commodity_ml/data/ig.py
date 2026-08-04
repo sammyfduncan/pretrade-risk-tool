@@ -527,7 +527,12 @@ def fetch_broker_snapshot(
 def fetch_open_position_ids(service) -> tuple[str, ...]:
     """Return broker deal IDs for restart/reconciliation checks."""
 
-    positions = service.fetch_open_positions()
+    return open_position_ids_from_response(service.fetch_open_positions())
+
+
+def open_position_ids_from_response(positions: Any) -> tuple[str, ...]:
+    """Parse deal IDs from an already-read position response without a second call."""
+
     if isinstance(positions, pd.DataFrame):
         if positions.empty:
             return ()

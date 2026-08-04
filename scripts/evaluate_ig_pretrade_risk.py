@@ -19,6 +19,8 @@ from commodity_ml.config import load_config
 from commodity_ml.data import ig
 from commodity_ml.intraday.ig_risk_snapshot import build_ig_read_only_snapshot
 from commodity_ml.intraday.pretrade_risk import evaluate_pretrade_payload
+from commodity_ml.intraday.risk_runtime import roll_and_reconcile_paper_runtime
+from commodity_ml.intraday.state import PaperStateStore
 
 
 def main() -> None:
@@ -38,6 +40,14 @@ def main() -> None:
     parser.add_argument("--day-start-equity", type=float)
     parser.add_argument("--week-start-equity", type=float)
     parser.add_argument("--entries-today", type=int)
+    parser.add_argument(
+        "--paper-state",
+        type=Path,
+        help=(
+            "Restart-safe paper state; supplies loss anchors, entry count and "
+            "kill switch after exact broker-position reconciliation"
+        ),
+    )
     parser.add_argument(
         "--event-state",
         choices=("unknown", "clear", "blackout"),
@@ -95,6 +105,46 @@ def main() -> None:
         )
         positions = service.fetch_open_positions()
 
+        paper_runtime = None
+        if args.paper_state is not None:
+            if any(
+                value is not None
+                for value in (
+                    args.day_start_equity,
+                    args.week_start_equity,
+                    args.entries_today,
+                )
+            ):
+                raise ValueError(
+                    "--paper-state cannot be combined with manual account runtime overrides"
+                )
+            paper_runtime = roll_and_reconcile_paper_runtime(
+                PaperStateStore(args.paper_state),
+                account=account,
+                broker_position_ids=ig.open_position_ids_from_response(positions),
+                now=now,
+            )
+            risk_runtime = paper_runtime.risk_inputs()
+        else:
+            risk_runtime = {
+                "day_start_equity": (
+                    args.day_start_equity
+                    if args.day_start_equity is not None
+                    else runtime.get("day_start_equity")
+                ),
+                "week_start_equity": (
+                    args.week_start_equity
+                    if args.week_start_equity is not None
+                    else runtime.get("week_start_equity")
+                ),
+                "entries_today": (
+                    args.entries_today
+                    if args.entries_today is not None
+                    else runtime.get("entries_today")
+                ),
+                "kill_switch_active": runtime.get("kill_switch_active"),
+            }
+
         event_state = {
             "unknown": None,
             "clear": False,
@@ -112,21 +162,10 @@ def main() -> None:
             value_per_price_unit=cfg.data.ig.value_per_price_unit,
             fallback_margin_rate=cfg.data.ig.margin_rate,
             fallback_margin_rate_max_size=cfg.data.ig.margin_rate_max_size,
-            day_start_equity=(
-                args.day_start_equity
-                if args.day_start_equity is not None
-                else runtime.get("day_start_equity")
-            ),
-            week_start_equity=(
-                args.week_start_equity
-                if args.week_start_equity is not None
-                else runtime.get("week_start_equity")
-            ),
-            entries_today=(
-                args.entries_today
-                if args.entries_today is not None
-                else runtime.get("entries_today")
-            ),
+            day_start_equity=risk_runtime["day_start_equity"],
+            week_start_equity=risk_runtime["week_start_equity"],
+            entries_today=risk_runtime["entries_today"],
+            kill_switch_active=risk_runtime["kill_switch_active"],
             scheduled_event_blackout_active=(
                 event_state
                 if args.event_state != "unknown"
@@ -146,6 +185,9 @@ def main() -> None:
             "provenance": {
                 **snapshot.provenance,
                 "historical_price_points_requested": args.points,
+                "paper_runtime": (
+                    paper_runtime.provenance() if paper_runtime is not None else None
+                ),
             },
             "adapter_issues": snapshot.issues,
             "risk_report": report.to_dict(),

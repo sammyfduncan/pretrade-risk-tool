@@ -159,6 +159,7 @@ def build_ig_read_only_snapshot(
     day_start_equity: float | None = None,
     week_start_equity: float | None = None,
     entries_today: int | None = None,
+    kill_switch_active: bool | None = None,
     scheduled_event_blackout_active: bool | None = None,
     epic_to_instrument: Mapping[str, str] | None = None,
     value_per_price_unit_by_instrument: Mapping[str, float] | None = None,
@@ -232,6 +233,8 @@ def build_ig_read_only_snapshot(
         issues.append("missing_week_start_equity")
     if entries_today is None:
         issues.append("missing_entries_today")
+    if kill_switch_active is None:
+        issues.append("missing_kill_switch_state")
     if scheduled_event_blackout_active is None:
         issues.append("missing_current_scheduled_event_state")
 
@@ -246,6 +249,7 @@ def build_ig_read_only_snapshot(
             "day_start_equity": day_start_equity,
             "week_start_equity": week_start_equity,
             "entries_today": entries_today,
+            "kill_switch_active": kill_switch_active,
         },
         "instrument": {
             "instrument": instrument_symbol,

@@ -35,6 +35,7 @@ def valid_payload() -> dict:
             "day_start_equity": 100_000.0,
             "week_start_equity": 100_000.0,
             "entries_today": 0,
+            "kill_switch_active": False,
         },
         "instrument": {
             "instrument": "XAUUSD",
@@ -184,6 +185,16 @@ def test_margin_rate_band_scope_is_a_hard_size_cap():
     assert report.decision == "ALLOW"
     assert report.sizing["recommended_max_size"] == pytest.approx(5.0)
     assert report.sizing["binding_constraint"] == "margin_schedule_scope"
+
+
+def test_persistent_kill_switch_blocks_otherwise_valid_trade():
+    payload = valid_payload()
+    payload["account"]["kill_switch_active"] = True
+
+    report = evaluate_pretrade_payload(payload)
+
+    assert report.decision == "BLOCK"
+    assert "kill_switch_active" in report.reasons
 
 
 def test_session_event_and_loss_gates_accumulate_reason_codes():

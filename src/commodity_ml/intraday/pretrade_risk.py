@@ -53,6 +53,7 @@ class AccountSnapshot:
     day_start_equity: float | None
     week_start_equity: float | None
     entries_today: int | None
+    kill_switch_active: bool | None
 
 
 @dataclass(frozen=True)
@@ -287,6 +288,8 @@ def evaluate_pretrade_risk(
         account.entries_today, bool
     ) or account.entries_today < 0:
         reasons.append("invalid_entries_today")
+    if not isinstance(account.kill_switch_active, bool):
+        reasons.append("invalid_kill_switch_flag")
     if not _positive(account.day_start_equity):
         reasons.append("invalid_day_start_equity")
     if not _positive(account.week_start_equity):
@@ -341,6 +344,8 @@ def evaluate_pretrade_risk(
         reasons.append("weekly_loss_limit")
     if int(account.entries_today) >= policy.max_entries_per_day:
         reasons.append("max_entries_per_day")
+    if account.kill_switch_active is True:
+        reasons.append("kill_switch_active")
     if len(existing_positions) >= policy.max_open_positions:
         reasons.append("max_open_positions")
 
@@ -706,6 +711,7 @@ def _missing_required_inputs(
         "account.day_start_equity": account.day_start_equity,
         "account.week_start_equity": account.week_start_equity,
         "account.entries_today": account.entries_today,
+        "account.kill_switch_active": account.kill_switch_active,
         "instrument.instrument": instrument.instrument,
         "instrument.epic": instrument.epic,
         "instrument.instrument_type": instrument.instrument_type,

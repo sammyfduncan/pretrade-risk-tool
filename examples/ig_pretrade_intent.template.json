@@ -17,6 +17,7 @@
     "day_start_equity": null,
     "week_start_equity": null,
     "entries_today": null,
+    "kill_switch_active": null,
     "scheduled_event_blackout_active": null
   }
 }
