@@ -12,6 +12,7 @@ from commodity_ml.data.ig import (
     fetch_recent_candles,
     market_metadata_from_details,
     market_quote_from_details,
+    open_position_ids_from_response,
 )
 
 
@@ -218,3 +219,15 @@ def test_combined_broker_snapshot_and_position_reconciliation_adapter():
     assert account.account_id == "ABC123"
     assert metadata.epic == quote.epic == cfg.ig.epic
     assert fetch_open_position_ids(service) == ("D1", "D2")
+
+
+def test_position_ids_parse_without_a_second_broker_read():
+    nested = {
+        "positions": [
+            {"position": {"dealId": "D1"}},
+            {"position": {"dealId": "D2"}},
+        ]
+    }
+
+    assert open_position_ids_from_response(nested) == ("D1", "D2")
+    assert open_position_ids_from_response(pd.DataFrame({"dealId": []})) == ()

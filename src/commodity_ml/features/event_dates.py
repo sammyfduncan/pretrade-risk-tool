@@ -7,11 +7,11 @@ market genuinely knows whether an FOMC decision or a CPI print falls inside
 the next h days. Using the *dates* is ex-ante knowledge; using the *outcomes*
 would be lookahead.
 
-Verified 2026-07-30 against the primary sources, not derived from rules of
+Verified 2026-08-04 against the primary sources, not derived from rules of
 thumb ("NFP = first Friday" fails four times in 2023–2025 below):
   - FOMC: federalreserve.gov/monetarypolicy/fomccalendars.htm (2021–2026)
     and .../fomchistorical2020.htm (2020)
-  - CPI + Employment Situation: bls.gov/schedule/<year>/home.htm, 2020–2025
+  - CPI + Employment Situation: bls.gov/schedule/<year>/home.htm, 2020–2026
 
 Scheduled events only, by definition: the March 2020 emergency actions
 (Mar 2, 15 conference calls; notation votes) are excluded because they were
@@ -30,6 +30,8 @@ the holdout period. The development window (through 2025-06-30) is unaffected.
 from __future__ import annotations
 
 import pandas as pd
+
+EVENT_SCHEDULE_VERIFIED_ON = "2026-08-04"
 
 # (first day, last day). The decision/statement lands on the LAST day, which
 # is why `fomc_days` returns end dates — that is the day vol concentrates on.
@@ -114,6 +116,9 @@ CPI_RELEASES = (
     "2025-06-11", "2025-07-15", "2025-08-12", "2025-09-11",
     "2025-10-24",  # September data, shutdown-delayed; October skipped
     "2025-12-18",  # November data
+    "2026-01-13", "2026-02-13", "2026-03-11", "2026-04-10", "2026-05-12",
+    "2026-06-10", "2026-07-14", "2026-08-12", "2026-09-11", "2026-10-14",
+    "2026-11-10", "2026-12-10",
 )
 
 NFP_RELEASES = (
@@ -136,13 +141,14 @@ NFP_RELEASES = (
     "2025-06-06", "2025-07-03", "2025-08-01", "2025-09-05",
     "2025-11-20",  # September data, shutdown-delayed; October skipped
     "2025-12-16",  # November data
+    "2026-01-09", "2026-02-11", "2026-03-06", "2026-04-03", "2026-05-08",
+    "2026-06-05", "2026-07-02", "2026-08-07", "2026-09-04", "2026-10-02",
+    "2026-11-06", "2026-12-04",
 )
 
-# The span these tables are verified complete over. 2026 FOMC dates exist
-# above (published in advance) but BLS 2026 was only partially transcribed,
-# so the joint coverage bound is conservative and symmetric across kinds.
+# The span these tables are verified complete over, symmetric across all kinds.
 COVERAGE_START = pd.Timestamp("2020-01-01")
-COVERAGE_END = pd.Timestamp("2025-12-31")
+COVERAGE_END = pd.Timestamp("2026-12-31")
 
 
 def fomc_days() -> pd.DatetimeIndex:

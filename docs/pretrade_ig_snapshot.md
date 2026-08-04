@@ -31,7 +31,8 @@ The following remain user/account/runtime facts rather than research defaults:
 - `data.ig.size_increment`: confirmed order-ticket size step;
 - `data.ig.value_per_price_unit`: account-currency P&L for size 1 and a 1.0
   price move;
-- day-start and week-start equity plus entries already made today; and
+- day-start and week-start equity plus entries already made today;
+- persistent paper kill-switch state; and
 - the current mechanical scheduled-event blackout state.
 
 Unknown values flow into the report as `INCOMPLETE`. A historical event file
@@ -62,12 +63,12 @@ python3 scripts/evaluate_ig_pretrade_risk.py \
   --portfolio-config config/silver.yaml \
   --day-start-equity 10000 \
   --week-start-equity 10000 \
-  --entries-today 0 \
-  --event-state clear
+  --entries-today 0
 ```
 
-`--event-state clear` is an assertion about a checked mechanical calendar, not
-a default. Omitting it leaves the state unknown and therefore incomplete.
+The default `--event-state auto` uses the verified CPI, Employment Situation
+and FOMC schedule through 2026-12-31. Persistent paper state requires this
+automatic mode; manual `clear` cannot bypass the schedule.
 `--portfolio-config` supplies the confirmed epic and point value needed to
 value an existing position in the other metal; it does not fetch that market
 or generate another trade.
@@ -84,14 +85,18 @@ The HTML is static, self-contained, print-friendly and escapes report text. It
 performs no broker or network action and repeats that order authority is
 disabled.
 
+For repeatable paper operation, prefer the account-bound persistent runtime
+described in `docs/paper_risk_runtime.md` and pass it with `--paper-state`.
+This removes manual anchors and requires exact broker-position reconciliation.
+
 ## Live validation still required
 
 Before the tool can issue a complete current assessment:
 
 1. discover and manually confirm the exact account epic;
 2. confirm the size increment and P&L-per-price-unit on the demo order ticket;
-3. extend/operate the scheduled-event calendar for the current date;
-4. persist day/week equity anchors and entry counts from the paper runtime;
+3. re-verify/extend the scheduled-event calendar before its 2026-12-31 bound;
+4. initialize the account-bound paper runtime while the demo account is flat;
 5. run the bounded IG read and inspect quote freshness, spread samples, margin
    source and product type; and
 6. shadow-log assessments versus realised spread, slippage and excursion.

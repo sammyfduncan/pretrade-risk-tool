@@ -10,6 +10,23 @@ from commodity_ml.intraday.execution import EntryBlackout
 NEW_YORK = "America/New_York"
 
 
+def scheduled_blackout_state(
+    decision_time: pd.Timestamp,
+) -> tuple[bool, tuple[str, ...]]:
+    """Return the active exact-time blackout state from verified schedules."""
+
+    current = _utc(decision_time)
+    # Widest registered window is FOMC: 30 minutes before through 60 after.
+    windows = scheduled_entry_blackouts(
+        current - pd.Timedelta(hours=2),
+        current + pd.Timedelta(hours=2),
+    )
+    reasons = tuple(
+        item.reason for item in windows if item.start <= current < item.end
+    )
+    return bool(reasons), reasons
+
+
 def scheduled_release_times(
     start: pd.Timestamp,
     end: pd.Timestamp,

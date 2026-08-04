@@ -17,6 +17,8 @@ from dotenv import load_dotenv
 
 from commodity_ml.config import load_config
 from commodity_ml.data import ig
+from commodity_ml.features import event_dates
+from commodity_ml.intraday.event_blackouts import scheduled_blackout_state
 from commodity_ml.intraday.ig_risk_snapshot import build_ig_read_only_snapshot
 from commodity_ml.intraday.pretrade_risk import evaluate_pretrade_payload
 from commodity_ml.intraday.risk_runtime import roll_and_reconcile_paper_runtime
@@ -50,9 +52,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--event-state",
-        choices=("unknown", "clear", "blackout"),
-        default="unknown",
-        help="Current mechanical scheduled-event state; unknown fails closed",
+        choices=("auto", "unknown", "clear", "blackout"),
+        default="auto",
+        help=(
+            "Mechanical scheduled-event state; auto uses the verified official "
+            "calendar and refuses dates outside coverage"
+        ),
     )
     parser.add_argument("--output", type=Path, default=Path("reports/ig_pretrade_risk.json"))
     args = parser.parse_args()
@@ -107,6 +112,11 @@ def main() -> None:
 
         paper_runtime = None
         if args.paper_state is not None:
+            if args.event_state != "auto":
+                raise ValueError(
+                    "--paper-state requires --event-state auto; persistent paper "
+                    "operation cannot bypass the verified event calendar"
+                )
             if any(
                 value is not None
                 for value in (
@@ -145,11 +155,24 @@ def main() -> None:
                 "kill_switch_active": runtime.get("kill_switch_active"),
             }
 
-        event_state = {
-            "unknown": None,
-            "clear": False,
-            "blackout": True,
-        }[args.event_state]
+        if args.event_state == "auto":
+            event_state, event_reasons = scheduled_blackout_state(now)
+            event_provenance = {
+                "mode": "verified_schedule",
+                "active_reasons": event_reasons,
+                "verified_on": event_dates.EVENT_SCHEDULE_VERIFIED_ON,
+                "coverage_end": event_dates.COVERAGE_END.isoformat(),
+            }
+        else:
+            event_state = {
+                "unknown": None,
+                "clear": False,
+                "blackout": True,
+            }[args.event_state]
+            event_provenance = {
+                "mode": f"manual_{args.event_state}",
+                "active_reasons": (),
+            }
         snapshot = build_ig_read_only_snapshot(
             instrument_symbol=cfg.symbol,
             trade_intent=trade_intent,
@@ -188,6 +211,7 @@ def main() -> None:
                 "paper_runtime": (
                     paper_runtime.provenance() if paper_runtime is not None else None
                 ),
+                "event_calendar": event_provenance,
             },
             "adapter_issues": snapshot.issues,
             "risk_report": report.to_dict(),

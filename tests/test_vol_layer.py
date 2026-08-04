@@ -167,7 +167,7 @@ def test_calendar_window_is_exclusive_of_today_and_capped_at_horizon():
 
 
 def test_calendar_refuses_a_grid_past_verified_coverage():
-    grid = pd.date_range("2025-11-01", "2026-06-30", freq="B", tz="UTC")
+    grid = pd.date_range("2026-11-01", "2027-06-30", freq="B", tz="UTC")
     with pytest.raises(ValueError, match="verified tables end"):
         build_calendar_features(grid, 20)
 
@@ -187,7 +187,7 @@ def test_event_tables_have_the_verified_shape():
     12 CPI and 12 NFP releases per year except 2025's shutdown (11 each)."""
     fomc = event_dates.fomc_days()
     assert len(fomc) == 8 * 7
-    for year, expected in [(2024, 12), (2025, 11)]:
+    for year, expected in [(2024, 12), (2025, 11), (2026, 12)]:
         assert sum(pd.Timestamp(d).year == year for d in event_dates.CPI_RELEASES) == expected
         assert sum(pd.Timestamp(d).year == year for d in event_dates.NFP_RELEASES) == expected
     # End days, not start days: the 2023 Jan meeting ended Feb 1.

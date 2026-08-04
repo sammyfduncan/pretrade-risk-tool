@@ -62,6 +62,7 @@ a short stop is above entry and target below it.
 | `day_start_equity` | Equity at the London trading-day boundary |
 | `week_start_equity` | Equity at the London week boundary |
 | `entries_today` | New entries already made during the London day |
+| `kill_switch_active` | Persistent global paper-entry stop; true always blocks |
 
 ### 2.3 Broker instrument facts
 

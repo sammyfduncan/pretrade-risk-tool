@@ -69,6 +69,8 @@ Historical records:
 - [`docs/pretrade_paper_observations.md`](docs/pretrade_paper_observations.md)
 - [`docs/pretrade_quote_path.md`](docs/pretrade_quote_path.md)
 - [`docs/ig_stream_recorder.md`](docs/ig_stream_recorder.md)
+- [`docs/paper_risk_runtime.md`](docs/paper_risk_runtime.md)
+- [`docs/pretrade_event_calendar.md`](docs/pretrade_event_calendar.md)
 
 ## 3. Active system design
 
@@ -392,12 +394,12 @@ only after the full version-1 contract and gates are committed. Data from
 9. **Implemented foundation:** build the offline gold/silver pre-trade risk engine. The
    version-one input contract, deterministic cash/margin/cost calculations,
    portfolio snapshot, stress scenarios, fail-closed decisions, JSON CLI, and
-    initial tests are implemented. A read-only IG adapter now maps current
-    account, epic, quote, scoped margin, spread and open-position facts into
-    this contract, with explicit provenance and no order authority. Confirmed
-    gold/silver configs can map cross-metal positions, and a standalone static
-    HTML renderer turns either offline or IG-wrapper JSON into an auditable
-    human-readable report.
+   initial tests are implemented. A read-only IG adapter now maps current
+   account, epic, quote, scoped margin, spread and open-position facts into
+   this contract, with explicit provenance and no order authority. Confirmed
+   gold/silver configs can map cross-metal positions, and a standalone static
+   HTML renderer turns either offline or IG-wrapper JSON into an auditable
+   human-readable report.
 10. **Development calibration complete:** 243,598 causal OOF gold/silver rows
     now calibrate 60/120/180/240-minute range and adverse-excursion quantiles;
     every cell passed its data-quality gate with approximately nominal p95
@@ -413,7 +415,15 @@ only after the full version-1 contract and gates are committed. Data from
     short-ask MAE/MFE construction are implemented. The raw IG tick recorder
     and outage-aware exporter are also implemented; their first authenticated
     demo-account validation remains pending.
-12. Connect `ALLOW` decisions to the dry paper-intent boundary only after
+12. **Runtime bridge implemented; broker lifecycle pending:** the pre-trade
+    engine can now consume restart-safe account-bound day/week anchors, entry
+    counts, expected positions and kill-switch state after exact broker
+    reconciliation. One-time flat-account initialization and local kill-switch
+    inspection controls are implemented; submit-once order authority remains
+    disabled. The official CPI/NFP/FOMC schedule is now verified through 2026
+    and computed automatically; persistent paper operation cannot manually
+    override it to clear.
+13. Connect `ALLOW` decisions to the dry paper-intent boundary only after
     operational validation; minimum-size live execution still requires a
     separately authorised and passed release stage.
 

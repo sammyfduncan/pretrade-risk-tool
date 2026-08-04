@@ -3,7 +3,10 @@
 import pandas as pd
 import pytest
 
-from commodity_ml.intraday.event_blackouts import scheduled_entry_blackouts
+from commodity_ml.intraday.event_blackouts import (
+    scheduled_blackout_state,
+    scheduled_entry_blackouts,
+)
 
 
 def test_bls_release_uses_new_york_dst_and_frozen_half_hour_window():
@@ -47,3 +50,16 @@ def test_unverified_calendar_range_is_refused():
             pd.Timestamp("2019-01-01", tz="UTC"),
             pd.Timestamp("2020-02-01", tz="UTC"),
         )
+
+
+def test_current_state_uses_verified_2026_schedule_and_exact_half_open_window():
+    # August CPI is 08:30 New York = 12:30 UTC under EDT.
+    assert scheduled_blackout_state(
+        pd.Timestamp("2026-08-12 12:00", tz="UTC")
+    ) == (True, ("cpi",))
+    assert scheduled_blackout_state(
+        pd.Timestamp("2026-08-12 13:00", tz="UTC")
+    ) == (False, ())
+    assert scheduled_blackout_state(
+        pd.Timestamp("2026-08-04 12:30", tz="UTC")
+    ) == (False, ())

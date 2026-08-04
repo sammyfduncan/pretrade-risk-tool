@@ -1147,3 +1147,38 @@ a valid research result.
   does not contain IG credentials and both config epics remain unset. No epic
   was guessed. The implementation is not operationally approved until a demo
   stream run validates the actual account products and reconnect behavior.
+
+### 2026-08-04 — persistent paper state to pre-trade risk bridge
+
+- Wired the existing atomic paper state into the quantitative assessment as
+  the preferred source of day/week equity anchors, entry count and global kill
+  switch. The kill switch is now a hard pre-trade `BLOCK`, not merely a dry
+  order-intent check.
+- Added exact account and broker position-ID reconciliation before any local
+  boundary update. Unknown positions and account mismatches fail before state
+  mutation; the bridge never adopts broker state implicitly.
+- Added one-time read-only IG initialization that requires a verified flat
+  account, plus local status/kill-on/kill-off controls. State remains mode 0600
+  in the ignored runtime directory and no command has order authority.
+- Added state revision/boundary provenance to IG risk reports without exposing
+  the full account ID. Persisted state cannot be combined with manual loss
+  anchor or entry-count overrides.
+- Synthetic rollover, mismatch-before-mutation, restart and kill-switch tests
+  pass. Live initialization and confirmed-entry lifecycle updates still await
+  the verified demo account and future separately authorized submit-once
+  adapter.
+
+### 2026-08-04 — current automatic event-blackout state
+
+- Extended the exact-date calendar through 2026-12-31 using the official BLS
+  2026 schedule (12 CPI and 12 Employment Situation releases) and rechecked
+  the eight scheduled FOMC meetings against the Federal Reserve calendar.
+- Added point-in-time automatic blackout evaluation with the existing frozen
+  America/New_York clocks and half-open -30/+30 minute BLS and -30/+60 minute
+  FOMC windows. No event outcome, forecast, news or language is read.
+- Made automatic mode the IG pre-trade default and recorded the active reason,
+  verification date and coverage end in provenance. Dates beyond verified
+  coverage fail rather than silently returning clear.
+- Persistent paper state now requires automatic calendar mode, so a manual
+  `clear` flag cannot bypass scheduled-event policy. Manual modes remain only
+  for isolated offline diagnostics.
