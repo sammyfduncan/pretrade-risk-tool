@@ -23,7 +23,7 @@ class SourceParityReport:
     verdict: str
     matched_bars: int
     contiguous_return_pairs: int
-    ig_coverage: float
+    broker_coverage: float
     dukascopy_coverage: float
     return_correlation: float
     tracking_error: float
@@ -39,7 +39,7 @@ class SourceParityReport:
 
 def compare_price_sources(
     dukascopy: pd.DataFrame,
-    ig: pd.DataFrame,
+    broker: pd.DataFrame,
     *,
     bar_duration: pd.Timedelta,
     thresholds: ParityThresholds | None = None,
@@ -56,15 +56,15 @@ def compare_price_sources(
         raise ValueError("max_shift_bars cannot be negative")
 
     duka_close = _close_series(dukascopy, "dukascopy")
-    ig_close = _close_series(ig, "ig")
-    window_start = max(duka_close.index[0], ig_close.index[0])
-    window_end = min(duka_close.index[-1], ig_close.index[-1])
+    broker_close = _close_series(broker, "broker")
+    window_start = max(duka_close.index[0], broker_close.index[0])
+    window_end = min(duka_close.index[-1], broker_close.index[-1])
     if window_start > window_end:
         raise ValueError("The two sources have no overlapping time window")
 
     duka_window = duka_close.loc[window_start:window_end]
-    ig_window = ig_close.loc[window_start:window_end]
-    overlap = duka_window.index.intersection(ig_window.index)
+    broker_window = broker_close.loc[window_start:window_end]
+    overlap = duka_window.index.intersection(broker_window.index)
     if len(overlap) < thresholds.min_matched_bars:
         raise ValueError(
             f"Only {len(overlap)} exact timestamps overlap; need at least "
@@ -74,7 +74,7 @@ def compare_price_sources(
     aligned = pd.concat(
         [
             duka_window.loc[overlap].rename("dukascopy"),
-            ig_window.loc[overlap].rename("ig"),
+            broker_window.loc[overlap].rename("broker"),
         ],
         axis=1,
     )
@@ -83,14 +83,14 @@ def compare_price_sources(
         raise ValueError(
             f"Only {len(returns)} contiguous matched returns; check missing bars"
         )
-    correlation = float(returns["dukascopy"].corr(returns["ig"]))
-    tracking_error = float((returns["ig"] - returns["dukascopy"]).std())
+    correlation = float(returns["dukascopy"].corr(returns["broker"]))
+    tracking_error = float((returns["broker"] - returns["dukascopy"]).std())
     if not np.isfinite(correlation) or not np.isfinite(tracking_error):
         raise ValueError("Matched returns have insufficient variation for parity")
 
     shift_scores: dict[int, float] = {}
     for shift in range(-max_shift_bars, max_shift_bars + 1):
-        shifted = ig_close.copy()
+        shifted = broker_close.copy()
         shifted.index = shifted.index + shift * bar_duration
         shifted_overlap = duka_close.index.intersection(shifted.index)
         if len(shifted_overlap) < thresholds.min_matched_bars:
@@ -99,13 +99,13 @@ def compare_price_sources(
         pair = pd.concat(
             [
                 duka_close.loc[shifted_overlap].rename("dukascopy"),
-                shifted.loc[shifted_overlap].rename("ig"),
+                shifted.loc[shifted_overlap].rename("broker"),
             ],
             axis=1,
         )
         shifted_returns = _contiguous_returns(pair, bar_duration)
         shift_scores[shift] = (
-            float(shifted_returns["dukascopy"].corr(shifted_returns["ig"]))
+            float(shifted_returns["dukascopy"].corr(shifted_returns["broker"]))
             if len(shifted_returns) >= thresholds.min_matched_bars - 1
             else float("nan")
         )
@@ -123,10 +123,10 @@ def compare_price_sources(
         >= correlation + thresholds.material_shift_improvement
     )
 
-    level_difference = aligned["ig"] - aligned["dukascopy"]
-    ig_coverage = len(overlap) / len(ig_window)
+    level_difference = aligned["broker"] - aligned["dukascopy"]
+    broker_coverage = len(overlap) / len(broker_window)
     duka_coverage = len(overlap) / len(duka_window)
-    coverage = min(ig_coverage, duka_coverage)
+    coverage = min(broker_coverage, duka_coverage)
 
     reasons: list[str] = []
     if shifted_materially_better:
@@ -155,7 +155,7 @@ def compare_price_sources(
         verdict=verdict,
         matched_bars=len(overlap),
         contiguous_return_pairs=len(returns),
-        ig_coverage=ig_coverage,
+        broker_coverage=broker_coverage,
         dukascopy_coverage=duka_coverage,
         return_correlation=correlation,
         tracking_error=tracking_error,

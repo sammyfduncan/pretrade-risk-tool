@@ -16,7 +16,7 @@ def intent(intent_id: str = "P1:2026-01-09T16:00Z") -> PaperOrderIntent:
     return PaperOrderIntent(
         intent_id=intent_id,
         strategy="P1",
-        epic="CS.D.TEST.GOLD.IP",
+        broker_instrument="XAU_USD",
         account_id="ABC123",
         account_currency="GBP",
         direction="BUY",

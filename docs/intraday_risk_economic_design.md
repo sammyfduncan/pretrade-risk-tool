@@ -59,7 +59,7 @@ observed gross return to net R using its pre-trade `initial_r_pct`:
 A `0.00x` decision remains in the matched ledger as a blocked opportunity with
 zero return. This prevents the arms from silently using different samples.
 The research calculation ignores broker size increments and notional limits;
-those are operational constraints tested later with real IG metadata.
+those are operational constraints tested later with real OANDA metadata.
 
 ## 4. Reported metrics and frozen gate
 

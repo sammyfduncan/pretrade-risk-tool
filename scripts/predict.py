@@ -6,8 +6,8 @@ Usage:
 
 STATUS: groundwork. The decision logic and the feature path are complete and
 covered by tests/test_predict_parity.py, which runs offline. What is NOT yet
-exercised is fetching live candles from IG and placing an order — that needs
-API credentials. When those arrive, only the data-loading step below changes;
+exercised is submitting a paper order through OANDA. The read-only OANDA data
+boundary is implemented; order authority remains a separate release step.
 everything after it is already the tested path.
 
 What this does
@@ -51,15 +51,14 @@ def load_candles(cfg, refresh: bool) -> pd.DataFrame:
     """Trailing candles for the asset.
 
     THE LINE THAT CHANGES FOR LIVE TRADING. Today this reads the cached
-    Dukascopy parquet. With IG credentials, `--refresh` pulls recent bars from
-    the broker instead — deliberately a small window, because IG allows only
-    10,000 historical points per week (see data/ig.py's allowance guard).
+    Dukascopy parquet. With data.source=oanda, `--refresh` pulls a bounded
+    account-specific broker window instead.
     Everything downstream is source-agnostic by construction: both providers
     return the same validated shape from data/schema.py.
     """
     if refresh:
-        if cfg.data.source == "ig":
-            from commodity_ml.data import ig as provider
+        if cfg.data.source == "oanda":
+            from commodity_ml.data import oanda as provider
         else:
             from commodity_ml.data import dukascopy as provider
         return provider.fetch_candles(cfg.data, cfg.granularity)

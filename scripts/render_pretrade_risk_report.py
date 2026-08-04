@@ -11,7 +11,7 @@ from commodity_ml.intraday.pretrade_report import render_pretrade_report_html
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("input", type=Path, help="Risk report or IG wrapper JSON")
+    parser.add_argument("input", type=Path, help="Risk report or OANDA wrapper JSON")
     parser.add_argument("--output", type=Path, required=True, help="Output HTML file")
     parser.add_argument("--title", default="Quantitative pre-trade risk assessment")
     args = parser.parse_args()

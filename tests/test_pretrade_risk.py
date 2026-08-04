@@ -39,7 +39,7 @@ def valid_payload() -> dict:
         },
         "instrument": {
             "instrument": "XAUUSD",
-            "epic": "SYNTHETIC.GOLD.SPREADBET",
+            "broker_instrument": "XAU_USD",
             "instrument_type": "COMMODITIES",
             "expiry": "DFB",
             "account_currency": "GBP",
@@ -51,7 +51,7 @@ def valid_payload() -> dict:
             "commission_per_size_per_side": 0.0,
         },
         "market": {
-            "epic": "SYNTHETIC.GOLD.SPREADBET",
+            "broker_instrument": "XAU_USD",
             "as_of": "2026-08-03T09:59:30Z",
             "bid": 2399.9,
             "ask": 2400.1,
@@ -74,7 +74,7 @@ def test_complete_trade_is_allowed_and_risk_is_cost_inclusive():
 
     assert report.decision == "ALLOW"
     assert report.reasons == ()
-    assert report.trade["epic"] == "SYNTHETIC.GOLD.SPREADBET"
+    assert report.trade["broker_instrument"] == "XAU_USD"
     assert report.sizing["recommended_max_size"] == pytest.approx(12.3)
     assert report.sizing["recommended_action_size"] == pytest.approx(10.0)
     assert report.sizing["binding_constraint"] == "risk"
@@ -139,14 +139,14 @@ def test_invalid_directional_geometry_is_blocked():
     assert report.reasons == ("invalid_long_price_geometry",)
 
 
-def test_quote_for_a_different_epic_is_blocked():
+def test_quote_for_a_different_broker_instrument_is_blocked():
     payload = valid_payload()
-    payload["market"]["epic"] = "SYNTHETIC.WRONG.MARKET"
+    payload["market"]["broker_instrument"] = "XAG_USD"
 
     report = evaluate_pretrade_payload(payload)
 
     assert report.decision == "BLOCK"
-    assert report.reasons == ("quote_epic_mismatch",)
+    assert report.reasons == ("quote_instrument_mismatch",)
 
 
 def test_delayed_quote_is_blocked_even_when_fresh():

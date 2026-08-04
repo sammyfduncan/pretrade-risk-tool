@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 
 import pandas as pd
 
-from commodity_ml.data.ig import IGAccountSnapshot
+from commodity_ml.data.broker import BrokerAccountSnapshot
 from commodity_ml.intraday.state import PaperStateStore
 
 
@@ -37,7 +37,7 @@ class PaperRiskRuntimeSnapshot:
 def roll_and_reconcile_paper_runtime(
     store: PaperStateStore,
     *,
-    account: IGAccountSnapshot,
+    account: BrokerAccountSnapshot,
     broker_position_ids: tuple[str, ...],
     now: pd.Timestamp,
 ) -> PaperRiskRuntimeSnapshot:

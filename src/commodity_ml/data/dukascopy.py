@@ -1,12 +1,11 @@
 """Bulk historical candles from Dukascopy — the model's training data.
 
-Why not just use the broker? IG's REST API caps historical price data at
-10,000 points per WEEK. Step 1 alone wants ~40,000 hourly bars, so pulling
-training history from IG would take a month of waiting. Dukascopy (a Swiss
+Why not just use the broker? The execution API is an account-specific surface,
+not the project's pinned multi-year research archive. Dukascopy (a Swiss
 bank/broker) publishes its full tick archive for free with no account, which
 is the standard way to get deep FX/metals history.
 
-Dukascopy's XAU/USD is spot gold, same underlying as IG's spot gold market,
+Dukascopy's XAU/USD is spot gold, the same underlying class as OANDA's metal,
 so features built on returns transfer. They are *not* byte-identical though
 (different liquidity providers and feed timing) — scripts/compare_sources.py
 quantifies the gap on the overlapping window before you trust a model trained

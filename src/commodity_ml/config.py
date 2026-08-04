@@ -22,42 +22,34 @@ class DukascopyConfig:
 
 
 @dataclass(frozen=True)
-class IGConfig:
-    epic: str | None = None
-    # IG's generic market metadata exposes minDealSize but does not provide a
-    # universally safe size-step/P&L interpretation across regional CFDs and
-    # spread bets. Confirm these two values from the demo-account order ticket.
-    size_increment: float | None = None
-    value_per_price_unit: float | None = None  # account currency, per size unit
-    # Normally parsed from the account-specific market's margin bands. These
-    # are manual fallbacks only when the response omits a usable percentage.
-    margin_rate: float | None = None
-    margin_rate_max_size: float | None = None
+class OANDAConfig:
+    """Account-specific OANDA v20 execution settings.
+
+    Instrument precision, minimum size, margin and home-currency conversion are
+    deliberately read from the authenticated account.  They are not copied
+    into YAML because OANDA can vary them by division and account.
+    """
+
+    instrument: str | None = None
+    account_type: str = "SPREADBET"
 
     def __post_init__(self) -> None:
-        for name in (
-            "size_increment",
-            "value_per_price_unit",
-            "margin_rate",
-            "margin_rate_max_size",
-        ):
-            value = getattr(self, name)
-            if value is not None and value <= 0:
-                raise ValueError(f"data.ig.{name} must be positive when configured")
-        if self.margin_rate is not None and self.margin_rate > 1:
-            raise ValueError("data.ig.margin_rate must be a decimal fraction <= 1")
+        if self.instrument is not None and not self.instrument.strip():
+            raise ValueError("data.oanda.instrument must be non-empty when configured")
+        if self.account_type.upper() not in ("SPREADBET", "CFD"):
+            raise ValueError("data.oanda.account_type must be SPREADBET or CFD")
 
 
 @dataclass(frozen=True)
 class DataConfig:
-    source: str = "dukascopy"  # dukascopy | ig
+    source: str = "dukascopy"  # dukascopy | oanda
     start: str = "2019-01-01"
     end: str | None = None
     # Everything from this date on is fenced off from development. See
     # AssetConfig.development_slice for why this exists.
     holdout_start: str | None = None
     dukascopy: DukascopyConfig = field(default_factory=DukascopyConfig)
-    ig: IGConfig = field(default_factory=IGConfig)
+    oanda: OANDAConfig = field(default_factory=OANDAConfig)
 
 
 @dataclass(frozen=True)
@@ -215,7 +207,7 @@ class AssetConfig:
                 f"({self.label.horizon_bars}), otherwise forward-looking labels "
                 "overlap the train/test boundary and leak future information."
             )
-        if self.data.source not in ("dukascopy", "ig"):
+        if self.data.source not in ("dukascopy", "oanda"):
             raise ValueError(f"Unknown data.source: {self.data.source!r}")
         if not (self.features.technical or self.features.macro or self.features.crossasset):
             raise ValueError("At least one feature family must be enabled.")
@@ -373,7 +365,7 @@ def load_config(path: str | Path) -> AssetConfig:
         end=data_raw.get("end"),
         holdout_start=data_raw.get("holdout_start"),
         dukascopy=DukascopyConfig(**(data_raw.get("dukascopy") or {})),
-        ig=IGConfig(**(data_raw.get("ig") or {})),
+        oanda=OANDAConfig(**(data_raw.get("oanda") or {})),
     )
     return AssetConfig(
         asset=raw["asset"],

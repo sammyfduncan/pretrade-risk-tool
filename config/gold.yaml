@@ -2,14 +2,14 @@
 # The active redesign is H1 context + M30 decisions, with M15 optional; see
 # docs/intraday_rebuild_plan.md. Documentation moved first. Do not mutate this
 # config into the intraday version or spend its holdout accidentally.
-# Adding a new asset later = copy this file, change symbol/epic/instrument.
+# Adding a new asset later = copy this file and change its asset identifiers.
 
 asset: gold
 symbol: XAUUSD
 granularity: H4            # frozen historical value, not the active target cadence
 
 data:
-  source: dukascopy        # dukascopy (deep free history, for training) | ig (broker, allowance-capped)
+  source: dukascopy        # dukascopy (deep research history) | oanda (bounded broker parity/execution)
   start: "2019-01-01"
   # end omitted -> now
 
@@ -23,17 +23,12 @@ data:
     instrument: "XAU/USD"
     offer_side: bid        # bid | ask. Spread cost is modeled separately via backtest.fee_pct.
 
-  ig:
-    # IG identifies markets by "epic", not ticker. Epics differ per account region,
-    # so this is left unset deliberately — find yours with:
-    #     python scripts/find_epic.py --search "spot gold"
-    epic: null
-    # Confirm both from this exact epic's DEMO order ticket before paper work.
-    # They are account-currency/product facts, not values to copy from examples.
-    size_increment: null
-    value_per_price_unit: null  # account-currency P&L for size 1 and a 1.0 price move
-    margin_rate: null           # optional manual fallback; decimal, never guessed
-    margin_rate_max_size: null  # maximum size for which the fallback rate is valid
+  oanda:
+    # Verified against the authenticated v20 practice account on 2026-08-04.
+    # Minimum size, unit precision, margin and GBP conversion remain live API
+    # facts; they are never copied into this research configuration.
+    instrument: XAU_USD
+    account_type: SPREADBET
 
 features:
   technical: true          # price-path indicators — strong on volatility, weak on direction

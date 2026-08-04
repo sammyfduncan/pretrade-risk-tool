@@ -3,37 +3,37 @@
 ## Purpose
 
 The fixed Dukascopy research allowance is two basis points round trip. That is
-a conservative placeholder, not a fact about the user's IG account. Promotion
-requires measured costs from the exact regional epic and account product.
+a conservative placeholder, not a fact about the user's OANDA account.
+Promotion requires measured costs from the exact v20 account and instrument.
 
 The cost stack is separated into:
 
-1. **spread:** observed IG bid/ask quotes;
+1. **spread:** observed OANDA bid/ask quotes;
 2. **slippage:** fill price versus the executable quote captured before order
    submission;
 3. **commission/fees:** explicit broker charges where applicable; and
 4. **financing:** excluded by the forced-flat intraday mandate, but any
    accidental overnight position must record it.
 
-`scripts/measure_ig_costs.py` implements the spread profile offline. Realized
+`scripts/measure_oanda_costs.py` implements the spread profile offline. Realized
 slippage requires demo fills and cannot be inferred from candles.
 
 ## Collecting a bounded quote sample
 
-After confirming the demo-account epic and credentials, collect recent M30 and
-M15 quote candles. Keep the combined request below IG's reported allowance.
+Using the configured practice account, collect bounded recent M30 and M15 quote
+candles. OANDA broker pulls remain diagnostic rather than research backfills.
 For example, choose dates appropriate to the day the command is run:
 
 ```bash
-python scripts/fetch_data.py --config config/gold.yaml --source ig \
-  --granularity M30 --start 2026-05-01
+python scripts/fetch_data.py --config config/gold.yaml --source oanda \
+  --granularity M30 --start 2026-08-01
 
-python scripts/fetch_data.py --config config/gold.yaml --source ig \
-  --granularity M15 --start 2026-06-01
+python scripts/fetch_data.py --config config/gold.yaml --source oanda \
+  --granularity M15 --start 2026-08-01
 ```
 
-The fetcher prints estimated point use before the request and refuses an
-oversized pull. It writes canonical mid plus bid/ask OHLC parquet files.
+The fetcher refuses an oversized pull and writes canonical midpoint plus
+bid/ask OHLC parquet files.
 
 ## Building the profile
 
@@ -41,11 +41,11 @@ Use a representative stop matching the actual strategy. Recent gold candidate
 median stops have been around `0.0018`–`0.0021` (0.18%–0.21%), not 1%:
 
 ```bash
-python scripts/measure_ig_costs.py --config config/gold.yaml \
+python scripts/measure_oanda_costs.py --config config/gold.yaml \
   --granularity M30 --stop-distance-pct 0.0018 \
   --slippage-bp-per-side 0.5
 
-python scripts/measure_ig_costs.py --config config/gold.yaml \
+python scripts/measure_oanda_costs.py --config config/gold.yaml \
   --granularity M15 --stop-distance-pct 0.0020 \
   --slippage-bp-per-side 0.5
 ```

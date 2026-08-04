@@ -22,7 +22,7 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
     assessment = subparsers.add_parser("assessment")
-    assessment.add_argument("input", type=Path, help="Risk report or IG wrapper JSON")
+    assessment.add_argument("input", type=Path, help="Risk report or OANDA wrapper JSON")
     outcome = subparsers.add_parser("outcome")
     outcome.add_argument("input", type=Path, help="Realised paper outcome JSON")
     subparsers.add_parser("summary")

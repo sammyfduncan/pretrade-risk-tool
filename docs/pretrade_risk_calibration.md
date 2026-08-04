@@ -105,9 +105,9 @@ version, not an after-the-fact multiplier.
 ## 6. Spread and volatility boundaries
 
 Dukascopy spread distributions are retained for research diagnostics only.
-They are not eligible to populate IG's `median_spread_points` or
+They are not eligible to populate OANDA's `median_spread_points` or
 `p95_spread_points`, because broker/product/account spreads must be measured
-from the intended IG epic.
+from the intended OANDA instrument.
 
 The retained gold two-hour volatility model is a separate point-in-time
 information source. Version 1 records its OOF relationship to two-hour range
@@ -166,5 +166,5 @@ information, not as a directional or stop-hit predictor.
 The profile's last observations are 2025-06-30. The lookup refuses profiles
 more than 90 days old, so this artifact is a validated historical baseline but
 is intentionally stale for a 2026 live decision. Refreshing the range profile
-requires a separately admitted post-development source. IG spread measurement
+requires a separately admitted post-development source. OANDA spread measurement
 remains mandatory and cannot be replaced by the Dukascopy reference spreads.

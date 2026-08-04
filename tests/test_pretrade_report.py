@@ -15,7 +15,7 @@ def report() -> dict:
         "warnings": ["net_reward_risk_below_1"],
         "trade": {
             "instrument": "XAUUSD",
-            "epic": "TEST.GOLD",
+            "broker_instrument": "XAU_USD",
             "side": "long",
             "order_type": "market",
             "decision_time": "2026-08-03T10:00:00+00:00",
@@ -78,15 +78,15 @@ def test_renderer_outputs_standalone_auditable_report():
     assert "https://" not in html
 
 
-def test_renderer_accepts_ig_wrapper_and_shows_provenance():
+def test_renderer_accepts_oanda_wrapper_and_shows_provenance():
     wrapper = {
-        "mode": "IG_READ_ONLY",
+        "mode": "OANDA_V20_READ_ONLY",
         "order_authority": False,
-        "adapter_issues": ["using_configured_margin_fallback"],
+        "adapter_issues": ["broker_reports_hedging_disabled"],
         "provenance": {
-            "epic": "TEST.GOLD",
+            "broker_instrument": "XAU_USD",
             "quote_timestamp": "2026-08-03T10:00:00+00:00",
-            "margin_source": "instrument.marginDepositBands",
+            "margin_source": "account.instrument.marginRate",
             "spread_sample_rows": 18,
         },
         "risk_report": report(),
@@ -94,9 +94,9 @@ def test_renderer_accepts_ig_wrapper_and_shows_provenance():
 
     html = render_pretrade_report_html(wrapper)
 
-    assert "IG_READ_ONLY" in html
-    assert "instrument.marginDepositBands" in html
-    assert "using_configured_margin_fallback" in html
+    assert "OANDA_V20_READ_ONLY" in html
+    assert "account.instrument.marginRate" in html
+    assert "broker_reports_hedging_disabled" in html
 
 
 def test_renderer_escapes_untrusted_text():

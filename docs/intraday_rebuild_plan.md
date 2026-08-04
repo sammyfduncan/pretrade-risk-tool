@@ -220,17 +220,18 @@ confirmations are part of the first registered look.
   time may be used for feed/operational diagnostics, but its strategy P&L is
   reserved for the frozen paper-performance stage.
 
-### 2.7 IG instrument admission gate
+### 2.7 OANDA instrument admission gate
 
-IG epics, minimum sizes, and account-specific spreads must be discovered from
-the user's demo account; they must never be guessed or hardcoded.
+OANDA instruments must be named explicitly, while minimum sizes, unit
+precision, margin, home-currency conversion and spreads must be read from the
+authenticated v20 practice account rather than guessed or hardcoded.
 
 An asset is admitted only if:
 
-1. `scripts/find_epic.py` identifies the regional epic and the user confirms
-   the intended spot-metal market;
+1. the account instrument endpoint returns the configured `XAU_USD` or
+   `XAG_USD` as type `METAL`;
 2. published/dealt hours cover the §2.1 entry window and cutoff;
-3. recent IG and Dukascopy M30/H1 returns pass the source-comparison gate;
+3. recent OANDA and Dukascopy M30/H1 returns pass the source-comparison gate;
 4. minimum size can keep stop risk at or below 0.25% and gross notional at or
    below 100% of equity;
 5. median observed round-trip spread plus slippage is at most `0.10R`; and
@@ -1182,3 +1183,31 @@ a valid research result.
 - Persistent paper state now requires automatic calendar mode, so a manual
   `clear` flag cannot bypass scheduled-event policy. Manual modes remain only
   for isolated offline diagnostics.
+
+### 2026-08-04 — execution broker migrated from IG to OANDA v20
+
+- IG could not be used because the user did not meet its live-account wealth
+  criteria. This changes the execution boundary, not the negative research
+  results, frozen strategy gates, Dukascopy history, Databento futures data,
+  volatility model or pre-trade risk policy.
+- Verified the authenticated OANDA practice account read-only: GBP NAV
+  100,000, no open trades, `XAU_USD` and `XAG_USD` available as `METAL`, fresh
+  executable bid/ask prices, and midpoint/bid/ask M30 candles.
+- OANDA reports account-specific gold minimum/step `0.1`, margin `5%`, and
+  silver minimum/step `1`, margin `10%`. These remain live API facts rather
+  than copied YAML values.
+- Added separate adverse-loss and position-value home conversions. Stop risk
+  uses `homeConversions.accountLoss`; notional and margin use
+  `homeConversions.positionValue`, preventing USD price moves from being
+  treated as GBP cash values.
+- Replaced epics with broker-neutral instrument identifiers across risk
+  reports, dry paper intents, persistent-state fingerprints and stream storage.
+- Added a bounded OANDA REST client, read-only risk adapter, sampled-pricing
+  stream recorder, outage-aware quote export, account initialization, cost
+  measurement and admission-audit commands. No order endpoint is implemented.
+- OANDA v20 does not expose spread-bet versus CFD product type in the account
+  summary, so the already-confirmed spread-bet selection is explicit and
+  audited in config. The API reports `hedgingEnabled=false`; this is recorded
+  as a discrepancy but does not weaken the one-position version-1 policy.
+- Legacy IG code and operational commands were removed. Dated IG sections
+  above remain historical implementation records, superseded by this entry.

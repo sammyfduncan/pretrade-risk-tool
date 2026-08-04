@@ -4,10 +4,10 @@ from dataclasses import replace
 
 import pandas as pd
 
-from commodity_ml.data.ig import (
-    IGAccountSnapshot,
-    IGMarketMetadata,
-    IGMarketQuote,
+from commodity_ml.data.broker import (
+    BrokerAccountSnapshot,
+    BrokerInstrumentMetadata,
+    BrokerMarketQuote,
 )
 from commodity_ml.intraday.paper import (
     PaperCandidate,
@@ -20,11 +20,11 @@ from commodity_ml.intraday.risk import VolatilityRiskDecision
 NOW = pd.Timestamp("2026-01-07 12:00", tz="UTC")
 
 
-def account(equity: float = 100_000) -> IGAccountSnapshot:
-    return IGAccountSnapshot(
+def account(equity: float = 100_000) -> BrokerAccountSnapshot:
+    return BrokerAccountSnapshot(
         account_id="ABC123",
         currency="GBP",
-        account_type="CFD",
+        account_type="SPREADBET",
         status="ENABLED",
         balance=equity,
         open_pnl=0,
@@ -33,19 +33,20 @@ def account(equity: float = 100_000) -> IGAccountSnapshot:
     )
 
 
-def market(min_size: float = 0.1) -> IGMarketMetadata:
-    return IGMarketMetadata(
-        epic="CS.D.TEST.GOLD.IP",
+def market(min_size: float = 0.1) -> BrokerInstrumentMetadata:
+    return BrokerInstrumentMetadata(
+        instrument="XAU_USD",
         name="Spot Gold",
-        instrument_type="COMMODITIES",
-        unit="CONTRACTS",
-        expiry="DFB",
+        instrument_type="METAL",
+        unit="UNITS",
+        expiry="-",
         account_currency="GBP",
         min_size=min_size,
         size_increment=0.1,
         value_per_price_unit=1.0,
-        contract_size=1.0,
-        lot_size=1.0,
+        notional_value_per_price_unit=1.0,
+        margin_rate=0.05,
+        maximum_order_size=20_000,
         streaming_prices_available=True,
     )
 
@@ -54,9 +55,9 @@ def quote(
     *,
     timestamp: pd.Timestamp = NOW - pd.Timedelta(seconds=10),
     spread: float = 0.02,
-) -> IGMarketQuote:
-    return IGMarketQuote(
-        epic="CS.D.TEST.GOLD.IP",
+) -> BrokerMarketQuote:
+    return BrokerMarketQuote(
+        instrument="XAU_USD",
         bid=100 - spread / 2,
         ask=100 + spread / 2,
         timestamp=timestamp,

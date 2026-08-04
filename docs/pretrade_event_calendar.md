@@ -1,7 +1,7 @@
 # Current mechanical event-blackout calendar
 
 **Status:** verified CPI, Employment Situation and FOMC schedules through
-2026-12-31; automatically wired into IG pre-trade assessment
+2026-12-31; automatically wired into OANDA pre-trade assessment
 
 ## Scope
 
@@ -31,7 +31,7 @@ Situation and eight FOMC entries for 2026 and verify an exact August blackout.
 
 ## Runtime behavior
 
-`scripts/evaluate_ig_pretrade_risk.py` now defaults to `--event-state auto`.
+`scripts/evaluate_oanda_pretrade_risk.py` now defaults to `--event-state auto`.
 It computes the state at the assessment timestamp, records active reason codes,
 calendar verification date and coverage end in provenance, and refuses dates
 outside verified coverage rather than treating them as calm.

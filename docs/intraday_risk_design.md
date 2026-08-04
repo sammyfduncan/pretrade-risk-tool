@@ -43,8 +43,8 @@ The following results were already known and motivated this experiment:
 - that result made no intraday claim and cannot be transferred automatically;
 - all registered gold P1/P2/P3, V2, ML-filter, matched-M15, and LBMA-PM
   development programs failed their economic gates; and
-- IG spread and fill measurements are unavailable until the demo account is
-  configured.
+- OANDA spread and fill measurements require prospective practice collection
+  and calibration.
 
 These facts select the two registered feature families below. No intraday
 risk-forecast outcome, feature bin, threshold, or candidate-P&L subgroup has

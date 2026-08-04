@@ -1,20 +1,20 @@
-"""Check that Dukascopy training data and IG execution data agree.
+"""Check that Dukascopy training data and OANDA execution data agree.
 
-The model is trained on Dukascopy history but will trade on IG prices. That is
+The model is trained on Dukascopy history but will paper trade on OANDA prices. That is
 standard practice, but it is only safe if the two feeds describe the same
 market closely enough that patterns learned on one hold on the other. This
 script measures that instead of assuming it.
 
 What matters is NOT that prices match exactly — they won't. Different
 liquidity providers quote slightly differently, and Dukascopy is configured
-as bid while IG is mid, so expect a small roughly-constant offset. What
+as bid while OANDA is mid, so expect a small roughly-constant offset. What
 matters is that **bar-to-bar returns** match, because every model feature is
 built from returns, not price levels.
 
 Usage:
     python scripts/fetch_data.py --config config/gold.yaml                       # dukascopy
-    python scripts/fetch_data.py --config config/gold.yaml --source ig \
-        --start 2026-05-01                                                        # recent IG window
+    python scripts/fetch_data.py --config config/gold.yaml --source oanda \
+        --start 2026-08-01                                                     # recent OANDA window
     python scripts/compare_sources.py --config config/gold.yaml
 """
 
@@ -50,8 +50,8 @@ def main() -> None:
     granularity = args.granularity or cfg.granularity
 
     duka_path = cfg.raw_path("dukascopy", granularity=granularity)
-    ig_path = cfg.raw_path("ig", granularity=granularity)
-    for path, source in ((duka_path, "dukascopy"), (ig_path, "ig")):
+    broker_path = cfg.raw_path("oanda", granularity=granularity)
+    for path, source in ((duka_path, "dukascopy"), (broker_path, "oanda")):
         if not path.exists():
             raise SystemExit(
                 f"Missing {source} data at {path}\n"
@@ -60,11 +60,11 @@ def main() -> None:
             )
 
     duka = pd.read_parquet(duka_path)
-    ig = pd.read_parquet(ig_path)
+    broker = pd.read_parquet(broker_path)
     try:
         report = compare_price_sources(
             duka,
-            ig,
+            broker,
             bar_duration=BAR_DURATIONS[granularity],
         )
     except ValueError as exc:
@@ -77,11 +77,11 @@ def main() -> None:
     print(f"Granularity: {granularity}")
     print(f"  matched bars:             {report.matched_bars:,}")
     print(f"  contiguous return pairs:  {report.contiguous_return_pairs:,}")
-    print(f"  IG timestamp coverage:    {report.ig_coverage:.1%}")
+    print(f"  OANDA timestamp coverage: {report.broker_coverage:.1%}")
     print(f"  Duka timestamp coverage:  {report.dukascopy_coverage:.1%}")
     print("\nPrice level (expected to differ by ~half a spread — bid vs mid):")
     print(
-        f"  median IG - Dukascopy:    {report.median_level_difference:+.3f} "
+        f"  median OANDA - Dukascopy: {report.median_level_difference:+.3f} "
         f"({report.median_level_difference_pct:+.4%})"
     )
     print("\nBar-to-bar returns (this is what the model actually learns from):")
@@ -95,15 +95,15 @@ def main() -> None:
     print(f"\nVerdict: {report.verdict}")
     if report.verdict == "PASS":
         print("  PASS — the feeds track each other closely. Training on Dukascopy and")
-        print("  executing on IG is sound for this asset.")
+        print("  executing on OANDA is sound for this asset.")
     elif report.verdict == "CAUTION":
         print("  CAUTION — returns broadly agree but not tightly. Check whether the gap")
         print("  concentrates in specific sessions (rollover, weekend opens) before trusting")
         print("  a model trained on one and run on the other.")
     else:
         print("  FAIL — these feeds disagree materially. Do not train on one and trade the")
-        print("  other. Investigate bar alignment/timezone, or confirm the IG epic is spot")
-        print("  gold rather than a futures or mini contract.")
+        print("  other. Investigate bar alignment/timezone and confirm the OANDA")
+        print("  instrument is the intended spot metal.")
     if report.reasons:
         print(f"  Reasons: {', '.join(report.reasons)}")
 

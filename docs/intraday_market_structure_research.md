@@ -82,9 +82,9 @@ parameters. Confirmation remains unopened either way.
 ## 5. Cost boundary
 
 The historical test still uses bid-only Dukascopy plus a fixed two-basis-point
-round-trip allowance. `scripts/measure_ig_costs.py` profiles cached IG bid/ask
+round-trip allowance. `scripts/measure_oanda_costs.py` profiles cached OANDA bid/ask
 candles by London slot and can match future candidate/paper ledgers. A B1 pass
-cannot be promoted until its 15:00 entry window clears observed IG median/p95
+cannot be promoted until its 15:00 entry window clears observed OANDA median/p95
 cost gates and demo fills establish a defensible slippage allowance.
 
 ## 6. Development outcome

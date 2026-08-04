@@ -32,7 +32,7 @@ high-volume or high-volatility metals sessions; Baltussen et al. document
 intraday momentum across futures; Zheng and Luo find reversal in Chinese
 commodity futures; Chaves and Viswanathan distinguish spot mean reversion from
 futures momentum. These mechanisms motivate tests but do not validate them for
-Dukascopy/IG spot gold.
+Dukascopy/OANDA spot gold.
 
 Sources:
 
@@ -140,7 +140,7 @@ waive costs:
 
 P1V2 and especially P3V2 contain a small gross effect, but it is no larger
 than the assumed execution friction. That makes another classifier or a nearby
-threshold sweep the wrong next step. It also makes accurate IG spread and
+threshold sweep the wrong next step. It also makes accurate OANDA spread and
 slippage measurement important: the project must measure costs, not lower the
 assumption because a lower number would rescue a backtest.
 
@@ -154,7 +154,7 @@ improves the matched trades. It must not create extra M15 signals or tune V2
 thresholds. The exact pre-registration is in
 `docs/intraday_m15_execution_design.md`.
 
-Actual IG quotes are required before any apparent cost-sensitive improvement
+Actual OANDA quotes are required before any apparent cost-sensitive improvement
 can be promoted. Until then, the M15 work is research infrastructure, not a
 paper-trading strategy. Candidate ML stays disabled because no corrected bare
 rule passed.

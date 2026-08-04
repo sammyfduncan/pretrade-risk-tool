@@ -1,7 +1,7 @@
-# Quantitative pre-trade risk engine — version 1 contract
+# Quantitative pre-trade risk engine — schema 2 / policy version 1
 
 **Status:** offline foundation plus development-only historical calibration
-**Decision date:** 2026-08-03
+**Decision date:** 2026-08-03; OANDA schema migration 2026-08-04
 **Assets:** spot gold (`XAUUSD`) and spot silver (`XAGUSD`) spread bets
 **Scope:** technical and mathematical risk assessment, not directional or
 fundamental forecasting
@@ -54,8 +54,8 @@ a short stop is above entry and target below it.
 
 | Field | Meaning |
 |---|---|
-| `account_type` | Must be the scoped IG `SPREADBET` account type in version 1 |
-| `status` | Must be broker-reported `ENABLED` |
+| `account_type` | Must be the configured OANDA v20 `SPREADBET` product in version 1 |
+| `status` | Must be `ENABLED` after an authenticated account read |
 | `currency` | Trading-account currency |
 | `equity` | Balance plus open P&L |
 | `available_funds` | Broker-reported funds available for new margin |
@@ -69,25 +69,26 @@ a short stop is above entry and target below it.
 | Field | Meaning |
 |---|---|
 | `instrument` | Must exactly match the trade |
-| `epic` | Exact regional IG market identifier for these product facts |
-| `instrument_type` | Must be broker-reported `COMMODITIES` |
-| `expiry` | Must be the non-expiring spot/daily-funded product (`DFB` or `-`) |
+| `broker_instrument` | Exact OANDA identifier, `XAU_USD` or `XAG_USD` |
+| `instrument_type` | Must be broker-reported `METAL` |
+| `expiry` | Must be the non-expiring spot product (`-`) |
 | `account_currency` | Currency in which P&L and margin facts are expressed |
 | `min_size` | Smallest permitted stake |
 | `size_increment` | Permitted stake step |
 | `value_per_price_unit` | Account-currency P&L for size 1 and a 1.0 price move |
+| `notional_value_per_price_unit` | Account-currency position-value conversion for notional/margin |
 | `margin_rate` | Initial margin divided by gross economic exposure |
 | `margin_rate_max_size` | Optional upper size for which that margin rate is valid |
 | `commission_per_size_per_side` | Explicit per-side commission, normally zero for a spread bet |
 
-These are account- and epic-specific facts. Missing values produce
+These are account- and instrument-specific facts. Missing values produce
 `INCOMPLETE`; the engine never guesses them.
 
 ### 2.4 Quantitative market snapshot
 
 | Field | Meaning |
 |---|---|
-| `epic` | Must match the broker-instrument epic exactly |
+| `broker_instrument` | Must match the broker instrument exactly |
 | `as_of` | Quote timestamp |
 | `bid`, `ask` | Current executable quote |
 | `market_open` | Whether the broker says the market is tradeable |
@@ -146,7 +147,7 @@ per-side commission `c`:
 - base round-trip cost = `q * (v * (s + 2l) + 2c)`;
 - planned stop loss = `q * (v * abs(entry - stop) + base cost per size)`;
 - net target reward = `q * (v * abs(target - entry) - base cost per size)`;
-- gross exposure proxy = `q * entry * v`;
+- gross exposure = `q * entry * position-value conversion`;
 - initial margin = `gross exposure * margin_rate`.
 
 The engine reports planned-stop loss plus hypothetical 1.5x and 2x spread
@@ -178,9 +179,9 @@ version and a JSON-serializable calculation record.
    range, side-specific adverse excursion and reference spread regimes without
    assigning invented probabilities. The resulting profile is intentionally
    stale for current live use and Dukascopy spreads are not broker-eligible.
-4. **Implemented, pending account-specific configuration/live validation:**
-   read-only IG snapshot adapter for account, epic, quote, recent same-session
-   spread, open-position and scoped margin facts. It has no order authority.
+4. **Implemented and authenticated read-only:** OANDA v20 snapshot adapter for
+   account, instrument, quote, home conversions, recent same-session spread,
+   open-trade and margin facts. It has no order authority.
 5. **Implemented offline:** gold/silver existing-position aggregation and a
    dependency-free static HTML report. Cross-metal broker mapping requires
    both account-specific configs; ambiguous margin allocation fails closed.
@@ -188,7 +189,7 @@ version and a JSON-serializable calculation record.
    pre-outcome assessment logging followed by separately validated realised
    excursion, slippage, spread, margin and P&L observations. No outcome is
    predicted or backfilled. Executable bid/ask path validation and outcome
-   construction plus an outage-aware IG stream recorder are implemented; the
-   first account-specific streaming validation remains pending.
+   construction plus an outage-aware OANDA stream recorder are implemented;
+   the first bounded practice-account recording remains pending.
 7. Only after operational validation, connect `ALLOW` decisions to the existing
    dry-run paper-intent path. Order submission remains a separate authority.

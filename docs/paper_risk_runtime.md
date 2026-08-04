@@ -1,6 +1,6 @@
 # Restart-safe paper risk runtime
 
-**Status:** state bridge and local controls implemented; first IG demo
+**Status:** state bridge and local controls implemented; first OANDA practice
 initialization pending
 
 ## Purpose
@@ -17,12 +17,12 @@ runtime bridge now makes that state the preferred source for:
 - the global paper kill switch.
 
 Before any risk report uses the state, the bridge requires the stored account
-ID and exact expected position-ID set to match the current IG response. It does
+ID and exact expected trade-ID set to match the current OANDA response. It does
 not adopt unknown broker positions. It then rolls day/week boundaries once in
 Europe/London time using current equity.
 
 The state file is written atomically with mode `0600` and lives by default at
-`data/runtime/ig_paper_state.json`, inside the ignored runtime area.
+`data/runtime/oanda_paper_state.json`, inside the ignored runtime area.
 
 ## One-time initialization
 
@@ -30,7 +30,7 @@ Initialization is permitted only when the selected demo account is verified
 flat:
 
 ```bash
-python3 scripts/initialize_ig_paper_state.py
+python3 scripts/initialize_oanda_paper_state.py --config config/gold.yaml
 ```
 
 An existing state file is never overwritten. A non-flat account, ambiguous
@@ -41,11 +41,11 @@ account selection or missing broker response is refused.
 Use the persisted state instead of manual anchors:
 
 ```bash
-python3 scripts/evaluate_ig_pretrade_risk.py \
-  examples/ig_pretrade_intent.json \
+python3 scripts/evaluate_oanda_pretrade_risk.py \
+  examples/oanda_pretrade_intent.json \
   --config config/gold.yaml \
   --portfolio-config config/silver.yaml \
-  --paper-state data/runtime/ig_paper_state.json
+  --paper-state data/runtime/oanda_paper_state.json
 ```
 
 Manual `--day-start-equity`, `--week-start-equity` or `--entries-today`
@@ -64,7 +64,7 @@ python3 scripts/manage_paper_state.py kill-off
 ```
 
 An active switch is now a hard `BLOCK` reason in the quantitative pre-trade
-engine. These commands change only the local state; they do not contact IG,
+engine. These commands change only the local state; they do not contact OANDA,
 submit an order or close a position. Therefore `kill-on` prevents new project
 intents but is not itself an emergency broker flatten command.
 

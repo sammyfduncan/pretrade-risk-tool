@@ -111,7 +111,7 @@ commission/slippage. Report the same trades under:
 
 Spread stress moves bids and asks symmetrically away from their midpoint before
 entry/exit. It does not change signals, candidates, weights, or exit clocks;
-only executable P&L is remeasured. Actual IG quote/fill validation remains
+only executable P&L is remeasured. Actual OANDA quote/fill validation remains
 mandatory before paper trading even if this historical gate passes.
 
 ## 6. Evaluation and empirical null

@@ -483,7 +483,7 @@ def _intent_fingerprint(intent: PaperOrderIntent) -> str:
 
     fields = (
         intent.strategy,
-        intent.epic,
+        intent.broker_instrument,
         intent.account_id,
         intent.account_currency,
         intent.direction,

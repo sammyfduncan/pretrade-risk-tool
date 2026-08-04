@@ -70,7 +70,7 @@ execution for that V2 rule; it does not authorize parameter tuning.
 
 Dukascopy M15 is still a bid-only historical feed with a fixed cost allowance.
 A passing historical replay would be a research lead only. Promotion requires
-recent IG M15 bid/ask parity and observed spread/slippage to pass the existing
+recent OANDA M15 bid/ask parity and observed spread/slippage to pass the existing
 instrument-admission gates.
 
 ## 6. Development outcomes

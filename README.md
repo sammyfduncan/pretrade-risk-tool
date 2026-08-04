@@ -65,10 +65,10 @@ Historical records:
 - [`docs/intraday_futures_design.md`](docs/intraday_futures_design.md)
 - [`docs/intraday_order_flow_design.md`](docs/intraday_order_flow_design.md)
 - [`docs/pretrade_risk_engine.md`](docs/pretrade_risk_engine.md)
-- [`docs/pretrade_ig_snapshot.md`](docs/pretrade_ig_snapshot.md)
+- [`docs/pretrade_oanda_snapshot.md`](docs/pretrade_oanda_snapshot.md)
 - [`docs/pretrade_paper_observations.md`](docs/pretrade_paper_observations.md)
 - [`docs/pretrade_quote_path.md`](docs/pretrade_quote_path.md)
-- [`docs/ig_stream_recorder.md`](docs/ig_stream_recorder.md)
+- [`docs/oanda_stream_recorder.md`](docs/oanda_stream_recorder.md)
 - [`docs/paper_risk_runtime.md`](docs/paper_risk_runtime.md)
 - [`docs/pretrade_event_calendar.md`](docs/pretrade_event_calendar.md)
 
@@ -299,8 +299,8 @@ record; it is not a way to escape a negative result on gold or silver.
 
 ## 9. Data and execution
 
-Spot training history comes from **Dukascopy**. **IG** is the intended
-paper/live broker and the source for recent parity checks and executable
+Spot training history comes from **Dukascopy**. **OANDA v20** is the practice/
+execution broker and the source for recent parity checks and executable
 prices. **Databento CME/COMEX GC** definitions, one-minute OHLCV, and
 statistics are the futures-market research source. The pinned development
 artifact remains as separate outright contracts. The F-GC experiment created
@@ -312,18 +312,18 @@ Before any new performance experiment:
 - label entry and backtest entry must describe the same trade;
 - stops must use actual OHLC information;
 - bid/ask spread, slippage, and signal latency must be modeled;
-- Dukascopy-versus-IG returns and timestamps must be compared;
+- Dukascopy-versus-OANDA returns and timestamps must be compared;
 - session, holiday, and daily-cutoff behavior must be explicit; and
 - trade-by-trade label/backtest parity must be tested.
 
 The isolated intraday engine now enforces the timing/OHLC contract, accepts
 complete bid/ask candles for executable long and short fills, and exposes the
-frozen stop-sizing and portfolio loss gates. The IG adapter now retains
-time-varying quotes, reads account/market metadata, compares exact timestamps
-and returns against Dukascopy, and can build a fully checked **dry** paper
-intent. Real order submission remains deliberately disabled; account-specific
-epic, size increment, and point value must be confirmed before the dry harness
-will pass.
+frozen stop-sizing and portfolio loss gates. The OANDA adapter retains
+time-varying quotes, reads account/instrument metadata, compares exact
+timestamps and returns against Dukascopy, and can build a fully checked
+**dry** paper intent. Real order submission remains deliberately disabled.
+Minimum size, unit precision, margin and GBP conversion are read from the
+authenticated account rather than copied from an order ticket.
 
 Paper runtime facts now persist atomically under `data/runtime/`: exact expected
 broker position IDs, day/week equity anchors, entry counts, kill-switch state,
@@ -389,32 +389,34 @@ only after the full version-1 contract and gates are committed. Data from
 7. **Complete, honest negative:** LBMA-PM benchmark continuation B1 failed its
    economic, temporal, double-cost, and time-placebo gates.
 8. **Complete, honest negative:** the point-in-time, roll-aware F-GC family was
-   evaluated against matched spot-only P1 and 20 placebos. It failed. IG
-   M15/M30 bid/ask cost collection still awaits account setup.
+   evaluated against matched spot-only P1 and 20 placebos. It failed. OANDA
+   M15/M30 bid/ask collection is now technically available.
 9. **Implemented foundation:** build the offline gold/silver pre-trade risk engine. The
    version-one input contract, deterministic cash/margin/cost calculations,
    portfolio snapshot, stress scenarios, fail-closed decisions, JSON CLI, and
-   initial tests are implemented. A read-only IG adapter now maps current
-   account, epic, quote, scoped margin, spread and open-position facts into
+   initial tests are implemented. A read-only OANDA adapter now maps current
+   account, instrument, quote, margin, home-currency conversion, spread and
+   open-trade facts into
    this contract, with explicit provenance and no order authority. Confirmed
    gold/silver configs can map cross-metal positions, and a standalone static
-   HTML renderer turns either offline or IG-wrapper JSON into an auditable
+   HTML renderer turns either offline or OANDA-wrapper JSON into an auditable
    human-readable report.
 10. **Development calibration complete:** 243,598 causal OOF gold/silver rows
     now calibrate 60/120/180/240-minute range and adverse-excursion quantiles;
     every cell passed its data-quality gate with approximately nominal p95
     coverage. The final profile is deliberately stale for current live use,
-    and Dukascopy spreads cannot substitute for IG. Current use still needs the
-    exact account epic/product sizing facts, runtime loss anchors, current
-    event state and a live bounded IG validation run.
+    and Dukascopy spreads cannot substitute for OANDA. The practice account,
+    XAU_USD/XAG_USD metadata and live top-of-book response shapes were verified
+    on 2026-08-04. Runtime anchors and a bounded prospective quote/cost sample
+    are still required before paper decisions.
 11. **Prospective ledger implemented; collection pending:** immutable
     pre-outcome assessments can now be paired later with validated paper
     execution, adverse/favourable excursion, spread, slippage, margin and P&L.
     The summary is descriptive and directional strategy performance remains a
     separate question. Executable bid/ask path validation and long-bid/
-    short-ask MAE/MFE construction are implemented. The raw IG tick recorder
-    and outage-aware exporter are also implemented; their first authenticated
-    demo-account validation remains pending.
+    short-ask MAE/MFE construction are implemented. The OANDA sampled-pricing
+    recorder and outage-aware exporter are implemented; their first bounded
+    practice-account recording remains pending.
 12. **Runtime bridge implemented; broker lifecycle pending:** the pre-trade
     engine can now consume restart-safe account-bound day/week anchors, entry
     counts, expected positions and kill-switch state after exact broker
@@ -457,7 +459,7 @@ The mandate is fixed in
 - 0.25% initial stop risk, −0.75% daily and −1.50% weekly loss gates;
 - exact P1 opening-breakout, P2 trend-pullback, and P3 mean-reversion rules;
 - next-contiguous-bar-open execution with actual OHLC barriers; and
-- account-specific IG admission gates rather than guessed epics or sizes.
+- account-specific OANDA admission gates with API-derived sizes, margins and conversions.
 
 These are pre-outcome choices. A later change creates a new version and a new
 ledger entry.

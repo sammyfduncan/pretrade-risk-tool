@@ -22,7 +22,7 @@ DecisionStatus = Literal["ALLOW", "REDUCE", "BLOCK", "INCOMPLETE"]
 Side = Literal["long", "short"]
 OrderType = Literal["market", "limit", "stop"]
 
-POLICY_VERSION = "pretrade-risk-v1-2026-08-03"
+POLICY_VERSION = "pretrade-risk-v1-oanda-2026-08-04"
 SUPPORTED_INSTRUMENTS = ("XAUUSD", "XAGUSD")
 LONDON = ZoneInfo("Europe/London")
 
@@ -59,7 +59,7 @@ class AccountSnapshot:
 @dataclass(frozen=True)
 class InstrumentSpec:
     instrument: str | None
-    epic: str | None
+    broker_instrument: str | None
     instrument_type: str | None
     expiry: str | None
     account_currency: str | None
@@ -69,11 +69,12 @@ class InstrumentSpec:
     margin_rate: float | None
     margin_rate_max_size: float | None = None
     commission_per_size_per_side: float | None = 0.0
+    notional_value_per_price_unit: float | None = None
 
 
 @dataclass(frozen=True)
 class MarketRiskSnapshot:
-    epic: str | None
+    broker_instrument: str | None
     as_of: pd.Timestamp | None
     bid: float | None
     ask: float | None
@@ -246,8 +247,8 @@ def evaluate_pretrade_risk(
         reasons.append("invalid_volatility_approval_flag")
     if instrument.instrument != intent.instrument:
         reasons.append("instrument_mismatch")
-    if market.epic != instrument.epic:
-        reasons.append("quote_epic_mismatch")
+    if market.broker_instrument != instrument.broker_instrument:
+        reasons.append("quote_instrument_mismatch")
     if historical_calibration is not None and not _calibration_matches(
         historical_calibration,
         intent,
@@ -260,7 +261,7 @@ def evaluate_pretrade_risk(
         reasons.append("account_not_enabled")
     if str(account.account_type).upper() != "SPREADBET":
         reasons.append("unsupported_account_type")
-    if str(instrument.instrument_type).upper() != "COMMODITIES":
+    if str(instrument.instrument_type).upper() not in ("METAL", "COMMODITIES"):
         reasons.append("unsupported_instrument_type")
     if str(instrument.expiry).upper() not in ("DFB", "-"):
         reasons.append("unsupported_expiring_instrument")
@@ -419,7 +420,19 @@ def evaluate_pretrade_risk(
         if stop_loss_per_size > 0
         else 0.0
     )
-    notional_per_size = entry * value_per_point
+    notional_value_per_point = (
+        float(instrument.notional_value_per_price_unit)
+        if instrument.notional_value_per_price_unit is not None
+        else value_per_point
+    )
+    if not _positive(notional_value_per_point):
+        return _empty_report(
+            intent,
+            decision="BLOCK",
+            reasons=("invalid_notional_conversion_fact",),
+            warnings=tuple(warnings),
+        )
+    notional_per_size = entry * notional_value_per_point
     notional_room = max(
         0.0, equity * policy.max_notional_fraction - existing_gross
     )
@@ -551,13 +564,13 @@ def evaluate_pretrade_risk(
     )
 
     return PreTradeRiskReport(
-        schema_version=1,
+        schema_version=2,
         policy_version=POLICY_VERSION,
         intent_id=intent.intent_id,
         decision=status,
         reasons=blocking_reasons,
         warnings=tuple(dict.fromkeys(warnings)),
-        trade=_trade_summary(intent, instrument.epic),
+        trade=_trade_summary(intent, instrument.broker_instrument),
         sizing={
             "size_source": size_source,
             "requested_size": requested_size,
@@ -713,7 +726,7 @@ def _missing_required_inputs(
         "account.entries_today": account.entries_today,
         "account.kill_switch_active": account.kill_switch_active,
         "instrument.instrument": instrument.instrument,
-        "instrument.epic": instrument.epic,
+        "instrument.broker_instrument": instrument.broker_instrument,
         "instrument.instrument_type": instrument.instrument_type,
         "instrument.expiry": instrument.expiry,
         "instrument.account_currency": instrument.account_currency,
@@ -722,7 +735,7 @@ def _missing_required_inputs(
         "instrument.value_per_price_unit": instrument.value_per_price_unit,
         "instrument.margin_rate": instrument.margin_rate,
         "instrument.commission_per_size_per_side": instrument.commission_per_size_per_side,
-        "market.epic": market.epic,
+        "market.broker_instrument": market.broker_instrument,
         "market.as_of": market.as_of,
         "market.bid": market.bid,
         "market.ask": market.ask,
@@ -992,7 +1005,7 @@ def _empty_report(
     warnings: tuple[str, ...],
 ) -> PreTradeRiskReport:
     return PreTradeRiskReport(
-        schema_version=1,
+        schema_version=2,
         policy_version=POLICY_VERSION,
         intent_id=intent.intent_id,
         decision=decision,
@@ -1015,14 +1028,14 @@ def _limitations() -> tuple[str, ...]:
         "A protective stop is not a guaranteed maximum loss because gaps, slippage, delay and closure can bypass it.",
         "Forecast scenarios are deterministic stresses with no assigned probability and are not value-at-risk.",
         "Historical quantiles describe development-sample coverage and are not guaranteed future probabilities.",
-        "Broker contract, currency, margin and quote facts must be verified against the intended account and epic.",
+        "Broker contract, currency, margin and quote facts must be verified against the intended account and instrument.",
     )
 
 
-def _trade_summary(intent: TradeIntent, epic: str | None) -> dict[str, Any]:
+def _trade_summary(intent: TradeIntent, broker_instrument: str | None) -> dict[str, Any]:
     return {
         "instrument": intent.instrument,
-        "epic": epic,
+        "broker_instrument": broker_instrument,
         "side": intent.side,
         "order_type": intent.order_type,
         "decision_time": (

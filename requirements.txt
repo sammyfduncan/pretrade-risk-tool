@@ -5,14 +5,12 @@ pyarrow                 # parquet IO
 
 # Data acquisition
 # Two sources, deliberately (see README.md "Data and execution"):
-#   trading-ig       -> IG broker API: epic lookup, recent bars, and live/paper execution later.
-#                       Historical allowance is only 10,000 price points per WEEK, so it
-#                       cannot supply years of intraday history.
+#   requests         -> OANDA v20 REST and streaming HTTP transport. Broker
+#                       pulls stay bounded; they are not the research archive.
 #   dukascopy-python -> free deep XAUUSD history for model training. No account needed.
-trading-ig>=0.0.24
 dukascopy-python>=4.0
 databento>=0.82,<1     # CME/COMEX futures DBN reader; historical files are pinned locally
-python-dotenv           # loads IG credentials from .env
+python-dotenv           # loads OANDA credentials from the local .env
 
 # Feature engineering
 # NOTE: original `pandas-ta` was removed from PyPI (project went private in 2024).
@@ -20,7 +18,7 @@ python-dotenv           # loads IG credentials from .env
 # same indicator API, supports numpy 2.x. Import name: pandas_ta_classic.
 pandas-ta-classic
 pandas-datareader       # FRED macro series (real yields, dollar, VIX) — no API key needed
-requests                # CFTC Socrata (step 2 alt-data) — plain HTTP, snapshot pinned
+requests                # OANDA v20 plus CFTC Socrata — plain HTTP
                         # once by scripts/fetch_altdata.py
 # GDELT moved from the DOC 2.0 REST API to the BigQuery public dataset on
 # 2026-07-29. The REST API's binding limit is request COUNT over a multi-hour

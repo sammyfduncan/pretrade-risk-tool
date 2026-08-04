@@ -1,6 +1,6 @@
 """The canonical candle contract both data providers must satisfy.
 
-Two sources feed this project (Dukascopy for training, IG for execution).
+Two sources feed this project (Dukascopy for training, OANDA for execution).
 These tests pin the contract so a provider quirk fails loudly at ingest
 rather than quietly distorting a model.
 """
@@ -10,10 +10,9 @@ import pandas as pd
 import pytest
 
 from commodity_ml.config import load_config
-from commodity_ml.data.ig import estimate_points
 from commodity_ml.data.schema import (
     GRANULARITY_TO_DUKASCOPY,
-    GRANULARITY_TO_IG,
+    GRANULARITY_TO_OANDA,
     QUOTE_COLUMNS,
     validate_candles,
 )
@@ -109,14 +108,7 @@ def test_partial_and_crossed_quotes_fail_closed():
 
 
 def test_both_sources_cover_the_same_granularities():
-    assert set(GRANULARITY_TO_IG) == set(GRANULARITY_TO_DUKASCOPY)
-
-
-def test_ig_allowance_estimate_flags_oversized_pulls():
-    """Seven years of H1 must estimate well past IG's 10k/week allowance —
-    this is what stops us silently burning a week of quota."""
-    assert estimate_points("H1", "2019-01-01", "2026-01-01") > 10_000
-    assert estimate_points("D", "2019-01-01", "2026-01-01") < 10_000
+    assert set(GRANULARITY_TO_OANDA) == set(GRANULARITY_TO_DUKASCOPY)
 
 
 def test_shipped_gold_config_loads():
@@ -125,4 +117,5 @@ def test_shipped_gold_config_loads():
     assert cfg.data.source == "dukascopy"       # training history, not the broker
     assert cfg.cv.gap_bars >= cfg.label.horizon_bars
     # Sources get separate files so compare_sources.py can diff them
-    assert cfg.raw_path("ig") != cfg.raw_path("dukascopy")
+    assert cfg.data.oanda.instrument == "XAU_USD"
+    assert cfg.raw_path("oanda") != cfg.raw_path("dukascopy")

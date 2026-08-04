@@ -1,4 +1,4 @@
-"""Observed IG quote-cost profiles and candidate matching."""
+"""Observed broker quote-cost profiles and candidate matching."""
 
 import pandas as pd
 import pytest

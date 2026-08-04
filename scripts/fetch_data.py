@@ -2,12 +2,10 @@
 
 Usage:
     python scripts/fetch_data.py --config config/gold.yaml
-    python scripts/fetch_data.py --config config/gold.yaml --source ig --start 2026-01-01
+    python scripts/fetch_data.py --config config/gold.yaml --source oanda --start 2026-08-01
 
-The default source is Dukascopy (free, deep history, no account) because IG's
-REST API only allows 10,000 historical price points per week — far too few for
-years of hourly training data. Use --source ig for a recent window to check the
-two providers agree (see scripts/compare_sources.py).
+The default source is Dukascopy for deep research history. Use --source oanda
+only for a bounded recent broker-parity window and executable bid/ask costs.
 """
 
 import argparse
@@ -22,7 +20,7 @@ from commodity_ml.data.schema import describe_candles
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default="config/gold.yaml")
-    parser.add_argument("--source", choices=["dukascopy", "ig"],
+    parser.add_argument("--source", choices=["dukascopy", "oanda"],
                         help="override data.source from the config")
     parser.add_argument("--start", help="override data.start (YYYY-MM-DD)")
     parser.add_argument("--end", help="override data.end (YYYY-MM-DD)")
@@ -47,7 +45,7 @@ def main() -> None:
     if data_cfg.source == "dukascopy":
         from commodity_ml.data import dukascopy as provider
     else:
-        from commodity_ml.data import ig as provider
+        from commodity_ml.data import oanda as provider
 
     granularity = args.granularity or cfg.granularity
     df = provider.fetch_candles(data_cfg, granularity)

@@ -61,7 +61,7 @@ def outcome(intent_id: str = "paper-1", pnl: float = -250) -> PaperTradeOutcome:
         fees=0,
         peak_margin=1200,
         realized_pnl=pnl,
-        source="IG_DEMO",
+        source="OANDA_PRACTICE",
         source_reference="DEAL-REFERENCE-1",
     )
 

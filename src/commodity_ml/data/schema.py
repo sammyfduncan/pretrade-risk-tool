@@ -1,6 +1,6 @@
 """The canonical candle contract.
 
-Two providers feed this project (Dukascopy for training history, IG for
+Two providers feed this project (Dukascopy for training history, OANDA for
 execution), and everything downstream — features, labels, backtest — assumes
 one shape. Both sources are funnelled through `validate_candles` so a
 provider quirk fails loudly here rather than silently poisoning a model.
@@ -24,14 +24,13 @@ QUOTE_COLUMNS = [
 ]
 
 # Canonical granularity -> per-source timeframe identifiers.
-# IG strings are pandas offset aliases; trading-ig's conv_resol maps them to
-# IG's own names (1h -> "HOUR", 5Min -> "MINUTE_5").
-GRANULARITY_TO_IG = {
-    "M5": "5Min",
-    "M15": "15Min",
-    "M30": "30Min",
-    "H1": "1h",
-    "H4": "4h",
+# OANDA v20 uses the same stable codes as this project's canonical names.
+GRANULARITY_TO_OANDA = {
+    "M5": "M5",
+    "M15": "M15",
+    "M30": "M30",
+    "H1": "H1",
+    "H4": "H4",
     "D": "D",
 }
 

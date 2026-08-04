@@ -2,7 +2,7 @@
 
 Databento `GLBX.MDP3` / `GC.FUT` supplies exchange-derived COMEX gold-futures
 definitions, one-minute OHLCV, and statistics. It is a new market-information
-source for later research; IG remains the intended spot-CFD execution broker.
+source for later research; OANDA remains the intended spot-metals execution broker.
 
 `scripts/import_cme_gc.py` verifies every batch file against its Databento
 manifest, requires matching ranges across the three schemas, maps numeric

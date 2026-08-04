@@ -1,4 +1,4 @@
-"""Crash-resilient raw IG quote/event storage with explicit outage refusal."""
+"""Crash-resilient broker quote/event storage with explicit outage refusal."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 INVALIDATING_EVENTS = (
     "DISCONNECTED",
     "SERVER_ERROR",
@@ -44,21 +44,30 @@ class StreamingQuoteStore:
 
     def _initialize(self) -> None:
         with self._lock:
+            existing_version = int(
+                self._connection.execute("PRAGMA user_version").fetchone()[0]
+            )
+            if existing_version not in (0, SCHEMA_VERSION):
+                self._connection.close()
+                raise QuoteStoreError(
+                    f"quote_store_schema_mismatch:{existing_version}->{SCHEMA_VERSION}; "
+                    "retain the legacy database as evidence and start a new OANDA database"
+                )
             self._connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS quotes (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                    epic TEXT NOT NULL,
+                    instrument TEXT NOT NULL,
                     broker_time TEXT NOT NULL,
                     received_at TEXT NOT NULL,
                     bid REAL NOT NULL,
                     ask REAL NOT NULL
                 );
-                CREATE INDEX IF NOT EXISTS quotes_epic_time_idx
-                    ON quotes(epic, broker_time);
+                CREATE INDEX IF NOT EXISTS quotes_instrument_time_idx
+                    ON quotes(instrument, broker_time);
                 CREATE TABLE IF NOT EXISTS stream_events (
                     sequence INTEGER PRIMARY KEY AUTOINCREMENT,
-                    epic TEXT,
+                    instrument TEXT,
                     event_time TEXT NOT NULL,
                     event_type TEXT NOT NULL,
                     detail TEXT
@@ -72,7 +81,7 @@ class StreamingQuoteStore:
     def record_quote(
         self,
         *,
-        epic: str,
+        instrument: str,
         broker_time: Any,
         received_at: Any,
         bid: Any,
@@ -80,8 +89,8 @@ class StreamingQuoteStore:
     ) -> int:
         """Append one complete raw quote; never merge or replace a prior row."""
 
-        if not epic:
-            raise ValueError("quote epic must be non-empty")
+        if not instrument:
+            raise ValueError("quote instrument must be non-empty")
         broker_timestamp = _utc(broker_time, "broker_time")
         received_timestamp = _utc(received_at, "received_at")
         bid_value = _positive_number(bid, "bid")
@@ -91,10 +100,10 @@ class StreamingQuoteStore:
         with self._lock:
             cursor = self._connection.execute(
                 """INSERT INTO quotes
-                   (epic, broker_time, received_at, bid, ask)
+                   (instrument, broker_time, received_at, bid, ask)
                    VALUES (?, ?, ?, ?, ?)""",
                 (
-                    epic,
+                    instrument,
                     broker_timestamp.isoformat(),
                     received_timestamp.isoformat(),
                     bid_value,
@@ -108,7 +117,7 @@ class StreamingQuoteStore:
         *,
         event_type: str,
         event_time: Any,
-        epic: str | None = None,
+        instrument: str | None = None,
         detail: str | None = None,
     ) -> int:
         """Append a connection/subscription event without secret-bearing data."""
@@ -121,23 +130,23 @@ class StreamingQuoteStore:
         with self._lock:
             cursor = self._connection.execute(
                 """INSERT INTO stream_events
-                   (epic, event_time, event_type, detail)
+                   (instrument, event_time, event_type, detail)
                    VALUES (?, ?, ?, ?)""",
-                (epic, timestamp.isoformat(), normalized, safe_detail),
+                (instrument, timestamp.isoformat(), normalized, safe_detail),
             )
             return int(cursor.lastrowid)
 
     def quote_path(
         self,
         *,
-        epic: str,
+        instrument: str,
         start: Any,
         end: Any,
     ) -> pd.DataFrame:
         """Read an untouched path, refusing any known outage/lost-update event."""
 
-        if not epic:
-            raise ValueError("epic must be non-empty")
+        if not instrument:
+            raise ValueError("instrument must be non-empty")
         start_time = _utc(start, "start")
         end_time = _utc(end, "end")
         if end_time <= start_time:
@@ -145,7 +154,7 @@ class StreamingQuoteStore:
         with self._lock:
             prior = self._connection.execute(
                 """SELECT event_type, detail FROM stream_events
-                   WHERE event_time <= ? AND epic IS NULL
+                   WHERE event_time <= ? AND instrument IS NULL
                      AND (event_type LIKE 'CONNECTED%' OR event_type LIKE 'DISCONNECTED%')
                    ORDER BY event_time DESC, sequence DESC LIMIT 1""",
                 (start_time.isoformat(),),
@@ -153,15 +162,15 @@ class StreamingQuoteStore:
             events = self._connection.execute(
                 """SELECT event_time, event_type, detail FROM stream_events
                    WHERE event_time > ? AND event_time <= ?
-                     AND (epic IS NULL OR epic = ?)
+                     AND (instrument IS NULL OR instrument = ?)
                    ORDER BY event_time, sequence""",
-                (start_time.isoformat(), end_time.isoformat(), epic),
+                (start_time.isoformat(), end_time.isoformat(), instrument),
             ).fetchall()
             rows = self._connection.execute(
                 """SELECT broker_time, received_at, bid, ask, sequence
-                   FROM quotes WHERE epic = ? AND broker_time >= ? AND broker_time <= ?
+                   FROM quotes WHERE instrument = ? AND broker_time >= ? AND broker_time <= ?
                    ORDER BY broker_time, sequence""",
-                (epic, start_time.isoformat(), end_time.isoformat()),
+                (instrument, start_time.isoformat(), end_time.isoformat()),
             ).fetchall()
 
         if prior is None or not str(prior[0]).startswith("CONNECTED"):

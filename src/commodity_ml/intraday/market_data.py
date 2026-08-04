@@ -78,7 +78,7 @@ def assess_spread_history(
     median_limit_r: float = 0.10,
     p95_limit_r: float = 0.25,
 ) -> SpreadAssessment:
-    """Apply the frozen IG admission gate to observed round-trip friction."""
+    """Apply the frozen broker admission gate to observed round-trip friction."""
 
     for name, value in (
         ("stop_distance_pct", stop_distance_pct),

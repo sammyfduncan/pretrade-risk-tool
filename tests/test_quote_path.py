@@ -42,7 +42,7 @@ def execution(side: str = "long") -> TradeExecutionRecord:
         fees=0.2,
         peak_margin=50,
         realized_pnl=pnl,
-        source="IG_DEMO",
+        source="OANDA_PRACTICE",
         source_reference=f"DEAL-{side}",
     )
 

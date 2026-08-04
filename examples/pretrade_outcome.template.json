@@ -15,7 +15,7 @@
   "fees": null,
   "peak_margin": null,
   "realized_pnl": null,
-  "source": "IG_DEMO",
+  "source": "OANDA_PRACTICE",
   "source_reference": null,
   "notes": null
 }

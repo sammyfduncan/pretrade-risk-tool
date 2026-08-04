@@ -26,19 +26,20 @@
   },
   "instrument": {
     "instrument": "XAUUSD",
-    "epic": null,
+    "broker_instrument": null,
     "instrument_type": null,
     "expiry": null,
     "account_currency": null,
     "min_size": null,
     "size_increment": null,
     "value_per_price_unit": null,
+    "notional_value_per_price_unit": null,
     "margin_rate": null,
     "margin_rate_max_size": null,
     "commission_per_size_per_side": 0.0
   },
   "market": {
-    "epic": null,
+    "broker_instrument": null,
     "as_of": null,
     "bid": null,
     "ask": null,

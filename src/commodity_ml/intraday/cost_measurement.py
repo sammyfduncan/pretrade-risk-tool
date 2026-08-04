@@ -1,4 +1,4 @@
-"""Observed quote-cost measurement for cached IG bid/ask candles."""
+"""Observed quote-cost measurement for cached broker bid/ask candles."""
 
 from __future__ import annotations
 

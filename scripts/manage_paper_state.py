@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument(
         "--state",
         type=Path,
-        default=Path("data/runtime/ig_paper_state.json"),
+        default=Path("data/runtime/oanda_paper_state.json"),
     )
     parser.add_argument("command", choices=("status", "kill-on", "kill-off"))
     args = parser.parse_args()

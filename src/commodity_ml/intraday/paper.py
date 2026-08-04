@@ -12,10 +12,10 @@ from typing import Literal, Sequence
 
 import pandas as pd
 
-from commodity_ml.data.ig import (
-    IGAccountSnapshot,
-    IGMarketMetadata,
-    IGMarketQuote,
+from commodity_ml.data.broker import (
+    BrokerAccountSnapshot,
+    BrokerInstrumentMetadata,
+    BrokerMarketQuote,
 )
 from commodity_ml.intraday.market_data import (
     SpreadAssessment,
@@ -70,7 +70,7 @@ class PaperRuntimeState:
 class PaperOrderIntent:
     intent_id: str
     strategy: str
-    epic: str
+    broker_instrument: str
     account_id: str
     account_currency: str
     direction: str
@@ -97,14 +97,14 @@ class PaperDecision:
 def build_paper_intent(
     candidate: PaperCandidate,
     *,
-    account: IGAccountSnapshot,
-    market: IGMarketMetadata,
-    quote: IGMarketQuote,
+    account: BrokerAccountSnapshot,
+    market: BrokerInstrumentMetadata,
+    quote: BrokerMarketQuote,
     quote_candles: pd.DataFrame,
     runtime: PaperRuntimeState,
     broker_open_position_ids: Sequence[str],
     bar_duration: pd.Timedelta = pd.Timedelta(minutes=30),
-    quote_history_bars: int = 100,
+    quote_history_bars: int = 16,
     max_snapshot_age: pd.Timedelta = pd.Timedelta(seconds=60),
     slippage_pct_per_side: float = 0.00005,
     limits: RiskLimits | None = None,
@@ -133,18 +133,18 @@ def build_paper_intent(
         reasons.append("account_currency_mismatch")
     if account.status.upper() != "ENABLED":
         reasons.append(f"account_not_enabled:{account.status or 'UNKNOWN'}")
-    if account.account_type.upper() != "CFD":
+    if account.account_type.upper() not in ("SPREADBET", "CFD"):
         reasons.append(f"unsupported_account_type:{account.account_type or 'UNKNOWN'}")
     if account.equity <= 0:
         reasons.append("non_positive_equity")
-    if market.instrument_type != "COMMODITIES":
+    if market.instrument_type not in ("METAL", "COMMODITIES"):
         reasons.append(f"unsupported_instrument_type:{market.instrument_type}")
-    if market.unit != "CONTRACTS":
+    if market.unit not in ("UNITS", "CONTRACTS"):
         reasons.append(f"unsupported_instrument_unit:{market.unit}")
     if not market.streaming_prices_available:
         reasons.append("streaming_prices_unavailable")
-    if quote.epic != market.epic:
-        reasons.append("quote_epic_mismatch")
+    if quote.instrument != market.instrument:
+        reasons.append("quote_instrument_mismatch")
 
     try:
         quote.validate_for_entry(now=now, max_age=max_snapshot_age)
@@ -270,7 +270,7 @@ def build_paper_intent(
     intent = PaperOrderIntent(
         intent_id=candidate.intent_id,
         strategy=candidate.strategy,
-        epic=market.epic,
+        broker_instrument=market.instrument,
         account_id=account.account_id,
         account_currency=account.currency,
         direction=direction,

@@ -14,7 +14,7 @@ def render_pretrade_report_html(
     *,
     title: str = "Quantitative pre-trade risk assessment",
 ) -> str:
-    """Render a risk report or IG wrapper as a standalone static HTML page."""
+    """Render a risk report or broker wrapper as standalone static HTML."""
 
     report, wrapper = _extract_report(document)
     decision = str(report.get("decision") or "INCOMPLETE").upper()
@@ -181,7 +181,13 @@ def _provenance_table(
         ("Report schema", _display(report.get("schema_version"))),
         ("Source mode", _display(wrapper.get("mode") or provenance.get("mode") or "offline JSON")),
         ("Order authority", "enabled" if wrapper.get("order_authority") is True else "disabled"),
-        ("Epic", _display(provenance.get("epic") or _mapping(report.get("trade")).get("epic"))),
+        (
+            "Broker instrument",
+            _display(
+                provenance.get("broker_instrument")
+                or _mapping(report.get("trade")).get("broker_instrument")
+            ),
+        ),
         ("Quote timestamp", _display(provenance.get("quote_timestamp"))),
         ("Margin source", _display(provenance.get("margin_source"))),
         ("Spread observations", _number(provenance.get("spread_sample_rows"), 0)),

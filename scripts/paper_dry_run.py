@@ -1,4 +1,4 @@
-"""Build one fully checked IG paper order intent, but never submit it.
+"""Build one fully checked OANDA paper order intent, but never submit it.
 
 This is an operational harness for the broker/risk boundary while the three
 primary strategies are still unimplemented. Candidate values are explicit CLI
@@ -11,7 +11,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from commodity_ml.config import load_config
-from commodity_ml.data import ig
+from commodity_ml.data import oanda
 from commodity_ml.intraday.paper import (
     PaperCandidate,
     PaperRuntimeState,
@@ -39,25 +39,24 @@ def main() -> None:
 
     load_dotenv()
     cfg = load_config(args.config)
-    if not cfg.data.ig.epic:
-        raise SystemExit("data.ig.epic is unset; run scripts/find_epic.py first")
+    if not cfg.data.oanda.instrument:
+        raise SystemExit("data.oanda.instrument is unset")
 
     now = pd.Timestamp.now(tz="UTC")
-    service = ig.get_service()
+    client = oanda.get_client()
     try:
-        account, market, quote = ig.fetch_broker_snapshot(
+        account, market, quote = oanda.fetch_broker_snapshot(
             cfg.data,
-            service=service,
-            now=now,
+            client=client,
         )
     except RuntimeError as exc:
         raise SystemExit(f"Broker snapshot refused: {exc}") from exc
-    broker_positions = ig.fetch_open_position_ids(service)
-    quotes = ig.fetch_recent_candles(
+    broker_positions = oanda.fetch_open_position_ids(client)
+    quotes = oanda.fetch_recent_candles(
         cfg.data,
         "M30",
         num_points=args.points,
-        service=service,
+        client=client,
         verbose=False,
     )
 
@@ -93,7 +92,7 @@ def main() -> None:
         quote_candles=quotes,
         runtime=runtime,
         broker_open_position_ids=broker_positions,
-        quote_history_bars=min(100, args.points - 1),
+        quote_history_bars=min(16, args.points - 1),
         slippage_pct_per_side=args.slippage_pct_per_side,
     )
 
@@ -117,13 +116,13 @@ def main() -> None:
     if decision.intent:
         intent = decision.intent
         print(
-            f"Intent: {intent.direction} {intent.size:g} {intent.epic} at "
+            f"Intent: {intent.direction} {intent.size:g} {intent.broker_instrument} at "
             f"reference {intent.reference_price:g}, stop {intent.stop_level:g}, "
             f"target {intent.target_level:g}"
         )
     if decision.flatten_required:
         print("Risk policy requests flattening of existing positions.")
-    print("No order was created or submitted to IG.")
+    print("No order was created or submitted to OANDA.")
 
 
 if __name__ == "__main__":

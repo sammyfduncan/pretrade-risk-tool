@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from commodity_ml.data.ig import IGAccountSnapshot
+from commodity_ml.data.broker import BrokerAccountSnapshot
 from commodity_ml.intraday.risk_runtime import roll_and_reconcile_paper_runtime
 from commodity_ml.intraday.state import PaperStateError, PaperStateStore
 
@@ -11,8 +11,8 @@ from commodity_ml.intraday.state import PaperStateError, PaperStateStore
 FRIDAY = pd.Timestamp("2026-08-07 16:00", tz="UTC")
 
 
-def account(account_id: str = "ABC123", equity: float = 99_000) -> IGAccountSnapshot:
-    return IGAccountSnapshot(
+def account(account_id: str = "ABC123", equity: float = 99_000) -> BrokerAccountSnapshot:
+    return BrokerAccountSnapshot(
         account_id=account_id,
         currency="GBP",
         account_type="SPREADBET",

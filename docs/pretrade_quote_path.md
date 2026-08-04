@@ -1,7 +1,7 @@
 # Executable quote-path measurement
 
-**Status:** offline measurement and outcome construction implemented; IG stream
-recorder implemented but first authenticated demo validation pending
+**Status:** offline measurement and outcome construction implemented; OANDA
+stream recorder implemented but first bounded practice validation pending
 **Purpose:** measure realised paper-trade path risk without midpoint or candle
 substitution
 
@@ -51,7 +51,7 @@ Given a recorded quote file:
 ```bash
 python3 scripts/build_pretrade_outcome.py \
   examples/pretrade_execution.json \
-  data/runtime/ig_quotes_for_intent.parquet \
+  data/runtime/oanda_quotes_for_intent.parquet \
   --output data/runtime/pretrade_outcome.json
 ```
 
@@ -68,8 +68,8 @@ or product semantics may differ. It is not silently forced to zero.
 
 ## Remaining live validation
 
-The Lightstreamer recorder and outage-aware path exporter are implemented in
-`scripts/record_ig_quotes.py` and `scripts/export_ig_quote_path.py`; see
-`docs/ig_stream_recorder.md`. They have not yet connected to the user's demo
-account. Only after the exact epics and emitted fields are validated should an
-exported path feed this measurement layer.
+The sampled-pricing recorder and outage-aware path exporter are implemented in
+`scripts/record_oanda_quotes.py` and `scripts/export_oanda_quote_path.py`; see
+`docs/oanda_stream_recorder.md`. The REST response shapes are verified; only
+after a bounded stream run confirms continuity should an exported path feed
+this measurement layer.

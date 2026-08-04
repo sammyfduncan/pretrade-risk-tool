@@ -20,10 +20,10 @@ The first model uses:
 - Dukascopy M30 candles for candidates, ATR stops, and historical outcomes;
 - the development period ending before `2025-07-01`;
 - flat conservative costs while deep historical bid/ask data is unavailable;
-- IG only for recent H1/M30 timestamp/return parity and observed spread stress.
+- OANDA only for recent H1/M30 timestamp/return parity and observed spread stress.
 
-Dukascopy is used for depth because IG's historical allowance is too small for
-multi-year H1/M30 training. IG remains the execution truth. A model is
+Dukascopy is used for deep, pinned multi-year H1/M30 training. OANDA remains
+the account-specific execution truth. A model is
 inadmissible if recent cross-source parity fails.
 
 The build is:
@@ -59,9 +59,9 @@ Absolute prices, exit fields, future duration, label-derived columns, and
 non-candidate bars cannot enter the model. The dataset loader refuses missing,
 unexpected, nonnumeric, or non-finite feature columns.
 
-Historical IG spread is not silently fabricated for Dukascopy rows. Current
+Historical OANDA spread is not silently fabricated for Dukascopy rows. Current
 spread remains an execution/admission input. A prospective spread feature needs
-enough point-in-time IG history before it can become a model input.
+enough point-in-time OANDA history before it can become a model input.
 
 ## Validation and selection
 

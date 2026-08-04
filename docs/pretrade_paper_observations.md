@@ -33,7 +33,7 @@ being treated as executed evidence.
 - measured maximum adverse and favourable excursion in price points;
 - realised entry/exit spreads and entry/exit adverse slippage in points;
 - actual fees, peak margin and realised P&L; and
-- an explicit source such as `IG_DEMO`, a broker deal/source reference, and
+- an explicit source such as `OANDA_PRACTICE`, a broker trade/source reference, and
   optional notes.
 
 All prices and filled size must be positive. Excursion, spread, slippage, fees
@@ -42,7 +42,7 @@ derive MAE/MFE from valid executable broker quotes; this foundation does not
 pretend that midpoint or research candles are broker executions.
 
 The offline executable-path builder and its stricter bid/ask rules are defined
-in `docs/pretrade_quote_path.md`. The IG recorder is implemented but its first
+in `docs/pretrade_quote_path.md`. The OANDA recorder is implemented but its first
 authenticated demo validation is still pending.
 
 ## Commands
@@ -52,7 +52,7 @@ outcome is known:
 
 ```bash
 python3 scripts/log_pretrade_observation.py assessment \
-  reports/ig_pretrade_risk.json
+  reports/oanda_pretrade_risk.json
 ```
 
 After the trade has closed and the outcome JSON has been populated from valid

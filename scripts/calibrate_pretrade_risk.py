@@ -149,7 +149,7 @@ def main() -> None:
     print(f"OOF -> {OOF_OUTPUT}")
     print(f"Profile -> {PROFILE_OUTPUT}")
     print(f"Report -> {REPORT_OUTPUT}")
-    print("Confirmation remained unopened; IG spread and paper sizing remain disabled.")
+    print("Confirmation remained unopened; OANDA paper sizing remains disabled.")
 
 
 def _verified_source_manifest() -> dict:

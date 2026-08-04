@@ -20,10 +20,10 @@ def main() -> None:
     parser.add_argument("--config", default="config/gold.yaml")
     parser.add_argument(
         "--source",
-        choices=["dukascopy", "ig"],
+        choices=["dukascopy", "oanda"],
         default="dukascopy",
         help=(
-            "Dukascopy writes the training base; IG writes a separate recent "
+            "Dukascopy writes the training base; OANDA writes a separate recent "
             "diagnostic base and cannot overwrite training data"
         ),
     )
@@ -79,7 +79,7 @@ def main() -> None:
         cfg.intraday_base_path
         if args.source == "dukascopy"
         else cfg.intraday_base_path.with_name(
-            cfg.intraday_base_path.stem + "_ig_diagnostic.parquet"
+            cfg.intraday_base_path.stem + "_oanda_diagnostic.parquet"
         )
     )
     output.parent.mkdir(parents=True, exist_ok=True)
