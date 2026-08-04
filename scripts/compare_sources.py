@@ -19,7 +19,9 @@ Usage:
 """
 
 import argparse
+import hashlib
 import json
+from pathlib import Path
 
 import pandas as pd
 
@@ -44,13 +46,32 @@ def main() -> None:
         choices=sorted(BAR_DURATIONS),
         help="override the historical config granularity, e.g. M30",
     )
+    parser.add_argument(
+        "--dukascopy-input",
+        type=Path,
+        help="explicit bounded Dukascopy snapshot (does not alter canonical history)",
+    )
+    parser.add_argument(
+        "--oanda-input",
+        type=Path,
+        help="explicit bounded OANDA snapshot (does not alter canonical history)",
+    )
     parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="write a reproducible JSON report with source paths and hashes",
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
     granularity = args.granularity or cfg.granularity
 
-    duka_path = cfg.raw_path("dukascopy", granularity=granularity)
-    broker_path = cfg.raw_path("oanda", granularity=granularity)
+    duka_path = args.dukascopy_input or cfg.raw_path(
+        "dukascopy", granularity=granularity
+    )
+    broker_path = args.oanda_input or cfg.raw_path(
+        "oanda", granularity=granularity
+    )
     for path, source in ((duka_path, "dukascopy"), (broker_path, "oanda")):
         if not path.exists():
             raise SystemExit(
@@ -70,8 +91,28 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
+    payload = {
+        **report.to_dict(),
+        "granularity": granularity,
+        "sources": {
+            "dukascopy": {
+                "path": str(duka_path.resolve()),
+                "sha256": _sha256(duka_path),
+            },
+            "oanda": {
+                "path": str(broker_path.resolve()),
+                "sha256": _sha256(broker_path),
+            },
+        },
+    }
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n",
+            encoding="utf-8",
+        )
     if args.json:
-        print(json.dumps(report.to_dict(), indent=2))
+        print(json.dumps(payload, indent=2))
         return
 
     print(f"Granularity: {granularity}")
@@ -106,6 +147,16 @@ def main() -> None:
         print("  instrument is the intended spot metal.")
     if report.reasons:
         print(f"  Reasons: {', '.join(report.reasons)}")
+    if args.output:
+        print(f"  Report: {args.output.resolve()}")
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 if __name__ == "__main__":

@@ -407,16 +407,19 @@ only after the full version-1 contract and gates are committed. Data from
     coverage. The final profile is deliberately stale for current live use,
     and Dukascopy spreads cannot substitute for OANDA. The practice account,
     XAU_USD/XAG_USD metadata and live top-of-book response shapes were verified
-    on 2026-08-04. Runtime anchors and a bounded prospective quote/cost sample
-    are still required before paper decisions.
+    on 2026-08-04. A bounded 275-bar M30 source-parity window passed for both
+    metals (gold correlation 0.9985; silver 0.9926; zero-bar best shift).
+    Runtime anchors and a multi-week prospective quote/cost sample are still
+    required before paper decisions.
 11. **Prospective ledger implemented; collection pending:** immutable
     pre-outcome assessments can now be paired later with validated paper
     execution, adverse/favourable excursion, spread, slippage, margin and P&L.
     The summary is descriptive and directional strategy performance remains a
     separate question. Executable bid/ask path validation and long-bid/
     short-ask MAE/MFE construction are implemented. The OANDA sampled-pricing
-    recorder and outage-aware exporter are implemented; their first bounded
-    practice-account recording remains pending.
+    recorder and outage-aware exporter are implemented. A bounded practice
+    smoke run on 2026-08-04 captured both metals without an invalid update;
+    prospective multi-week collection remains pending.
 12. **Runtime bridge implemented; broker lifecycle pending:** the pre-trade
     engine can now consume restart-safe account-bound day/week anchors, entry
     counts, expected positions and kill-switch state after exact broker
@@ -425,9 +428,16 @@ only after the full version-1 contract and gates are committed. Data from
     disabled. The official CPI/NFP/FOMC schedule is now verified through 2026
     and computed automatically; persistent paper operation cannot manually
     override it to clear.
-13. Connect `ALLOW` decisions to the dry paper-intent boundary only after
-    operational validation; minimum-size live execution still requires a
-    separately authorised and passed release stage.
+13. **Operational shadow collection active:** the frozen P1/P2/P3 rules now
+    evaluate only the newest completed OANDA M30 bar, create hypothetical
+    ATR-based intents, and immutably record no-signal, blocked, allowed and
+    portfolio-suppressed states. The first read-only cycle recorded six valid
+    no-signal checks. Missing spread history fails closed and no order endpoint
+    exists. See
+    [`docs/oanda_shadow_runner.md`](docs/oanda_shadow_runner.md).
+14. A future submit-once practice-order adapter requires separate
+    authorization and a passed operational release stage; minimum-size live
+    execution remains later still.
 
 The detailed deliverables and decision gates are in
 [`docs/intraday_rebuild_plan.md`](docs/intraday_rebuild_plan.md).

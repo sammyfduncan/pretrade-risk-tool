@@ -1211,3 +1211,51 @@ a valid research result.
   as a discrepancy but does not weaken the one-position version-1 policy.
 - Legacy IG code and operational commands were removed. Dated IG sections
   above remain historical implementation records, superseded by this entry.
+
+### 2026-08-04 — first OANDA parity and bounded cost evidence
+
+- Preserved the multi-year research artifact and downloaded separate,
+  content-hashed M30 parity snapshots for 2026-07-27 through 2026-08-03.
+  Replacement of an existing fetch artifact now requires explicit
+  `--overwrite` authority.
+- Gold and silver each passed source parity on 275 matched bars with 100%
+  timestamp coverage and no preferred timestamp shift. Close-return
+  correlation was `0.9985` for gold and `0.9926` for silver. This supports the
+  Dukascopy-research/OANDA-execution boundary for this window; it says nothing
+  about directional edge.
+- On 276 OANDA M30 bid/ask bars, using the predeclared 0.5 bp-per-side
+  slippage stress and a representative `0.18%` stop, gold cost measured median
+  `0.143R` and p95 `0.188R`; silver measured median `0.421R` and p95 `0.557R`.
+  Gold therefore fails the frozen median `0.10R` gate while passing the p95
+  `0.25R` gate; silver fails both. This is a bounded descriptive result, not a
+  reason to tune the registered thresholds or a substitute for prospective
+  fill observations.
+- The initial sampled-price smoke database contains 46 quotes across both
+  metals with no crossed/duplicate quotes or unexpected invalidating event.
+  Added a read-only quality summarizer and bounded reconnect supervision so a
+  longer recorder session exposes outages and reconnects rather than silently
+  treating them as continuous coverage. Multi-week prospective collection is
+  still required before paper admission.
+
+### 2026-08-04 — operational shadow runner activated
+
+- Added a read-only runner that reconciles the persistent OANDA account state,
+  downloads completed H1/M30 bars and checks frozen P1/P2/P3 signals only on
+  the newest causally available M30 bar. ML cannot invent or redirect a shadow
+  trade.
+- Stable signal-derived IDs and two append-only ledgers preserve no-signal,
+  full risk-assessment, already-assessed and portfolio-priority suppression
+  states across polling and restarts. A prior check cannot be overwritten.
+- Candidate stops remain the signal-time ATR absolute distance; targets remain
+  the registered R multiple and holding periods remain the registered bar
+  timeout. Current OANDA midpoint supplies only the hypothetical market-entry
+  reference.
+- Tightened the pre-trade contract so unavailable median or p95 spread history
+  is a `BLOCK`, not merely a warning. This prevents early-session or damaged
+  data from bypassing the registered cost gate.
+- Verified the practice account flat, initialized GBP 100,000 day/week risk
+  anchors, and ran one live read-only cycle. It recorded six `NO_SIGNAL` checks
+  across gold/silver and P1/P2/P3, with no assessment collision and no broker
+  action.
+- The runner is evidence collection only. `ALLOW` does not authorize an order;
+  submit-once practice execution remains a separate future release boundary.

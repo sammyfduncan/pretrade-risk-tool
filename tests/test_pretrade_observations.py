@@ -78,6 +78,9 @@ def test_assessment_is_immutable_and_exact_retry_is_idempotent(tmp_path):
     with pytest.raises(ObservationLedgerError, match="assessment_collision"):
         store.record_assessment(changed, inserted_at=ASSESSMENT_TIME)
 
+    assert store.assessment_result("paper-1") == ("ALLOW", ())
+    assert store.assessment_result("missing") is None
+
 
 def test_outcome_requires_prior_allow_or_reduce_assessment(tmp_path):
     store = PretradeObservationStore(tmp_path / "observations.sqlite")

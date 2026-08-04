@@ -10,6 +10,7 @@ only for a bounded recent broker-parity window and executable bid/ask costs.
 
 import argparse
 from dataclasses import replace
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -28,6 +29,19 @@ def main() -> None:
         "--granularity",
         choices=["M5", "M15", "M30", "H1", "H4", "D"],
         help="override the frozen config timeframe for an intraday data artifact",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help=(
+            "write to an explicit snapshot path instead of the canonical raw-data "
+            "path; use this for bounded source-parity windows"
+        ),
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="allow replacement of an existing output artifact",
     )
     args = parser.parse_args()
 
@@ -50,7 +64,13 @@ def main() -> None:
     granularity = args.granularity or cfg.granularity
     df = provider.fetch_candles(data_cfg, granularity)
 
-    out_path = cfg.raw_path(data_cfg.source, granularity=granularity)
+    out_path = args.output or cfg.raw_path(data_cfg.source, granularity=granularity)
+    if out_path.exists() and not args.overwrite:
+        raise SystemExit(
+            f"Refusing to replace existing data: {out_path}\n"
+            "Pass --overwrite only when replacement is intentional, or use --output "
+            "for a bounded parity snapshot."
+        )
     out_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(out_path)
 

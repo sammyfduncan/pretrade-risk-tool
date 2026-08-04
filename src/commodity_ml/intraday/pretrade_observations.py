@@ -190,6 +190,28 @@ class PretradeObservationStore:
             )
         return True
 
+    def assessment_result(
+        self, intent_id: str
+    ) -> tuple[str, tuple[str, ...]] | None:
+        """Return an existing immutable decision without re-assessing it."""
+
+        if not intent_id:
+            raise ValueError("intent_id must be non-empty")
+        self.initialize()
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT decision, report_json FROM assessments WHERE intent_id = ?",
+                (intent_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        document = json.loads(row[1])
+        report, _ = _extract_report(document)
+        reasons = report.get("reasons") or []
+        if not isinstance(reasons, (list, tuple)):
+            raise ObservationLedgerError("stored_assessment_reasons_are_invalid")
+        return str(row[0]), tuple(str(value) for value in reasons)
+
     def record_outcome(
         self,
         outcome: PaperTradeOutcome,

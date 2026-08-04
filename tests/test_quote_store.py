@@ -6,7 +6,10 @@ import threading
 import pandas as pd
 import pytest
 
-from commodity_ml.intraday.oanda_stream import record_pricing_stream
+from commodity_ml.intraday.oanda_stream import (
+    record_pricing_stream,
+    record_pricing_stream_with_reconnect,
+)
 from commodity_ml.intraday.quote_store import QuoteStoreError, StreamingQuoteStore
 
 INSTRUMENT = "XAU_USD"
@@ -160,3 +163,32 @@ def test_invalid_oanda_stream_row_is_logged_not_partially_recorded(tmp_path):
             duration_seconds=5,
         )
         assert store.counts() == {"quotes": 0, "events": 3}
+
+
+class ReconnectingFakeClient:
+    environment = "practice"
+
+    def __init__(self):
+        self.calls = 0
+
+    def open_pricing_stream(self, instruments):
+        self.calls += 1
+        return FakeResponse([])
+
+
+def test_oanda_stream_supervisor_reconnects_and_fails_boundedly(tmp_path):
+    client = ReconnectingFakeClient()
+    with StreamingQuoteStore(tmp_path / "reconnect.sqlite") as store:
+        with pytest.raises(RuntimeError, match="reconnect budget exhausted"):
+            record_pricing_stream_with_reconnect(
+                client,
+                instruments=[INSTRUMENT],
+                store=store,
+                stop=threading.Event(),
+                duration_seconds=5,
+                max_reconnects=1,
+                initial_backoff_seconds=0,
+                maximum_backoff_seconds=0,
+            )
+        assert client.calls == 2
+        assert store.counts()["events"] == 6

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from commodity_ml.config import load_config
 from commodity_ml.data import oanda
-from commodity_ml.intraday.oanda_stream import record_pricing_stream
+from commodity_ml.intraday.oanda_stream import record_pricing_stream_with_reconnect
 from commodity_ml.intraday.quote_store import StreamingQuoteStore
 
 
@@ -25,6 +25,7 @@ def main() -> None:
         default=Path("data/runtime/oanda_stream_quotes.sqlite"),
     )
     parser.add_argument("--duration-seconds", type=int, default=300)
+    parser.add_argument("--max-reconnects", type=int, default=100)
     args = parser.parse_args()
     if args.duration_seconds < 1:
         raise SystemExit("--duration-seconds must be at least 1")
@@ -70,12 +71,13 @@ def main() -> None:
                 instrument=name,
                 detail=f"display={row.get('displayName')}; type=METAL",
             )
-        record_pricing_stream(
+        record_pricing_stream_with_reconnect(
             client,
             instruments=instruments,
             store=store,
             stop=stop,
             duration_seconds=args.duration_seconds,
+            max_reconnects=args.max_reconnects,
         )
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         raise SystemExit(f"OANDA quote recording refused: {exc}") from exc

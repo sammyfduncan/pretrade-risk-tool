@@ -118,6 +118,18 @@ def test_missing_broker_fact_is_incomplete_not_guessed():
     assert report.sizing == {}
 
 
+def test_missing_spread_history_blocks_shadow_admission():
+    payload = valid_payload()
+    payload["market"]["median_spread_points"] = None
+    payload["market"]["p95_spread_points"] = None
+
+    report = evaluate_pretrade_payload(payload)
+
+    assert report.decision == "BLOCK"
+    assert "median_spread_history_unavailable" in report.reasons
+    assert "p95_spread_history_unavailable" in report.reasons
+
+
 def test_off_increment_request_recommends_a_smaller_valid_action_size():
     payload = valid_payload()
     payload["trade_intent"]["requested_size"] = 10.05

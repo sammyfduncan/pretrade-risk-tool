@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import threading
 import time
 from typing import Any, Iterable, Mapping
@@ -20,7 +21,7 @@ def record_pricing_stream(
     store: StreamingQuoteStore,
     stop: threading.Event,
     duration_seconds: int,
-) -> None:
+) -> str:
     """Record one bounded stream; disconnects and malformed rows remain visible."""
 
     names = tuple(dict.fromkeys(str(value).strip() for value in instruments))
@@ -31,6 +32,7 @@ def record_pricing_stream(
     allowed = set(names)
     deadline = time.monotonic() + duration_seconds
     response = None
+    disconnect_reason = "ERROR"
     try:
         response = client.open_pricing_stream(names)
         store.record_event(
@@ -40,7 +42,11 @@ def record_pricing_stream(
         )
         for raw_line in response.iter_lines(decode_unicode=True):
             received_at = pd.Timestamp.now(tz="UTC")
-            if stop.is_set() or time.monotonic() >= deadline:
+            if stop.is_set():
+                disconnect_reason = "STOP"
+                break
+            if time.monotonic() >= deadline:
+                disconnect_reason = "DURATION"
                 break
             if not raw_line:
                 continue
@@ -77,6 +83,8 @@ def record_pricing_stream(
                     event_time=received_at,
                     detail=str(exc),
                 )
+        else:
+            disconnect_reason = "EOF"
     except Exception as exc:
         store.record_event(
             event_type="SERVER_ERROR",
@@ -88,9 +96,75 @@ def record_pricing_stream(
         if response is not None:
             response.close()
         store.record_event(
-            event_type="DISCONNECTED_CLEAN",
+            event_type=(
+                "DISCONNECTED_CLEAN"
+                if disconnect_reason in {"STOP", "DURATION"}
+                else f"DISCONNECTED_{disconnect_reason}"
+            ),
             event_time=pd.Timestamp.now(tz="UTC"),
         )
+    return disconnect_reason
+
+
+def record_pricing_stream_with_reconnect(
+    client: OANDAClient,
+    *,
+    instruments: Iterable[str],
+    store: StreamingQuoteStore,
+    stop: threading.Event,
+    duration_seconds: int,
+    max_reconnects: int = 100,
+    initial_backoff_seconds: float = 2.0,
+    maximum_backoff_seconds: float = 60.0,
+) -> None:
+    """Record a bounded session and preserve every reconnect as evidence."""
+
+    if duration_seconds < 1:
+        raise ValueError("duration_seconds must be positive")
+    if (
+        isinstance(max_reconnects, bool)
+        or not isinstance(max_reconnects, int)
+        or max_reconnects < 0
+    ):
+        raise ValueError("max_reconnects must be a non-negative integer")
+    if initial_backoff_seconds < 0 or maximum_backoff_seconds < initial_backoff_seconds:
+        raise ValueError("invalid reconnect backoff")
+    deadline = time.monotonic() + duration_seconds
+    reconnects = 0
+    while not stop.is_set():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        try:
+            reason = record_pricing_stream(
+                client,
+                instruments=instruments,
+                store=store,
+                stop=stop,
+                duration_seconds=max(1, math.ceil(remaining)),
+            )
+        except Exception:
+            reason = "ERROR"
+        if reason in {"STOP", "DURATION"} or stop.is_set():
+            return
+        if reconnects >= max_reconnects:
+            store.record_event(
+                event_type="RECONNECT_EXHAUSTED",
+                event_time=pd.Timestamp.now(tz="UTC"),
+                detail=f"attempts={reconnects}; last_reason={reason}",
+            )
+            raise RuntimeError("OANDA pricing stream reconnect budget exhausted")
+        delay = min(
+            maximum_backoff_seconds,
+            initial_backoff_seconds * (2**min(reconnects, 10)),
+        )
+        reconnects += 1
+        store.record_event(
+            event_type="RECONNECT_SCHEDULED",
+            event_time=pd.Timestamp.now(tz="UTC"),
+            detail=f"attempt={reconnects}; delay_seconds={delay:g}; reason={reason}",
+        )
+        stop.wait(min(delay, max(0.0, deadline - time.monotonic())))
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

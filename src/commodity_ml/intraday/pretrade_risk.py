@@ -331,6 +331,10 @@ def evaluate_pretrade_risk(
         reasons.append("market_not_open")
     if market.scheduled_event_blackout_active is True:
         reasons.append("scheduled_event_blackout")
+    if market.median_spread_points is None:
+        reasons.append("median_spread_history_unavailable")
+    if market.p95_spread_points is None:
+        reasons.append("p95_spread_history_unavailable")
 
     _append_time_policy_reasons(reasons, intent, decision_time, policy)
     daily_drawdown = max(
