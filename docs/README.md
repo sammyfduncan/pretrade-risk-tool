@@ -28,6 +28,8 @@ Read these in order:
    assessments and executable-path outcomes.
 9. [`prospective_calibration_validation.md`](prospective_calibration_validation.md)
    — research-only, direction-balanced validation of current range forecasts.
+10. [`risk_ui.md`](risk_ui.md) — basic localhost React workflow and its strict
+    read-only security boundary.
 
 Supporting operational diagnostics are grouped separately:
 

@@ -10,6 +10,7 @@ from commodity_ml.intraday.prospective_calibration import (
     ProspectiveCalibrationError,
     ProspectiveCalibrationStore,
     build_weekly_forecasts,
+    latest_complete_refresh_source,
     resolve_matured_forecasts,
 )
 from commodity_ml.intraday.risk_calibration import HORIZONS_MINUTES, sha256_file
@@ -201,3 +202,34 @@ def test_missing_path_remains_pending_and_visible(tmp_path):
     assert result["created"] == 0
     assert result["unavailable"][0]["reason"] == "prospective_path_missing_or_non_contiguous"
     assert store.summary()["pending_forecasts"] == 1
+
+
+def test_latest_source_skips_partial_and_malformed_refreshes(tmp_path):
+    root = tmp_path / "refreshes"
+    older = root / "20260805T093000Z" / "synchronized_quotes.parquet"
+    older.parent.mkdir(parents=True)
+    _source().to_parquet(older)
+
+    empty = root / "20260805T103000Z" / "synchronized_quotes.parquet"
+    empty.parent.mkdir(parents=True)
+    empty.touch()
+
+    malformed = root / "20260805T113000Z" / "synchronized_quotes.parquet"
+    malformed.parent.mkdir(parents=True)
+    pd.DataFrame({"close": [1.0]}, index=pd.date_range("2026-08-05", periods=1, tz="UTC")).to_parquet(malformed)
+
+    newest = root / "20260805T123000Z" / "synchronized_quotes.parquet"
+    newest.parent.mkdir(parents=True)
+    _source().to_parquet(newest)
+
+    assert latest_complete_refresh_source(root) == newest.resolve()
+
+
+def test_latest_source_refuses_when_no_complete_refresh_exists(tmp_path):
+    root = tmp_path / "refreshes"
+    empty = root / "20260805T103000Z" / "synchronized_quotes.parquet"
+    empty.parent.mkdir(parents=True)
+    empty.touch()
+
+    with pytest.raises(FileNotFoundError, match="no complete synchronized quote refresh"):
+        latest_complete_refresh_source(root)

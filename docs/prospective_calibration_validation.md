@@ -75,8 +75,7 @@ Register up to five future weekdays before the first entry:
 After the paths have matured, resolve them using a later manual refresh source:
 
 ```bash
-.venv/bin/python scripts/prospective_calibration.py resolve \
-  --source data/processed/current_risk_calibration/<later-release>/synchronized_quotes.parquet
+.venv/bin/python scripts/prospective_calibration.py resolve --latest-source
 ```
 
 Inspect coverage without a network request:

@@ -12,6 +12,7 @@ from commodity_ml.intraday.prospective_calibration import (
     ProspectiveCalibrationError,
     ProspectiveCalibrationStore,
     build_weekly_forecasts,
+    latest_complete_refresh_source,
     resolve_matured_forecasts,
 )
 from commodity_ml.intraday.risk_calibration import sha256_file
@@ -43,7 +44,19 @@ def main() -> None:
     )
 
     resolve = subparsers.add_parser("resolve")
-    resolve.add_argument("--source", type=Path, required=True)
+    source_group = resolve.add_mutually_exclusive_group(required=True)
+    source_group.add_argument("--source", type=Path)
+    source_group.add_argument(
+        "--latest-source",
+        action="store_true",
+        help="Use the newest complete synchronized quote refresh",
+    )
+    resolve.add_argument(
+        "--refresh-root",
+        type=Path,
+        default=Path("data/processed/current_risk_calibration"),
+        help="Directory searched by --latest-source",
+    )
     resolve.add_argument("--as-of", help="Timezone-aware audit override; defaults to now UTC")
 
     subparsers.add_parser("summary")
@@ -69,14 +82,20 @@ def main() -> None:
             print("Both hypothetical sides were frozen; no trade was created.")
         elif args.command == "resolve":
             as_of = _timestamp(args.as_of)
-            source = pd.read_parquet(args.source)
+            source_path = (
+                latest_complete_refresh_source(args.refresh_root)
+                if args.latest_source
+                else args.source.expanduser().resolve()
+            )
+            source = pd.read_parquet(source_path)
             result = resolve_matured_forecasts(
                 store,
                 source,
-                source_sha256=sha256_file(args.source),
+                source_sha256=sha256_file(source_path),
                 as_of=as_of,
             )
             print(json.dumps(result, indent=2, sort_keys=True))
+            print(f"Source -> {source_path}")
             print("No missing path was filled or counted as covered.")
         else:
             print(json.dumps(store.summary(), indent=2, sort_keys=True, allow_nan=False))

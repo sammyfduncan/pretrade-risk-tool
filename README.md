@@ -75,6 +75,8 @@ optional future extensions, not completion requirements for the risk product.
   for current range/adverse-excursion calibration.
 - Immutable weekly prospective calibration schedules, delayed exact-path
   resolution and coverage reporting with rejected releases kept research-only.
+- Localhost-only React trade form with read-only OANDA assessment and JSON/HTML
+  report downloads.
 
 ### Validated evidence
 
@@ -105,8 +107,8 @@ optional future extensions, not completion requirements for the risk product.
 - The first current-calibration refresh completed but was correctly rejected:
   its causal p95 scenarios under-covered recent movement, especially in silver.
   No post-development profile is currently admitted for risk reports.
-- The primary interface is currently CLI/JSON. A simpler user-facing trade
-  form and report workflow remains to be built.
+- The browser interface is intentionally local and single-user. It is not a
+  hosted multi-user service and has no authentication or order endpoints.
 - OANDA v20 does not expose spread-bet versus CFD product type in its account
   summary. The selected product is therefore an explicit audited config fact.
 - The practice API reports hedging disabled; version one permits only one open
@@ -169,6 +171,27 @@ Copy and complete `examples/oanda_pretrade_intent.template.json`, then run:
 
 This command reads broker facts and writes a report. It cannot submit an order.
 
+### Basic browser interface
+
+Install and build the local React interface once:
+
+```bash
+cd web
+npm install
+npm run build
+cd ..
+```
+
+Then start the localhost server:
+
+```bash
+.venv/bin/python scripts/run_risk_ui.py
+```
+
+Open `http://127.0.0.1:8765`. The browser sends only the proposed trade
+characteristics to the local Python backend. OANDA credentials remain in the
+ignored `.env`, and the app exposes no create, amend or close-order action.
+
 ### Manual calibration refresh
 
 Refresh the locally stored range/adverse-excursion profile explicitly:
@@ -211,7 +234,7 @@ The remaining core work is:
 1. define and implement a legitimate current calibration-refresh policy;
 2. prospectively evaluate standardized trade intents against later 1–4 hour
    range and adverse-excursion paths;
-3. build a clear user-facing trade-input and report workflow; and
+3. accumulate and resolve the registered prospective calibration schedule; and
 4. produce a final validation/audit report describing what the framework can
    and cannot claim.
 

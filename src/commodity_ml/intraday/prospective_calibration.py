@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import sqlite3
 from typing import Any, Mapping
 from zoneinfo import ZoneInfo
@@ -33,6 +34,13 @@ LONDON = ZoneInfo("Europe/London")
 PRIMARY_DATES = 40
 MIN_RESOLUTION_FRACTION = 0.80
 FORECAST_METRICS = ("range_bps", "long_adverse_bps", "short_adverse_bps")
+REFRESH_RELEASE_PATTERN = re.compile(r"^\d{8}T\d{6}Z$")
+REQUIRED_QUOTE_COLUMNS = {
+    f"{asset}_{side}_{field}"
+    for asset in ("gold", "silver")
+    for side in ("bid", "ask")
+    for field in ("open", "high", "low", "close")
+}
 
 
 class ProspectiveCalibrationError(RuntimeError):
@@ -234,6 +242,51 @@ class ProspectiveCalibrationStore:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
+
+
+def latest_complete_refresh_source(root: str | Path) -> Path:
+    """Return the newest readable synchronized quote snapshot under a refresh root.
+
+    Release directory names are timestamps produced by ``refresh_current_calibration``.
+    Invalid, partial, and zero-byte releases are skipped rather than guessed at.
+    """
+    refresh_root = Path(root).expanduser().resolve()
+    if not refresh_root.is_dir():
+        raise FileNotFoundError(f"calibration refresh root does not exist: {refresh_root}")
+
+    candidates: list[tuple[pd.Timestamp, Path]] = []
+    rejected: list[str] = []
+    for path in refresh_root.glob("*/synchronized_quotes.parquet"):
+        release_name = path.parent.name
+        if not REFRESH_RELEASE_PATTERN.fullmatch(release_name):
+            continue
+        try:
+            release_time = pd.to_datetime(
+                release_name,
+                format="%Y%m%dT%H%M%SZ",
+                utc=True,
+            )
+            if path.stat().st_size == 0:
+                raise ValueError("empty file")
+            frame = pd.read_parquet(path)
+            missing = sorted(REQUIRED_QUOTE_COLUMNS.difference(frame.columns))
+            if frame.empty:
+                raise ValueError("no quote rows")
+            if missing:
+                raise ValueError(f"missing {len(missing)} quote columns")
+            if not isinstance(frame.index, pd.DatetimeIndex) or frame.index.tz is None:
+                raise ValueError("index is not timezone-aware")
+            if frame.index.has_duplicates or not frame.index.is_monotonic_increasing:
+                raise ValueError("index is duplicated or unsorted")
+        except (OSError, ValueError, TypeError) as exc:
+            rejected.append(f"{release_name}: {exc}")
+            continue
+        candidates.append((release_time, path.resolve()))
+
+    if not candidates:
+        detail = f" ({'; '.join(rejected)})" if rejected else ""
+        raise FileNotFoundError(f"no complete synchronized quote refresh found under {refresh_root}{detail}")
+    return max(candidates, key=lambda item: item[0])[1]
 
 
 def build_weekly_forecasts(

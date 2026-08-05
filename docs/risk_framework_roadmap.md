@@ -62,14 +62,16 @@ The following are not required for core completion:
 - Exact restart-safe account and position reconciliation.
 - Immutable prospective assessment, outcome and quote-path contracts.
 - Source parity, quote-cost and operational integrity diagnostics.
+- Basic localhost React workflow for read-only OANDA trade assessment and
+  downloadable JSON/HTML reports.
 
 ### Partially complete
 
 - **Current calibration:** the first post-development release was rejected for
   p95 under-coverage and is explicitly unavailable to the risk evaluator.
-- **Prospective validation:** storage and path measurement exist, but a
-  standardized non-directional intent sample has not been accumulated.
-- **User workflow:** reports are clear, but inputs remain CLI/JSON oriented.
+- **Prospective validation:** 944 direction-balanced forecasts covering five
+  London dates are registered and immutable; resolution awaits later quote
+  paths and the primary checkpoint remains 40 London dates.
 
 ### Optional extensions
 
@@ -94,22 +96,25 @@ does not rescue the coverage result.
 
 ### Phase R2 — standardized prospective validation
 
-**Design and implementation complete; collection pending:** the weekly
+**Design and implementation complete; collection active:** the weekly
 offline-first schedule, immutable ledger, direction-balanced outcomes and
 40-London-date checkpoint are defined in
 [`prospective_calibration_validation.md`](prospective_calibration_validation.md).
 The manual register, delayed resolve and summary commands preserve rejected
-releases as research-only and calculate no strategy P&L. No real schedule has
-yet been registered; registration requires a complete hashed release/profile
-pair from a manual refresh.
+releases as research-only and calculate no strategy P&L. The first five-date
+schedule contains 944 forecasts from a complete rejected release. A later
+manual refresh can resolve matured paths with `--latest-source`; invalid or
+partial refresh directories are skipped explicitly.
 
 ### Phase R3 — user-facing assessment workflow
 
-Provide a concise trade form for instrument, side, order type, entry, stop,
+**Version-one workflow complete:** a concise trade form accepts instrument,
+side, order type, entry, stop,
 target, holding period and optional size. Broker/account facts should populate
-automatically when OANDA mode is selected. Present decision, reason codes,
+automatically from read-only OANDA. It presents decision, reason codes,
 recommended size, cash risk, margin, costs, portfolio impact, scenarios and
-limitations in plain language.
+limitations in plain language, with JSON and standalone HTML downloads. It is
+localhost-only and intentionally provides no order route.
 
 ### Phase R4 — final audit
 
