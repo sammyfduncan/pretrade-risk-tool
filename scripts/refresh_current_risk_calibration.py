@@ -19,6 +19,7 @@ from commodity_ml.data import dukascopy
 from commodity_ml.features import event_dates
 from commodity_ml.intraday.calibration_refresh import (
     MAX_SOURCE_LAG_DAYS,
+    coverage_failures,
     coverage_gate,
     profile_is_complete,
     quantiles_are_valid,
@@ -46,7 +47,7 @@ from commodity_ml.intraday.risk_calibration import (
 )
 
 
-ACQUISITION_DAYS = 550
+ACQUISITION_DAYS = 900
 DEFAULT_GOLD_PARITY = PROJECT_ROOT / "reports/gold_M30_oanda_dukascopy_parity_20260727_20260804.json"
 DEFAULT_SILVER_PARITY = PROJECT_ROOT / "reports/silver_M30_oanda_dukascopy_parity_20260727_20260804.json"
 
@@ -150,6 +151,13 @@ def main() -> None:
             "quantile_monotonicity_gate_passed": quantiles_are_valid(profile),
             "prohibited_inputs_gate_passed": True,
         }
+        failed_coverage = coverage_failures(cells)
+        admission_details = {
+            "data_quality_failed_cells": sorted(
+                key for key, cell in cells.items() if not cell["data_quality_passed"]
+            ),
+            "coverage_failures": failed_coverage,
+        }
         status = "ADMITTED" if all(checks.values()) else "REJECTED"
         profile_hash = sha256_file(profile_path)
         release_id = f"current-range-{stamp.lower()}-{profile_hash[:12]}"
@@ -161,6 +169,7 @@ def main() -> None:
             "created_at": as_of.isoformat(),
             "profile_max_age_days": MAX_PROFILE_AGE_DAYS,
             "admission_checks": checks,
+            "admission_details": admission_details,
             "declarations": {
                 "directional_signal_used": False,
                 "strategy_pnl_used": False,
@@ -209,6 +218,15 @@ def main() -> None:
     print(f"Profile -> {profile_path}")
     if status != "ADMITTED":
         failed = [name for name, passed in checks.items() if not passed]
+        if admission_details["data_quality_failed_cells"]:
+            print(
+                "Data-quality cells: "
+                + ", ".join(admission_details["data_quality_failed_cells"])
+            )
+        if admission_details["coverage_failures"]:
+            print(
+                f"Coverage comparisons failed: {len(admission_details['coverage_failures'])}"
+            )
         raise SystemExit(f"Release retained but not admitted: {', '.join(failed)}")
     print("No strategy outcome was read and no order endpoint was contacted.")
 

@@ -65,8 +65,8 @@ The following are not required for core completion:
 
 ### Partially complete
 
-- **Current calibration:** the historically validated profile is stale by
-  design for a 2026 decision.
+- **Current calibration:** the first post-development release was rejected for
+  p95 under-coverage and is explicitly unavailable to the risk evaluator.
 - **Prospective validation:** storage and path measurement exist, but a
   standardized non-directional intent sample has not been accumulated.
 - **User workflow:** reports are clear, but inputs remain CLI/JSON oriented.
@@ -83,12 +83,14 @@ The following are not required for core completion:
 
 ### Phase R1 — current calibration policy
 
-**Policy and manual pipeline implemented:** the version-one source, estimator,
-freshness, parity and release gates are defined in
+**Complete with an honest unavailable result:** the version-one source,
+estimator, freshness, parity and release gates are defined in
 [`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md).
-The remaining R1 action is to invoke the manual refresh and determine whether
-the first post-development release passes without changing those rules or
-consuming strategy P&L.
+The first refresh built successfully but was rejected for p95 under-coverage.
+The risk evaluator therefore continues without current calibrated scenarios.
+The acquisition span was corrected from 550 to 900 days to satisfy the
+unchanged OOF sample-quality design; a read-only diagnostic confirmed that this
+does not rescue the coverage result.
 
 ### Phase R2 — standardized prospective validation
 

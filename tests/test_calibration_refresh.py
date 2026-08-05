@@ -6,6 +6,7 @@ import pandas as pd
 
 from commodity_ml.intraday.calibration_refresh import (
     coverage_gate,
+    coverage_failures,
     profile_is_complete,
     quantiles_are_valid,
     synchronize_quote_legs,
@@ -90,6 +91,15 @@ def test_coverage_gate_checks_every_side_and_cell():
     assert coverage_gate(cells)
     coverage["short_adverse_bps"]["p95"]["actual_coverage"] = 0.92
     assert not coverage_gate(cells)
+    assert coverage_failures(cells) == [
+        {
+            "cell": "XAUUSD_60m",
+            "metric": "short_adverse_bps",
+            "quantile": "p95",
+            "actual_coverage": 0.92,
+            "minimum_coverage": 0.93,
+        }
+    ]
 
 
 def test_parity_report_requires_fresh_hashed_inputs(tmp_path):

@@ -173,3 +173,8 @@ That admission policy was frozen on 2026-08-05 in
 [`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md).
 It supersedes the historical 90-day lookup tolerance for current assessments
 with a ten-day profile limit plus source and feed-parity release gates.
+
+The first current refresh on 2026-08-05 was rejected. Source, parity, profile
+completeness and monotonicity passed, but the causal p95 estimates under-covered
+post-development movement. The rejected profile is audit evidence and is not
+eligible for an assessment.

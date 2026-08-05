@@ -133,15 +133,43 @@ def quantiles_are_valid(profile: pd.DataFrame) -> bool:
 
 
 def coverage_gate(cells: Mapping[str, Mapping[str, Any]]) -> bool:
-    for cell in cells.values():
+    return not coverage_failures(cells)
+
+
+def coverage_failures(cells: Mapping[str, Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Return every failed frozen coverage comparison, not only a boolean."""
+
+    failures: list[dict[str, Any]] = []
+    for cell_name, cell in cells.items():
         coverage = cell.get("coverage", {})
         for metric in ("range_bps", "long_adverse_bps", "short_adverse_bps"):
             metric_coverage = coverage.get(metric, {})
-            if metric_coverage.get("p95", {}).get("actual_coverage", 0) < MIN_P95_COVERAGE:
-                return False
-            if metric_coverage.get("p99", {}).get("actual_coverage", 0) < MIN_P99_COVERAGE:
-                return False
-    return bool(cells)
+            for label, minimum in (("p95", MIN_P95_COVERAGE), ("p99", MIN_P99_COVERAGE)):
+                actual = float(
+                    metric_coverage.get(label, {}).get("actual_coverage", 0)
+                )
+                if actual < minimum:
+                    failures.append(
+                        {
+                            "cell": cell_name,
+                            "metric": metric,
+                            "quantile": label,
+                            "actual_coverage": actual,
+                            "minimum_coverage": minimum,
+                        }
+                    )
+    if not cells:
+        failures.append(
+            {
+                "cell": None,
+                "metric": None,
+                "quantile": None,
+                "actual_coverage": None,
+                "minimum_coverage": None,
+                "reason": "no_cells",
+            }
+        )
+    return failures
 
 
 def _utc(value: pd.Timestamp) -> pd.Timestamp:

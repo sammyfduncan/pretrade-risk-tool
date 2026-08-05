@@ -26,9 +26,10 @@ calibrated range scenarios and reports them as unavailable.
 - Provider: Dukascopy spot `XAU/USD` and `XAG/USD` M30 bid and ask candles.
 - Source shape: one synchronized, timezone-aware wide table containing all four
   streams; no resampling, interpolation or forward filling.
-- Minimum acquisition span: 550 calendar days before the release time. This is
-  long enough to supply 252 prior same-clock observations after weekends,
-  holidays and registered event exclusions.
+- Minimum acquisition span: 550 calendar days before the release time. The
+  implementation requests 900 calendar days so the existing 70% causal-OOF
+  sample-quality gate can also be evaluated after its 126-observation burn-in.
+  The final profile still uses only the frozen last 252 observations.
 - The source must end no more than seven calendar days before release and must
   contain no timestamp at or after the release time.
 - Both instruments use the identical timestamp opportunity set. Missing bars
@@ -137,3 +138,10 @@ An admitted profile is used only when both artifacts are supplied:
 If the refresh cannot download, build or pass every gate, it writes a failure
 or rejected audit artifact and exits non-zero. It does not replace, delete or
 silently fall back to another profile.
+
+## 8. Refresh ledger
+
+| Look | Date | Result |
+|---:|---|---|
+| 1 | 2026-08-05 | Build completed but release rejected. The 550-day request produced about 67% causal OOF coverage, exposing an arithmetic incompatibility with the unchanged 70% data-quality gate. The p95 coverage gate also failed materially, especially for silver. |
+| Amendment | 2026-08-05 | Acquisition increased to 900 days and detailed gate failures added. The 252-observation estimator, quantiles and 93%/97% coverage thresholds were not changed. A read-only 900-day diagnostic passed sample quality but still failed p95 coverage, so this amendment cannot rescue the known result. |

@@ -100,8 +100,9 @@ optional future extensions, not completion requirements for the risk product.
   range/MAE scenarios require a separately admitted refresh.
 - No standardized prospective trade-intent sample has yet tested whether the
   historical range/MAE coverage persists in current conditions.
-- The current-calibration pipeline is implemented but has not yet been invoked;
-  no post-development release is admitted merely because the code exists.
+- The first current-calibration refresh completed but was correctly rejected:
+  its causal p95 scenarios under-covered recent movement, especially in silver.
+  No post-development profile is currently admitted for risk reports.
 - The primary interface is currently CLI/JSON. A simpler user-facing trade
   form and report workflow remains to be built.
 - OANDA v20 does not expose spread-bet versus CFD product type in its account
