@@ -70,6 +70,40 @@ class CalibratedRiskLookup:
     release_id: str | None = None
 
 
+def measure_calibration_path(
+    synchronized_quotes: pd.DataFrame,
+    *,
+    instrument: str,
+    entry_time: pd.Timestamp,
+    horizon_minutes: int,
+) -> dict[str, float]:
+    """Measure one exact, fully contiguous future path in basis points."""
+
+    if instrument not in INSTRUMENT_TO_PREFIX:
+        raise ValueError(f"Unsupported calibration instrument: {instrument}")
+    if horizon_minutes not in HORIZONS_MINUTES:
+        raise ValueError(f"Unsupported calibration horizon: {horizon_minutes}")
+    entry = _utc(entry_time, "entry_time")
+    frame = _validated_quote_frame(synchronized_quotes, instrument)
+    bars = horizon_minutes // 30
+    expected = pd.date_range(entry, periods=bars, freq=BAR_DURATION, tz="UTC")
+    if not expected.isin(frame.index).all():
+        raise ValueError("prospective_path_missing_or_non_contiguous")
+    path = frame.loc[expected]
+    entry_price = float((path.iloc[0]["bid_open"] + path.iloc[0]["ask_open"]) / 2)
+    midpoint_high = (path["bid_high"] + path["ask_high"]) / 2
+    midpoint_low = (path["bid_low"] + path["ask_low"]) / 2
+    high = float(midpoint_high.max())
+    low = float(midpoint_low.min())
+    scale = 10_000 / entry_price
+    return {
+        "entry_price": entry_price,
+        "range_bps": (high - low) * scale,
+        "long_adverse_bps": max(entry_price - low, 0) * scale,
+        "short_adverse_bps": max(high - entry_price, 0) * scale,
+    }
+
+
 def build_calibration_outcomes(
     synchronized_quotes: pd.DataFrame,
     *,

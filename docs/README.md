@@ -26,6 +26,8 @@ Read these in order:
 8. [`pretrade_paper_observations.md`](pretrade_paper_observations.md) and
    [`pretrade_quote_path.md`](pretrade_quote_path.md) — immutable prospective
    assessments and executable-path outcomes.
+9. [`prospective_calibration_validation.md`](prospective_calibration_validation.md)
+   — research-only, direction-balanced validation of current range forecasts.
 
 Supporting operational diagnostics are grouped separately:
 

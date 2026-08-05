@@ -73,6 +73,8 @@ optional future extensions, not completion requirements for the risk product.
   shadow diagnostics.
 - Manual, non-overwriting Dukascopy refresh and fail-closed admission pipeline
   for current range/adverse-excursion calibration.
+- Immutable weekly prospective calibration schedules, delayed exact-path
+  resolution and coverage reporting with rejected releases kept research-only.
 
 ### Validated evidence
 

@@ -94,11 +94,14 @@ does not rescue the coverage result.
 
 ### Phase R2 — standardized prospective validation
 
-At predeclared London clocks, create direction-balanced hypothetical long and
-short intents for both metals and all four horizons. Store the assessment
-before the future path exists, then measure total range and sided adverse
-excursion from valid subsequent data. Evaluate coverage and calibration only;
-do not calculate strategy P&L or select favorable directions/times.
+**Design and implementation complete; collection pending:** the weekly
+offline-first schedule, immutable ledger, direction-balanced outcomes and
+40-London-date checkpoint are defined in
+[`prospective_calibration_validation.md`](prospective_calibration_validation.md).
+The manual register, delayed resolve and summary commands preserve rejected
+releases as research-only and calculate no strategy P&L. No real schedule has
+yet been registered; registration requires a complete hashed release/profile
+pair from a manual refresh.
 
 ### Phase R3 — user-facing assessment workflow
 
