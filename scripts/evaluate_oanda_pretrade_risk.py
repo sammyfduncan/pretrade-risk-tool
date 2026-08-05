@@ -177,14 +177,15 @@ def main() -> None:
             snapshot.payload["policy"] = source["policy"]
         calibration = None
         if args.calibration_profile:
+            assessed_intent = snapshot.payload["trade_intent"]
             calibration = load_admitted_calibrated_risk(
                 args.calibration_profile,
                 args.calibration_release,
-                instrument=trade_intent.get("instrument"),
-                decision_time=trade_intent.get("decision_time"),
-                horizon_minutes=trade_intent.get("holding_period_minutes"),
-                entry_price=trade_intent.get("entry_price"),
-                side=trade_intent.get("side"),
+                instrument=assessed_intent.get("instrument"),
+                decision_time=assessed_intent.get("decision_time"),
+                horizon_minutes=assessed_intent.get("holding_period_minutes"),
+                entry_price=assessed_intent.get("entry_price"),
+                side=assessed_intent.get("side"),
             )
         report = evaluate_pretrade_payload(
             snapshot.payload,

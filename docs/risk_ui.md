@@ -7,6 +7,14 @@ Python risk engine. It is a convenience layer, not a second calculation
 implementation. The established read-only OANDA command still constructs and
 evaluates the versioned risk payload.
 
+The result begins with a plain-language interpretation: cost-inclusive stop
+loss, percentage of assessed account equity, use of the per-trade risk
+allowance, exposure, margin and evidence completeness. `ALLOW` is retained as
+an audit code but displayed as “Within configured limits”; it is never
+described as proof that a trade is safe or likely to profit. Internal reason,
+warning and adapter codes are translated for the browser while remaining
+unchanged in downloadable JSON.
+
 ## What the user supplies
 
 - gold or silver;

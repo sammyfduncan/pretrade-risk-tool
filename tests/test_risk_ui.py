@@ -43,7 +43,7 @@ def _request(**changes):
 
 def test_browser_contract_is_small_and_fail_closed():
     result = normalize_trade_request(_request())
-    assert result["trade_intent"]["decision_time"].endswith("+00:00")
+    assert result["trade_intent"]["decision_time"] is None
     assert result["trade_intent"]["allow_overnight"] is False
 
     with pytest.raises(RiskUIError, match="instrument"):

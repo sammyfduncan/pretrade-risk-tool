@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { buildRiskSummary, formatMoney } from "./riskSummary.js";
 
 const initialForm = {
   instrument: "XAUUSD",
@@ -126,7 +127,14 @@ export default function App() {
           <NumberField label="Stop price" name="stop_price" value={form.stop_price} onChange={update} required />
           <NumberField label="Target price" name="target_price" value={form.target_price} onChange={update} required />
           <NumberField label="Requested size (optional)" name="requested_size" value={form.requested_size} onChange={update} />
-          <NumberField label="Maximum slippage per side" name="max_slippage_points_per_side" value={form.max_slippage_points_per_side} onChange={update} required />
+          <NumberField
+            label="Maximum slippage per side"
+            help="Enter quoted-price units, not ticks. Around a gold price of 4,185, 0.21 is approximately 0.5 basis points per side."
+            name="max_slippage_points_per_side"
+            value={form.max_slippage_points_per_side}
+            onChange={update}
+            required
+          />
         </div>
         <label className="check">
           <input type="checkbox" name="allow_overnight" checked={form.allow_overnight} onChange={update} />
@@ -150,17 +158,23 @@ function Assessment({ document, onJson, onHtml }) {
   const portfolio = report.portfolio || {};
   const scenarios = Array.isArray(report.scenarios) ? report.scenarios : [];
   const limitations = Array.isArray(report.limitations) ? report.limitations : [];
+  const summary = buildRiskSummary(report, document.adapter_issues);
   const notices = [
-    ...(report.reasons || []).map((text) => ["Reason", text]),
-    ...(report.warnings || []).map((text) => ["Warning", text]),
-    ...(document.adapter_issues || []).map((text) => ["Data note", text]),
+    ...summary.translatedReasons.map((text) => ["Decision reason", text]),
+    ...summary.translatedWarnings.map((text) => ["Evidence gap", text]),
+    ...summary.translatedAdapterIssues.map((text) => ["Broker note", text]),
   ];
   return (
     <section className="assessment">
       <div className="result-head">
-        <div><p className="kicker">Assessment result</p><h2 className={`decision ${String(report.decision).toLowerCase()}`}>{report.decision || "INCOMPLETE"}</h2></div>
+        <div>
+          <p className="kicker">Assessment result</p>
+          <h2 className="result-title">{summary.decisionTitle}</h2>
+          <span className={`decision ${summary.decision.toLowerCase()}`}>{summary.decision}</span>
+        </div>
         <div className="actions"><button type="button" className="secondary" onClick={onJson}>Download JSON</button><button type="button" className="secondary" onClick={onHtml}>Download HTML</button></div>
       </div>
+      <PlainLanguageSummary summary={summary} />
       {notices.length > 0 && <div className="notices">{notices.map(([label, text], index) => <p key={`${label}-${index}`}><strong>{label}:</strong> {text}</p>)}</div>}
       <div className="cards">
         <Card title="Sizing" rows={[
@@ -170,9 +184,9 @@ function Assessment({ document, onJson, onHtml }) {
           ["Binding constraint", sizing.binding_constraint || "—"],
         ]} />
         <Card title="Trade risk" rows={[
-          ["Planned stop loss", show(cash.planned_stop_loss)],
+          ["Planned stop loss", formatMoney(cash.planned_stop_loss, summary.currency)],
           ["Stop loss / equity", percent(cash.planned_stop_loss_fraction)],
-          ["Net target reward", show(cash.net_target_reward)],
+          ["Net target reward", formatMoney(cash.net_target_reward, summary.currency)],
           ["Net reward / risk", show(cash.net_reward_risk)],
         ]} />
         <Card title="Market and cost" rows={[
@@ -182,17 +196,17 @@ function Assessment({ document, onJson, onHtml }) {
           ["Volatility state", market.volatility_state || "—"],
         ]} />
         <Card title="Portfolio after trade" rows={[
-          ["Open positions", show(portfolio.existing_position_count, 0)],
-          ["Total stop risk", show(portfolio.proposed_total_stop_risk)],
-          ["Total margin", show(portfolio.proposed_total_margin)],
-          ["Gross exposure", show(portfolio.proposed_total_gross_exposure)],
+          ["OANDA positions detected", show(portfolio.existing_position_count, 0)],
+          ["Total stop risk", formatMoney(portfolio.proposed_total_stop_risk, summary.currency)],
+          ["Total margin", formatMoney(portfolio.proposed_total_margin, summary.currency)],
+          ["Gross exposure", formatMoney(portfolio.proposed_total_gross_exposure, summary.currency)],
         ]} />
       </div>
       {scenarios.length > 0 && <div className="table-wrap">
         <h3>Stress scenarios</h3>
         <table>
           <thead><tr><th>Scenario</th><th>Cash loss</th><th>Equity loss</th></tr></thead>
-          <tbody>{scenarios.map((scenario, index) => <tr key={`${scenario.name}-${index}`}><td>{scenario.name || "Unnamed"}</td><td>{show(scenario.cash_loss)}</td><td>{percent(scenario.equity_fraction)}</td></tr>)}</tbody>
+          <tbody>{scenarios.map((scenario, index) => <tr key={`${scenario.name}-${index}`}><td>{scenarioName(scenario.name)}</td><td>{formatMoney(scenario.cash_loss, summary.currency)}</td><td>{percent(scenario.equity_fraction)}</td></tr>)}</tbody>
         </table>
       </div>}
       <div className="calibration"><strong>Current calibrated range evidence:</strong> {market.historical_calibration ? "included" : "unavailable or not admitted"}</div>
@@ -202,12 +216,62 @@ function Assessment({ document, onJson, onHtml }) {
   );
 }
 
-function Field({ label, children }) {
-  return <label><span>{label}</span>{children}</label>;
+function PlainLanguageSummary({ summary }) {
+  return (
+    <section className="plain-summary" aria-labelledby="plain-summary-title">
+      <div className="summary-heading">
+        <h3 id="plain-summary-title">What this means</h3>
+        <span className={`evidence evidence-${summary.evidenceLevel.toLowerCase()}`}>Evidence: {summary.evidenceLevel}</span>
+      </div>
+      <p className="summary-lead">{summary.decisionMeaning}</p>
+      <div className="summary-metrics">
+        <SummaryMetric
+          label="Estimated loss if stop executes"
+          value={formatMoney(summary.plannedLoss, summary.currency)}
+          detail={`${percent(summary.lossFraction)} of assessed account equity`}
+        />
+        <SummaryMetric
+          label="Per-trade risk allowance used"
+          value={percent(summary.budgetUsage)}
+          detail={`${formatMoney(summary.plannedLoss, summary.currency)} of ${formatMoney(summary.riskBudget, summary.currency)}`}
+        />
+        <SummaryMetric
+          label="Account equity assessed"
+          value={formatMoney(summary.accountEquity, summary.currency)}
+          detail="Taken from the connected OANDA account"
+        />
+      </div>
+      <ul className="summary-points">
+        <li>
+          The assessed size is <strong>{show(summary.assessedSize, 4)}</strong>; the maximum under the current policy is <strong>{show(summary.recommendedMaxSize, 4)}</strong>.
+        </li>
+        <li>
+          Current execution cost is approximately <strong>{percent(summary.currentCostR)}</strong> of one unit of planned risk{summary.medianCostR !== null ? <>; the same-session median is <strong>{percent(summary.medianCostR)}</strong></> : null}.
+        </li>
+        <li>
+          Gross exposure is <strong>{formatMoney(summary.grossExposure, summary.currency)}</strong> ({percent(summary.grossExposureFraction)} of assessed equity), with <strong>{formatMoney(summary.margin, summary.currency)}</strong> margin ({percent(summary.marginFraction)}).
+        </li>
+        {summary.openPositions === 0 && <li>No existing OANDA positions were included in this assessment.</li>}
+      </ul>
+      {summary.limitations.length > 0 && <div className="summary-limits">
+        <strong>What this assessment could not determine</strong>
+        <ul>{summary.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
+        <p>It therefore cannot estimate how likely the stop is to be reached or describe the trade as generally low risk.</p>
+      </div>}
+    </section>
+  );
 }
 
-function NumberField({ label, ...props }) {
-  return <Field label={label}><input type="number" step="any" min="0" {...props} /></Field>;
+function SummaryMetric({ label, value, detail }) {
+  return <div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>;
+}
+
+function Field({ label, help, children }) {
+  return <label><span>{label}</span>{children}{help && <small className="field-help">{help}</small>}</label>;
+}
+
+function NumberField({ label, help, ...props }) {
+  return <Field label={label} help={help}><input type="number" step="any" min="0" {...props} /></Field>;
 }
 
 function Card({ title, rows }) {
@@ -221,4 +285,13 @@ function downloadBlob(content, filename, type) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function scenarioName(value) {
+  const names = {
+    planned_stop: "Planned stop",
+    planned_stop_spread_1_5x: "Planned stop with spread at 1.5× current",
+    planned_stop_spread_2x: "Planned stop with spread at 2× current",
+  };
+  return names[value] || String(value || "Unnamed").replaceAll("_", " ");
 }

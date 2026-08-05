@@ -175,8 +175,10 @@ def render_request_report(document: Mapping[str, Any]) -> str:
     return render_pretrade_report_html(document)
 
 
-def _decision_time(value: Any) -> str:
-    timestamp = pd.Timestamp(value) if value else pd.Timestamp.now(tz="UTC")
+def _decision_time(value: Any) -> str | None:
+    if not value:
+        return None
+    timestamp = pd.Timestamp(value)
     if timestamp.tzinfo is None:
         raise RiskUIError("decision_time must include a timezone")
     return timestamp.tz_convert("UTC").isoformat()
