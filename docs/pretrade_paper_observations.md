@@ -1,7 +1,8 @@
 # Prospective paper-risk observation ledger
 
-**Status:** storage, validation and descriptive summary implemented; no live
-observations recorded yet  
+**Status:** storage, validation and descriptive summary implemented; the first
+live shadow cycle has recorded six no-signal checks, while no trade assessment
+or outcome exists yet
 **Purpose:** compare pre-trade risk assessments with later measured execution
 and path outcomes without changing history
 
@@ -42,8 +43,8 @@ derive MAE/MFE from valid executable broker quotes; this foundation does not
 pretend that midpoint or research candles are broker executions.
 
 The offline executable-path builder and its stricter bid/ask rules are defined
-in `docs/pretrade_quote_path.md`. The OANDA recorder is implemented but its first
-authenticated demo validation is still pending.
+in `docs/pretrade_quote_path.md`. The OANDA recorder and read-only shadow runner
+have both passed their first authenticated practice-account smoke checks.
 
 ## Commands
 

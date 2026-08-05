@@ -101,6 +101,10 @@ def test_shadow_check_store_is_idempotent_and_collision_safe(tmp_path):
         ("median_cost_above_0.10R",),
     )
     assert store.summary()["decision_counts"] == {"BLOCK": 1}
+    frame = store.read_frame()
+    assert len(frame) == 1
+    assert frame.iloc[0]["reasons"] == ("median_cost_above_0.10R",)
+    assert frame.iloc[0]["signal_time"] == SIGNAL
 
     changed = ShadowCheck(
         **{**check.__dict__, "reasons": ("changed_after_recording",)}

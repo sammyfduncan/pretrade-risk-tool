@@ -60,6 +60,19 @@ Inspect the local lifecycle summary without contacting OANDA:
 python3 scripts/run_oanda_shadow.py --summary-only
 ```
 
+Combine the lifecycle ledger with the raw executable-quote database:
+
+```bash
+python3 scripts/report_oanda_operations.py
+```
+
+The combined report preregisters an operational collection target of ten
+observed London sessions, at least 200 entry-window checks and 80% observed-date
+slot coverage for every asset/strategy pair, at least 10,000 quotes per broker
+instrument, and no unresolved integrity fault. A result can be `COLLECTING`,
+`REVIEW`, or `OPERATIONALLY_READY`. None of those states measures expectancy or
+authorizes a trade.
+
 Default ignored runtime artifacts:
 
 - `data/runtime/oanda_paper_state.json` — atomic risk anchors;

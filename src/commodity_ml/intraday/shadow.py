@@ -152,6 +152,31 @@ class ShadowCheckStore:
             ],
         }
 
+    def read_frame(self) -> pd.DataFrame:
+        """Read the immutable checks for descriptive operational reporting."""
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as connection:
+            frame = pd.read_sql_query(
+                """SELECT check_id, instrument, strategy, signal_time, checked_at,
+                          status, intent_id, decision, reasons_json
+                   FROM shadow_checks ORDER BY signal_time, instrument, strategy""",
+                connection,
+            )
+        if frame.empty:
+            frame["signal_time"] = pd.to_datetime(frame["signal_time"], utc=True)
+            frame["checked_at"] = pd.to_datetime(frame["checked_at"], utc=True)
+            frame["reasons"] = pd.Series(dtype=object)
+            return frame.drop(columns="reasons_json")
+        frame["signal_time"] = pd.to_datetime(
+            frame["signal_time"], utc=True, errors="raise"
+        )
+        frame["checked_at"] = pd.to_datetime(
+            frame["checked_at"], utc=True, errors="raise"
+        )
+        frame["reasons"] = frame.pop("reasons_json").map(_stored_reasons)
+        return frame
+
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path, timeout=30)
         connection.execute("PRAGMA journal_mode = WAL")
@@ -262,3 +287,10 @@ def _utc(value: pd.Timestamp, name: str) -> pd.Timestamp:
     if timestamp.tzinfo is None:
         raise ValueError(f"{name} must be timezone-aware")
     return timestamp.tz_convert("UTC")
+
+
+def _stored_reasons(value: str) -> tuple[str, ...]:
+    reasons = json.loads(value)
+    if not isinstance(reasons, list):
+        raise ShadowLedgerError("stored_shadow_reasons_are_invalid")
+    return tuple(str(item) for item in reasons)

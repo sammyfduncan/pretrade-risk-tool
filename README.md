@@ -435,7 +435,12 @@ only after the full version-1 contract and gates are committed. Data from
     no-signal checks. Missing spread history fails closed and no order endpoint
     exists. See
     [`docs/oanda_shadow_runner.md`](docs/oanda_shadow_runner.md).
-14. A future submit-once practice-order adapter requires separate
+14. **Combined readiness reporting active:** shadow slot coverage, signals,
+    decisions, reason codes, quote counts, spread distributions and stream
+    integrity now produce one read-only report. Its predeclared ten-session
+    collection gate is operational only. The current result is `COLLECTING`
+    with six checks, zero signals and zero integrity faults.
+15. A future submit-once practice-order adapter requires separate
     authorization and a passed operational release stage; minimum-size live
     execution remains later still.
 

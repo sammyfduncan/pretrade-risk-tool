@@ -1259,3 +1259,21 @@ a valid research result.
   action.
 - The runner is evidence collection only. `ALLOW` does not authorize an order;
   submit-once practice execution remains a separate future release boundary.
+
+### 2026-08-05 — combined operational readiness report
+
+- Joined the immutable shadow-check ledger to the raw OANDA sampled-price
+  database without making a network request or filling missing observations.
+- Before further collection, registered an operational target of ten observed
+  London sessions, 200 entry-window bars and at least 80% observed-date slot
+  coverage per asset/strategy pair, plus 10,000 quotes per broker instrument.
+  Crossed/duplicate quotes, unexpected stream-invalidating events and shadow
+  error checks require review.
+- The report aggregates signal frequency, risk decisions and reason codes, but
+  deliberately contains no return, AUC, profitability or promotion threshold.
+  Its states are `COLLECTING`, `REVIEW` and `OPERATIONALLY_READY`; even the last
+  does not authorize paper execution.
+- The first report is correctly `COLLECTING`: six entry-session checks, zero
+  signals, one observed London date, 46 streamed quotes and zero integrity
+  issues. The 15 collection issues are all explicit sample/coverage shortfalls,
+  not system failures.
