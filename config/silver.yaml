@@ -1,6 +1,6 @@
 # HISTORICAL FROZEN H4 configuration — silver.
 # The active redesign is H1 context + M30 decisions, with M15 optional; see
-# docs/intraday_rebuild_plan.md. Documentation moved first. Do not mutate this
+# docs/archive/intraday_rebuild_plan.md. Documentation moved first. Do not mutate this
 # transfer-control config into the intraday version.
 # TRANSFERABILITY TEST: identical to gold.yaml apart from the asset identity.
 # Do not tune this file — its purpose is to show whether the gold template
@@ -13,7 +13,7 @@
 # and the GDELT query — because each one *names this asset* in an external
 # dataset. They are identity, not tuning: no window, threshold, lag or gate in
 # this file differs from gold's, and none may be adjusted to improve a silver
-# result. See docs/step2_design.md §4.1 for the query's validation record.
+# result. See docs/archive/step2_design.md §4.1 for the query's validation record.
 
 asset: silver
 symbol: XAGUSD
@@ -46,7 +46,7 @@ features:
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
   crossasset: true         # gold/silver ratio — regime, not direction
 
-  # Step-2 alt-data (docs/step2_design.md). Both OFF again as of 2026-07-30:
+  # Step-2 alt-data (docs/archive/step2_design.md). Both OFF again as of 2026-07-30:
   # the pre-registered §6 retention gate FAILED on 4 of 4 combinations (§9).
   # Neither family adds directional information — every observed AUC delta on
   # gold was negative, and silver's one positive (+0.0198, 5/5 folds) lost to
@@ -78,7 +78,7 @@ cot:
   contract_code: "084691"
 
 gdelt:
-  # VALIDATED 2026-07-29; record in docs/step2_design.md §4.1. 0/720 titles
+  # VALIDATED 2026-07-29; record in docs/archive/step2_design.md §4.1. 0/720 titles
   # contaminated across five windows (no Nate Silver, no Adam Silver, no
   # Silver Lake, no silver linings), AND the positive control fired — the
   # Jan/Feb 2021 window returned the retail silver-squeeze coverage, so the

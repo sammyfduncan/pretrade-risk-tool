@@ -7,7 +7,7 @@ type. Two groups matter here. "Managed money" is hedge funds and CTAs — fast,
 momentum-chasing capital whose positioning stretches to extremes. "Producer/
 merchant" is miners and refiners hedging physical metal — slow capital that
 mechanically takes the other side. The pre-registered hypothesis
-(docs/step2_design.md §1) is *crowdedness*: when managed money is unusually
+(docs/archive/step2_design.md §1) is *crowdedness*: when managed money is unusually
 net-long relative to its own two-year history, the marginal buyer is already
 in, and forward returns should be weaker. This is positioning, not sentiment —
 it is deliberately a separate feature family from GDELT news tone.
@@ -88,7 +88,7 @@ FIELDS = {
 #
 # The Oct/Nov 2025 government-shutdown backlog falls inside the HOLDOUT — this
 # table must be extended to cover it before the holdout is ever spent with COT
-# enabled (docs/step2_design.md §2.1).
+# enabled (docs/archive/step2_design.md §2.1).
 PUBLICATION_INTERRUPTIONS = (
     ("2023-01-31", "2023-03-07", "2023-03-18"),
 )
@@ -163,7 +163,7 @@ def _parse_socrata_rows(rows: list[dict]) -> pd.DataFrame:
 
 def derive_weekly(cot: pd.DataFrame) -> pd.DataFrame:
     """The three pre-registered features on the weekly report index — the one
-    place the formulas live (docs/step2_design.md §3; windows are repo
+    place the formulas live (docs/archive/step2_design.md §3; windows are repo
     conventions, not tunables). Rolling windows are backward-looking here, so
     this is causal by construction; alignment adds the knowability rules."""
     mm_net_frac = (cot["mm_long"] - cot["mm_short"]) / cot["oi"]

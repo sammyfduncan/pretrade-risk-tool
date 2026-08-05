@@ -9,7 +9,7 @@ folds, to check the boosted model is earning its complexity.
 
 --exclude-family drops an alt-data family's COLUMNS while keeping the same
 dataset ROWS. This is the matched-row ablation device from
-docs/step2_design.md §6: toggling a family in the yaml would change which rows
+docs/archive/step2_design.md §6: toggling a family in the yaml would change which rows
 survive dropna and therefore the fold boundaries, so yaml-level ablations
 partly measure sample composition. Excluding columns on one both-families-on
 dataset keeps rows and folds identical, so AUC deltas are attributable to the

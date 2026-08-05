@@ -106,7 +106,7 @@ def assess_volatility_risk(
 
 @dataclass(frozen=True)
 class RiskLimits:
-    """Frozen portfolio limits from ``docs/intraday_rebuild_plan.md`` §2.3."""
+    """Frozen portfolio limits from ``docs/archive/intraday_rebuild_plan.md`` §2.3."""
 
     risk_per_trade: float = 0.0025
     daily_loss_limit: float = 0.0075

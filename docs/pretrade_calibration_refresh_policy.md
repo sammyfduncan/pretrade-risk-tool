@@ -106,3 +106,34 @@ strategy signals and do not determine the refresh parameters.
 
 Coverage failure in that prospective sample triggers review or a newly frozen
 policy version. It is never repaired by deleting difficult observations.
+
+## 7. Manual implementation
+
+The policy is implemented as one explicit command:
+
+```bash
+.venv/bin/python scripts/refresh_current_risk_calibration.py
+```
+
+It does not run during an assessment and is not scheduled by the repository.
+Each invocation creates a new timestamped directory under
+`data/processed/current_risk_calibration/` containing the four downloaded
+legs, synchronized source, event snapshot, OOF diagnostics, final profile,
+source manifest and `release.json`. An existing release directory is never
+overwritten.
+
+An admitted profile is used only when both artifacts are supplied:
+
+```bash
+.venv/bin/python scripts/evaluate_oanda_pretrade_risk.py \
+  examples/oanda_pretrade_intent.json \
+  --config config/gold.yaml \
+  --portfolio-config config/silver.yaml \
+  --paper-state data/runtime/oanda_paper_state.json \
+  --calibration-profile data/processed/current_risk_calibration/<release>/profile.parquet \
+  --calibration-release data/processed/current_risk_calibration/<release>/release.json
+```
+
+If the refresh cannot download, build or pass every gate, it writes a failure
+or rejected audit artifact and exits non-zero. It does not replace, delete or
+silently fall back to another profile.

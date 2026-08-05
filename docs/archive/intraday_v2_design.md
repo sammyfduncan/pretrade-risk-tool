@@ -152,7 +152,7 @@ its candle closes, honest M15 replay cannot enter earlier. It uses the same
 entry timestamp and asks whether finer path and barrier-order resolution
 improves the matched trades. It must not create extra M15 signals or tune V2
 thresholds. The exact pre-registration is in
-`docs/intraday_m15_execution_design.md`.
+`docs/archive/intraday_m15_execution_design.md`.
 
 Actual OANDA quotes are required before any apparent cost-sensitive improvement
 can be promoted. Until then, the M15 work is research infrastructure, not a
@@ -161,7 +161,7 @@ rule passed.
 
 ## 8. M15 follow-up outcome
 
-The exact matched experiment in `docs/intraday_m15_execution_design.md` was
+The exact matched experiment in `docs/archive/intraday_m15_execution_design.md` was
 implemented and completed. P1V2 improved only from PF `0.928` to `0.937` and
 P3V2 from `1.000` to `1.050`. Only one and two trades, respectively, changed
 from the conservative M30 stop outcome to an M15 target; improvement occurred

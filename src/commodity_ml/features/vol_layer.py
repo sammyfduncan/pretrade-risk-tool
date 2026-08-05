@@ -1,4 +1,4 @@
-"""Step 2b: the volatility-forecast feature set (docs/step2b_vol_design.md §3).
+"""Step 2b: the volatility-forecast feature set (docs/archive/step2b_vol_design.md §3).
 
 Everything here lives on a DAILY observation grid — the same grid Tier-1 used —
 because the target is realized vol over the next 5/20 *trading days* and the

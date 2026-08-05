@@ -8,7 +8,7 @@ prices. Entries are the top `entry_quantile` of predictions (computed on an
 expanding window, so no future information sets today's threshold). The
 historical simulator uses the label's barrier percentages and horizon, but is
 not fully label-equivalent because it uses close-only bars and a delayed entry
-anchor. Treat its P&L as provisional; see `docs/intraday_rebuild_plan.md`.
+anchor. Treat its P&L as provisional; see `docs/archive/intraday_rebuild_plan.md`.
 
 Writes reports/<asset>_backtest.txt.
 """

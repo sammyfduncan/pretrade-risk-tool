@@ -1,6 +1,6 @@
 # HISTORICAL FROZEN H4 configuration — gold step 1.
 # The active redesign is H1 context + M30 decisions, with M15 optional; see
-# docs/intraday_rebuild_plan.md. Documentation moved first. Do not mutate this
+# docs/archive/intraday_rebuild_plan.md. Documentation moved first. Do not mutate this
 # config into the intraday version or spend its holdout accidentally.
 # Adding a new asset later = copy this file and change its asset identifiers.
 
@@ -35,7 +35,7 @@ features:
   macro: true              # FRED real yields / dollar / VIX — the directional candidates
   crossasset: true         # gold/silver ratio — regime, not direction
 
-  # Step-2 alt-data (docs/step2_design.md). Both OFF again as of 2026-07-30:
+  # Step-2 alt-data (docs/archive/step2_design.md). Both OFF again as of 2026-07-30:
   # the pre-registered §6 retention gate FAILED on 4 of 4 combinations (§9).
   # Neither family adds directional information — every observed AUC delta on
   # gold was negative, and silver's one positive (+0.0198, 5/5 folds) lost to

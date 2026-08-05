@@ -70,7 +70,8 @@ or product semantics may differ. It is not silently forced to zero.
 
 The sampled-pricing recorder and outage-aware path exporter are implemented in
 `scripts/record_oanda_quotes.py` and `scripts/export_oanda_quote_path.py`; see
-`docs/oanda_stream_recorder.md`. Authenticated practice runs have verified
+[`operations/oanda_stream_recorder.md`](operations/oanda_stream_recorder.md).
+Authenticated practice runs have verified
 streaming, storage and reconnect recording. Every exported trade interval must
 still pass its own continuity checks. The full assessment-to-future-path
 workflow has not yet been exercised on the standardized validation design.

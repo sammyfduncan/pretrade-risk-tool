@@ -1,6 +1,6 @@
 """Scheduled US macro event dates — FOMC, CPI, Employment Situation (NFP).
 
-Step 2b's F-CAL family (docs/step2b_vol_design.md §3). These are the one kind
+Step 2b's F-CAL family (docs/archive/step2b_vol_design.md §3). These are the one kind
 of "future" information a causal feature may legally contain: release
 schedules are published ~a year in advance, so at any observation date the
 market genuinely knows whether an FOMC decision or a CPI print falls inside

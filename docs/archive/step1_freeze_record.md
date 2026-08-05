@@ -2,7 +2,7 @@
 
 > **Historical H4 record — preserved, not the active build plan.** The user
 > selected an H1/M30 intraday redesign on 2026-07-30, with M15 as an optional
-> execution challenger. See `docs/intraday_rebuild_plan.md`. Nothing in that
+> execution challenger. See `docs/archive/intraday_rebuild_plan.md`. Nothing in that
 > redesign changes the results or ledger recorded here.
 >
 > **Holdout disposition, fixed 2026-07-30 without reading outcomes:** the H4
@@ -111,7 +111,7 @@ additional variant weakens the holdout further.
 
 *(Update 2026-07-28: step 2 reopened CFTC positioning and news sentiment under
 its own pre-registered program with a separate append-only ledger —
-`docs/step2_design.md` §8. Both ledgers count against the same single holdout;
+`docs/archive/step2_design.md` §8. Both ledgers count against the same single holdout;
 whenever it is spent, interpret against their union.)*
 
 ---

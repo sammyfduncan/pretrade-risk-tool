@@ -11,7 +11,7 @@ from commodity_ml.config import PROJECT_ROOT, load_config
 from commodity_ml.evaluation.intraday_risk_policy import evaluate_risk_policy_gate
 from commodity_ml.intraday.ml_dataset import load_candidate_bundle
 
-DESIGN = "docs/intraday_risk_economic_design.md"
+DESIGN = "docs/archive/intraday_risk_economic_design.md"
 HARNESS = (
     "scripts/evaluate_intraday_risk_policy.py",
     "src/commodity_ml/evaluation/intraday_risk_policy.py",

@@ -27,28 +27,23 @@ Read these in order:
    [`pretrade_quote_path.md`](pretrade_quote_path.md) — immutable prospective
    assessments and executable-path outcomes.
 
-Supporting operational diagnostics:
+Supporting operational diagnostics are grouped separately:
 
-- [`oanda_stream_recorder.md`](oanda_stream_recorder.md)
-- [`oanda_shadow_runner.md`](oanda_shadow_runner.md)
+- [`operations/oanda_stream_recorder.md`](operations/oanda_stream_recorder.md)
+- [`operations/oanda_shadow_runner.md`](operations/oanda_shadow_runner.md)
 
 These diagnostics are useful but do not establish profitability and are not
 required to finish the offline risk product.
 
-## Historical research records
+## Archived research records
 
-The following documents describe completed or retired research programs:
+Completed and retired research programs live under [`archive/`](archive/).
+They remain versioned because their preregistrations, negative results and
+data-acquisition decisions are unique audit evidence, but they are not part of
+the active product reading path.
 
-- `step1_freeze_record.md`, `step2_design.md`, `step2b_vol_design.md`;
-- `intraday_ml_retraining.md`, `intraday_filter_gate.md`;
-- `intraday_v2_design.md`, `intraday_m15_execution_design.md`;
-- `intraday_market_structure_research.md`, `intraday_cost_measurement.md`;
-- `intraday_risk_design.md`, `intraday_joint_risk_design.md`,
-  `intraday_risk_policy.md`, `intraday_risk_economic_design.md`;
-- `cme_futures_data.md`, `intraday_futures_design.md`,
-  `intraday_order_flow_design.md`;
-- `intraday_relative_value_design.md`, `intraday_macro_impulse_design.md`; and
-- `intraday_rebuild_plan.md`, the chronological implementation/research ledger.
+The archive index explains why each document was retained:
+[`archive/README.md`](archive/README.md).
 
 Do not interpret a historical statement such as “paper trading remains
 disabled” or “a primary strategy is required” as a blocker for the standalone

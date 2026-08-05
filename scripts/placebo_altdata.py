@@ -1,4 +1,4 @@
-"""Placebo calibration for the step-2 retention gate — docs/step2_design.md §6, condition 3.
+"""Placebo calibration for the step-2 retention gate — docs/archive/step2_design.md §6, condition 3.
 
     python scripts/placebo_altdata.py --config config/gold.yaml --family gdelt
     python scripts/placebo_altdata.py --config config/silver.yaml --family cot --n 20

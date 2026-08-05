@@ -53,7 +53,7 @@ def main() -> None:
     report = {
         "schema_version": 1,
         "program": "rv1_synchronized_quotes",
-        "frozen_design": "docs/intraday_relative_value_design.md",
+        "frozen_design": "docs/archive/intraday_relative_value_design.md",
         "source_manifest": str(source_manifest_path),
         "source_manifest_sha256": _sha256(source_manifest_path),
         "synchronization": result.report,

@@ -1,4 +1,4 @@
-"""Tier-1 diagnostics for the step-2 alt-data features (docs/step2_design.md §5).
+"""Tier-1 diagnostics for the step-2 alt-data features (docs/archive/step2_design.md §5).
 
 Usage:
     python scripts/diagnose_altdata.py --config config/gold.yaml
@@ -36,7 +36,7 @@ from commodity_ml.config import load_config
 from commodity_ml.features import cot as cot_module
 from commodity_ml.features import gdelt as gdelt_module
 
-HORIZONS_TRADING_DAYS = (5, 20)  # pre-registered in docs/step2_design.md §5
+HORIZONS_TRADING_DAYS = (5, 20)  # pre-registered in docs/archive/step2_design.md §5
 
 
 def spearman_ic_newey_west(x: pd.Series, y: pd.Series, lag: int) -> dict:
@@ -132,12 +132,12 @@ def refuse_dirty_preregistration(allow: bool) -> None:
     was fixed BEFORE they were read — an uncommitted design doc could be
     edited afterwards and nobody could prove otherwise."""
     result = subprocess.run(
-        ["git", "status", "--porcelain", "docs/step2_design.md"],
+        ["git", "status", "--porcelain", "docs/archive/step2_design.md"],
         capture_output=True, text=True, cwd=Path(__file__).resolve().parents[1],
     )
     if result.stdout.strip():
         message = (
-            "docs/step2_design.md has uncommitted changes. Commit the "
+            "docs/archive/step2_design.md has uncommitted changes. Commit the "
             "pre-registration BEFORE reading any Tier-1 number, or the numbers "
             "cannot be interpreted against it."
         )
@@ -207,7 +207,7 @@ def main() -> None:
     print("Reminders (pre-registered): no gating on these numbers; |z| ~ 2 on a\n"
           "single cell is unremarkable across 24 cells; a volatility-only result\n"
           "is a step-4 sizing candidate, not a direction signal. Ledger this run\n"
-          "in docs/step2_design.md §8.")
+          "in docs/archive/step2_design.md §8.")
 
     # Keyed by symbol AND source: reports_dir is shared across assets, so a
     # fixed filename meant silver's run silently overwrote gold's — and the two

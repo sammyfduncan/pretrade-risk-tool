@@ -64,7 +64,7 @@ source manifest and may not be changed after outcomes are read.
 ## 5. Temporal evaluation and placebos
 
 Both arms use the already frozen nested filter procedure in
-`docs/intraday_filter_gate.md`: five expanding outer folds; exit-time purges;
+`docs/archive/intraday_filter_gate.md`: five expanding outer folds; exit-time purges;
 an earlier model-fit prefix; a final 25% chronological reference tail; and the
 reference-score 70th percentile applied unchanged to the later test block.
 
@@ -82,7 +82,7 @@ F-GC passes only if every condition holds:
 3. challenger AUC exceeds the control in at least four of five folds;
 4. observed AUC improvement strictly exceeds the maximum of 20 placebos;
 5. the challenger passes every economic gate in
-   `docs/intraday_filter_gate.md` (including PF `>=1.10`, positive mean R,
+   `docs/archive/intraday_filter_gate.md` (including PF `>=1.10`, positive mean R,
    at least 200 trades, at least 30 per fold, improved PF in four folds,
    better drawdown, and PF above one at double cost); and
 6. challenger pooled PF strictly exceeds the matched spot-only filter PF.

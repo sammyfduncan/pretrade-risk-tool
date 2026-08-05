@@ -71,6 +71,8 @@ optional future extensions, not completion requirements for the risk product.
 - Immutable prospective assessment/outcome and executable quote-path ledgers.
 - OANDA quote recording, reconnect evidence, source parity and operational
   shadow diagnostics.
+- Manual, non-overwriting Dukascopy refresh and fail-closed admission pipeline
+  for current range/adverse-excursion calibration.
 
 ### Validated evidence
 
@@ -98,6 +100,8 @@ optional future extensions, not completion requirements for the risk product.
   range/MAE scenarios require a separately admitted refresh.
 - No standardized prospective trade-intent sample has yet tested whether the
   historical range/MAE coverage persists in current conditions.
+- The current-calibration pipeline is implemented but has not yet been invoked;
+  no post-development release is admitted merely because the code exists.
 - The primary interface is currently CLI/JSON. A simpler user-facing trade
   form and report workflow remains to be built.
 - OANDA v20 does not expose spread-bet versus CFD product type in its account
@@ -161,6 +165,18 @@ Copy and complete `examples/oanda_pretrade_intent.template.json`, then run:
 ```
 
 This command reads broker facts and writes a report. It cannot submit an order.
+
+### Manual calibration refresh
+
+Refresh the locally stored range/adverse-excursion profile explicitly:
+
+```bash
+.venv/bin/python scripts/refresh_current_risk_calibration.py
+```
+
+This is the only step that downloads Dukascopy calibration history. It creates
+a new timestamped release and never runs implicitly during an assessment. A
+rejected refresh remains an audit record and cannot be loaded as current.
 
 ## Data boundaries
 

@@ -138,7 +138,7 @@ def main() -> None:
             gdelt_module.MAX_STALENESS,
             f"python scripts/fetch_altdata.py --config {args.config} --source gdelt "
             "--force   (a GDELT refetch is a new sample — ledger it, "
-            "docs/step2_design.md §11)",
+            "docs/archive/step2_design.md §11)",
         )
 
     features = latest_feature_row(

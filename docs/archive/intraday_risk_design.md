@@ -2,7 +2,7 @@
 
 > **Historical experiment:** this tests a strategy-overlay forecast and is not
 > the active standalone pre-trade risk framework. See
-> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+> [`risk_framework_roadmap.md`](../risk_framework_roadmap.md).
 
 **Design locked:** 2026-07-31, before generating any intraday-risk forecast or
 reading any intraday-risk outcome  
@@ -281,7 +281,7 @@ these tests pass and this document is committed.
   neighboring horizons, lags, release windows, models, or volatility features
   in this program.
 - **Pass:** retain the family only as an input candidate. The already-registered
-  mapping in `docs/intraday_risk_policy.md` remains disabled until the B0 and
+  mapping in `docs/archive/intraday_risk_policy.md` remains disabled until the B0 and
   family gates determine which forecast is eligible. Risk may never exceed the
   frozen `0.25%` per-trade cap.
 - Because no primary gold strategy is currently retained, this experiment will
@@ -303,7 +303,7 @@ these tests pass and this document is committed.
 
 ## 12. Registered execution command
 
-After both this document and `docs/intraday_risk_policy.md` are committed and
+After both this document and `docs/archive/intraday_risk_policy.md` are committed and
 clean, the one registered real-data command is:
 
 ```bash

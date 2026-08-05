@@ -3,7 +3,7 @@
 > **Current status:** this document preserves the chronological strategy, ML,
 > execution and broker-rebuild record. It is no longer the active product
 > roadmap. The current objective and completion criteria are defined in
-> [`risk_framework_roadmap.md`](risk_framework_roadmap.md). Historical
+> [`risk_framework_roadmap.md`](../risk_framework_roadmap.md). Historical
 > strategy-profitability and paper-execution gates below do not block the
 > standalone quantitative pre-trade risk framework.
 
@@ -37,9 +37,9 @@ of ML. It therefore needs a new design ledger and new evaluation boundary.
 
 No H4 result is erased. The historical records remain:
 
-- `docs/step1_freeze_record.md`
-- `docs/step2_design.md`
-- `docs/step2b_vol_design.md`
+- `docs/archive/step1_freeze_record.md`
+- `docs/archive/step2_design.md`
+- `docs/archive/step2b_vol_design.md`
 
 ## 1. Fixed decisions
 
@@ -308,7 +308,7 @@ training uses deep Dukascopy H1/M30 development history; recent IG data is the
 execution/feed-parity control, not a substitute bulk training source. Candidate
 folds are purged using actual trade exit times rather than a fixed number of
 irregular candidate rows. The complete retraining lifecycle is frozen in
-`docs/intraday_ml_retraining.md`.
+`docs/archive/intraday_ml_retraining.md`.
 
 ### 3.3 Volatility and event-risk layer
 
@@ -610,10 +610,10 @@ Size increases occur only at pre-defined review points.
    - **complete, honest negative:** the frozen opening-impulse/active-regime
      P1V2/P2V2/P3V2 program also failed its bare economic gate. P1V2 and P3V2
      showed small gross effects that did not clear fixed costs; see
-     `docs/intraday_v2_design.md`.
+     `docs/archive/intraday_v2_design.md`.
    - **complete, honest negative:** matched M15 replay improved only three of
      508 P1V2/P3V2 trade outcomes and failed its stability/cost gate; see
-     `docs/intraday_m15_execution_design.md`.
+     `docs/archive/intraday_m15_execution_design.md`.
 5. **ML challenger**
    - **implemented:** candidate-only dataset schema and exact execution labels;
    - **implemented:** logistic/LightGBM research trainer with exit-time-purged
@@ -622,7 +622,7 @@ Size increases occur only at pre-defined review points.
      correctness rebuild, P1-logistic improved PF `0.701 -> 0.970` in 5/5 folds
      but remained negative (`-0.044R`); P2-LightGBM improved PF `0.827 ->
      0.852` in 4/5 folds and remained negative (`-0.099R`). See
-     `docs/intraday_filter_gate.md`.
+     `docs/archive/intraday_filter_gate.md`.
 6. **Risk layer**
    - **implemented and passed on development:** the causal two-hour B0 forecast
      achieved OOS R2 `0.2032`; GVZ and the event calendar each passed their
@@ -763,7 +763,7 @@ a valid research result.
   candidates. Added a research trainer that always supports the logistic
   baseline and LightGBM challenger, saves OOF scores, and deliberately saves no
   deployment threshold.
-- Added `docs/intraday_ml_retraining.md`. Initial data is Dukascopy H1/M30;
+- Added `docs/archive/intraday_ml_retraining.md`. Initial data is Dukascopy H1/M30;
   IG supplies parity, spread, and eventual paper/live truth. Frozen performance
   paper trading never retrains.
 - No intraday raw artifacts were fetched and no P1/P2/P3 outcome or model score
@@ -804,7 +804,7 @@ a valid research result.
 - Pooled model screening left two weak leads: P1 logistic and P2 LightGBM.
   Before inspecting deployable filtered returns, the single top-30% temporal
   train/reference/test gate and its economic retention conditions were frozen
-  in `docs/intraday_filter_gate.md`.
+  in `docs/archive/intraday_filter_gate.md`.
 - P1 logistic reduced the OOF universe from 750 to 239 trades and improved PF
   `0.701 -> 0.970` in all five folds, but mean R remained `-0.044` and PF fell
   to `0.786` at double costs.
@@ -861,7 +861,7 @@ a valid research result.
   five-condition retention gate, a 90% matched-coverage requirement, and
   synthetic causality/data-integrity tests before any real-data run.
 - No real-data forecast or outcome was generated. A pass would name an input candidate,
-  not a strategy or sizing policy; `docs/intraday_risk_design.md` must be
+  not a strategy or sizing policy; `docs/archive/intraday_risk_design.md` must be
   committed before implementation may read real-data results.
 
 ### 2026-07-31 — walk-forward volatility and conservative controls

@@ -36,8 +36,8 @@ from commodity_ml.intraday.volatility import (
 )
 
 DESIGN_DOCS = (
-    "docs/intraday_risk_design.md",
-    "docs/intraday_risk_policy.md",
+    "docs/archive/intraday_risk_design.md",
+    "docs/archive/intraday_risk_policy.md",
 )
 HARNESS_FILES = (
     "scripts/evaluate_intraday_risk.py",

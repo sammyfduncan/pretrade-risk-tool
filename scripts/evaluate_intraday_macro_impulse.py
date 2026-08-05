@@ -97,7 +97,7 @@ def main() -> None:
     report_path = cfg.reports_dir / "gold_p4_macro_impulse_gate.json"
     ledger_path = cfg.reports_dir / "gold_p4_macro_impulse_ledger.parquet"
     report = result.report_dict() | {
-        "frozen_design": "docs/intraday_macro_impulse_design.md",
+        "frozen_design": "docs/archive/intraday_macro_impulse_design.md",
         "driver_coverage": coverage,
         "causal_candidates": len(candidates),
         "reason_coded_rejections": int(

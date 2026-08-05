@@ -127,7 +127,7 @@ the pre-registered gates.
 
 Gold candidate models were trained on 2026-07-31. Six strategy/model
 combinations were screened, after which P1-logistic and P2-LightGBM entered the
-single frozen nested filter gate in `docs/intraday_filter_gate.md`. A later
+single frozen nested filter gate in `docs/archive/intraday_filter_gate.md`. A later
 correctness audit found that scheduled-event blackouts had not been passed into
 candidate execution; all candidate bundles, models, and gates were regenerated
 over the verified 2020–2025 development span without changing the registered

@@ -20,7 +20,7 @@ from commodity_ml.config import (
 
 
 def test_altdata_flags_default_off():
-    """The freeze-safety pin (docs/step2_design.md §0)."""
+    """The freeze-safety pin (docs/archive/step2_design.md §0)."""
     features = FeatureConfig()
     assert features.cot is False
     assert features.gdelt is False

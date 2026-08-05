@@ -2,10 +2,10 @@
 
 > **Historical experiment:** this strategy-sizing overlay is not the active
 > standalone pre-trade risk policy. See
-> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+> [`risk_framework_roadmap.md`](../risk_framework_roadmap.md).
 
 **Design locked:** 2026-07-31 before generating any intraday-risk forecast  
-**Depends on:** `docs/intraday_risk_design.md`  
+**Depends on:** `docs/archive/intraday_risk_design.md`  
 **Status:** joint forecast gate passed; B0 plus GVZ plus calendar is the
 registered selection. The policy remains disabled pending a retained primary
 strategy and registered economic test
@@ -20,7 +20,7 @@ P&L, direction, account recovery logic, or a threshold selected from outcomes.
 ## 2. Forecast eligible to drive the policy
 
 The price/session B0 forecast must first pass its absolute baseline gate in
-`docs/intraday_risk_design.md`. The active forecast is then fixed as follows:
+`docs/archive/intraday_risk_design.md`. The active forecast is then fixed as follows:
 
 - neither F-IV nor F-CAL passes: B0 only;
 - exactly one family passes: B0 plus that family;

@@ -2,7 +2,7 @@
 
 > **Historical experiment:** this profitability test is not a completion gate
 > for the active standalone pre-trade risk framework. See
-> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+> [`risk_framework_roadmap.md`](../risk_framework_roadmap.md).
 
 **Framework frozen:** 2026-07-31 before applying the volatility policy to any
 retained strategy outcome  

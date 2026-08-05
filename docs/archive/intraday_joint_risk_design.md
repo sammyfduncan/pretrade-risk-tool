@@ -2,7 +2,7 @@
 
 > **Historical experiment:** this tests a strategy-overlay forecast and is not
 > the active standalone pre-trade risk framework. See
-> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+> [`risk_framework_roadmap.md`](../risk_framework_roadmap.md).
 
 **Frozen:** 2026-07-31 after the separate-family gate and before generating a
 joint-model outcome  
@@ -35,7 +35,7 @@ or separate-family results.
 
 The data, matched-row construction, target, exclusions, five expanding folds,
 four-row purge gap, source snapshots, and ordinary-least-squares fitting are
-identical to `docs/intraday_risk_design.md`.
+identical to `docs/archive/intraday_risk_design.md`.
 
 - **Reference J0:** B0 plus `gvz_log` and `gvz_chg_5d`.
 - **Joint J1:** J0 plus `bls_release_next_120m` and

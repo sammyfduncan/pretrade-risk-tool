@@ -62,7 +62,7 @@ def main() -> None:
     report = {
         "schema_version": 1,
         "program": "p4_macro_driver_state",
-        "frozen_design": "docs/intraday_macro_impulse_design.md",
+        "frozen_design": "docs/archive/intraday_macro_impulse_design.md",
         "source_manifest": str(source_manifest_path),
         "source_manifest_sha256": _sha256(source_manifest_path),
         "development_end_exclusive": source_manifest["development_end_exclusive"],

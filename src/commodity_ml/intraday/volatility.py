@@ -1,6 +1,6 @@
 """Causal two-hour intraday volatility forecasting.
 
-The registered design lives in ``docs/intraday_risk_design.md``.  This module
+The registered design lives in ``docs/archive/intraday_risk_design.md``.  This module
 contains no trading direction and no strategy P&L: observed future closes form
 the audit target, while every feature is available at the M30 decision time.
 """

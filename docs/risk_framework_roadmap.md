@@ -83,11 +83,12 @@ The following are not required for core completion:
 
 ### Phase R1 — current calibration policy
 
-**Policy frozen:** the version-one source, estimator, freshness, parity and
-release gates are defined in
+**Policy and manual pipeline implemented:** the version-one source, estimator,
+freshness, parity and release gates are defined in
 [`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md).
-Implementation must now build and admit a post-development profile without
-changing those rules or consuming strategy P&L.
+The remaining R1 action is to invoke the manual refresh and determine whether
+the first post-development release passes without changing those rules or
+consuming strategy P&L.
 
 ### Phase R2 — standardized prospective validation
 

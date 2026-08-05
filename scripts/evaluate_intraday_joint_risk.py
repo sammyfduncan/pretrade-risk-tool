@@ -23,7 +23,7 @@ from commodity_ml.intraday.volatility import (
     fit_linear_volatility_model,
 )
 
-DESIGN = "docs/intraday_joint_risk_design.md"
+DESIGN = "docs/archive/intraday_joint_risk_design.md"
 HARNESS = (
     "scripts/evaluate_intraday_joint_risk.py",
     "src/commodity_ml/intraday/volatility.py",

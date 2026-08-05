@@ -26,14 +26,14 @@ re-fetch months later returns a slightly different sample than a live system
 would have seen. The snapshot parquet IS the evaluation sample —
 build_dataset.py and predict.py only ever read it, a sidecar .meta.json records
 its provenance, and overwriting one requires --force plus a row in
-docs/step2_design.md §11.
+docs/archive/step2_design.md §11.
 
 --preview is the query-validation step and writes NOTHING: it prints sample
 headlines over fixed windows — including that metal's known homonym traps, e.g.
 Olympic months for gold and silver — so the phrases can be eyeballed and
 iterated (--phrase overrides the yaml while iterating) before any data is
 committed to. Validated phrases are then recorded in the yaml and in
-docs/step2_design.md §4. Each asset needs its own phrases and its own trap
+docs/archive/step2_design.md §4. Each asset needs its own phrases and its own trap
 list; see preview_plan().
 """
 
@@ -116,7 +116,7 @@ def write_snapshot(path: Path, frame: pd.DataFrame, meta: dict, force: bool) -> 
         raise SystemExit(
             f"{path} already exists. A snapshot is a pinned sample — for GDELT a "
             "re-fetch is a DIFFERENT sample (the index is not point-in-time). If you "
-            "mean it, pass --force and record the re-fetch in docs/step2_design.md §11."
+            "mean it, pass --force and record the re-fetch in docs/archive/step2_design.md §11."
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     frame.to_parquet(path)
@@ -180,7 +180,7 @@ def preview_gdelt(phrases: list[str], asset: str, project: str) -> None:
     print(f"Contamination grep across all samples: {contaminated}/{total} titles ({rate:.1%})")
     print("(The grep is crude — the decision is made by reading titles, not by this number.)")
     print("\nWhen the phrases read clean: record them in the yaml (gdelt.title_phrases)")
-    print("and in docs/step2_design.md §4, then fetch the snapshot (no --preview).")
+    print("and in docs/archive/step2_design.md §4, then fetch the snapshot (no --preview).")
 
 
 def fetch_gdelt_snapshots(start: str, end: str | None, project: str, force: bool) -> None:
@@ -241,7 +241,7 @@ def fetch_gdelt_snapshots(start: str, end: str | None, project: str, force: bool
             },
             force,
         )
-    print("\nRecord this fetch in docs/step2_design.md §11.")
+    print("\nRecord this fetch in docs/archive/step2_design.md §11.")
 
 
 def main() -> None:

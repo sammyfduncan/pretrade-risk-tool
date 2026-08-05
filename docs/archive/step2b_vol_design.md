@@ -4,10 +4,10 @@
 > scheduled-event calendar qualified at the five-day horizon; COT and
 > GDELT-attention did not. The qualifying families are candidates only and must
 > pass a new intraday ablation/placebo gate before the active H1/M30 system uses
-> them. See `docs/intraday_rebuild_plan.md`.
+> them. See `docs/archive/intraday_rebuild_plan.md`.
 
 **Original pre-outcome status:** DESIGN — nothing fetched, nothing evaluated.
-This was the successor to `docs/step2_design.md`, whose direction program
+This was the successor to `docs/archive/step2_design.md`, whose direction program
 closed negative on 4 of 4 combinations (§9 there). The document was committed
 before any Tier number was read; the dirty-tree guard convention applied to it.
 

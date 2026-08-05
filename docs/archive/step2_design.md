@@ -4,13 +4,13 @@
 > design.** COT and GDELT failed the directional retention gate and remain
 > disabled. The active intraday system uses structured event timing for risk,
 > sizing, and restrictions; it does not replace this result with a keyword or
-> paid-LLM sentiment retry. See `docs/intraday_rebuild_plan.md`.
+> paid-LLM sentiment retry. See `docs/archive/intraday_rebuild_plan.md`.
 
 **Written 2026-07-28, before any COT or GDELT number has been computed on real
 data.** No snapshot has been fetched; no IC, AUC or backtest involving these
 sources has been read.
 
-This document is to step 2 what `docs/step1_freeze_record.md` is to step 1: the
+This document is to step 2 what `docs/archive/step1_freeze_record.md` is to step 1: the
 thing that makes results interpretable. Step 1's central lesson was that a
 number is only evidence relative to what was specified *before* it was read —
 the hypotheses, the exact features, the decision rules, and the count of looks.
@@ -887,7 +887,7 @@ ledger counts.
 ## 9. Outcomes
 
 *Successor program: the volatility question these results license is
-pre-registered separately in `docs/step2b_vol_design.md` (2026-07-30). This
+pre-registered separately in `docs/archive/step2b_vol_design.md` (2026-07-30). This
 document stays closed.*
 
 **Verdict, 2026-07-30: neither family is retained. 4 of 4 combinations fail the

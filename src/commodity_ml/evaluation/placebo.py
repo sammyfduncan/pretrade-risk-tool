@@ -10,7 +10,7 @@ p-value was 1,800x too small for exactly this reason.
 So the null is generated empirically: keep the pipeline, break the alignment.
 
 Used by `scripts/placebo_altdata.py` for the step-2 retention gate
-(docs/step2_design.md §6, condition 3).
+(docs/archive/step2_design.md §6, condition 3).
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import pandas as pd
 # to within three observations of no shift at all, which would smuggle the real
 # alignment back in as a "placebo".
 #
-# "gvz" and "calendar" are the step-2b sources (docs/step2b_vol_design.md §4):
+# "gvz" and "calendar" are the step-2b sources (docs/archive/step2b_vol_design.md §4):
 # GVZ is a daily FRED series; calendar is the daily scheduled-event flag frame.
 MIN_SHIFT_PERIODS = {"cot": 52, "gdelt": 365, "gvz": 365, "calendar": 365}
 

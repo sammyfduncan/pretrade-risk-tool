@@ -64,7 +64,7 @@ def main() -> None:
     report = {
         "schema_version": 1,
         "program": "p4_macro_driver_request_plan",
-        "frozen_design": "docs/intraday_macro_impulse_design.md",
+        "frozen_design": "docs/archive/intraday_macro_impulse_design.md",
         "dataset": DATASET,
         "development_start": START.isoformat(),
         "development_end_exclusive": END_EXCLUSIVE.isoformat(),

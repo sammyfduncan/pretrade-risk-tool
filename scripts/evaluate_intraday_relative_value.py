@@ -96,7 +96,7 @@ def main() -> None:
     )
     executed = observed.loc[observed["status"] == "executed"].copy()
     report = result.report_dict() | {
-        "frozen_design": "docs/intraday_relative_value_design.md",
+        "frozen_design": "docs/archive/intraday_relative_value_design.md",
         "causal_candidates": len(candidates),
         "executed_trades": len(executed),
         "reason_coded_rejections": int((observed["status"] == "rejected").sum()),

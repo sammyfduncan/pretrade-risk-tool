@@ -1,6 +1,6 @@
 """One executable trade contract for intraday labels and backtests.
 
-Version-1 semantics are pre-registered in ``docs/intraday_rebuild_plan.md`` §2:
+Version-1 semantics are pre-registered in ``docs/archive/intraday_rebuild_plan.md`` §2:
 
 * candle timestamps are bar-open times;
 * a signal is known only when its bar closes;

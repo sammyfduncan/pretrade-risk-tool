@@ -34,7 +34,7 @@ from commodity_ml.features.cot import load_cot_snapshot
 from commodity_ml.features.gdelt import load_gdelt_snapshot
 
 N_SPLITS = 5
-DESIGN_DOC = "docs/step2b_vol_design.md"
+DESIGN_DOC = "docs/archive/step2b_vol_design.md"
 
 
 def refuse_dirty_preregistration(allow: bool) -> None:

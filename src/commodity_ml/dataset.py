@@ -14,7 +14,7 @@ the old column stops being recognised as metadata and is handed to the model as
 a feature. That is direct lookahead, and it does not crash — it presents as AUC
 jumping to ~0.95 and everything looking like a breakthrough. Given this project
 has already been fooled several times by metrics improving for non-signal
-reasons (`docs/step1_freeze_record.md`), failing loudly here is worth the lines.
+reasons (`docs/archive/step1_freeze_record.md`), failing loudly here is worth the lines.
 """
 
 from __future__ import annotations

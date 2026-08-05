@@ -13,7 +13,7 @@ filter (config: gdelt.title_phrases) we aggregate three daily series:
   n_articles  distinct story count; kept as a mask, because a zero-story day
               has NO tone and tone 0.0 is otherwise a valid value
 
-The pre-registered hypothesis (docs/step2_design.md §1): falling tone (fear)
+The pre-registered hypothesis (docs/archive/step2_design.md §1): falling tone (fear)
 and rising attention lead gold strength at 5-20 days — and attention should
 predict forward *volatility* regardless of direction, which would be useful for
 step 4's sizing even if direction fails.
@@ -86,7 +86,7 @@ BQ_TABLE = "gdelt-bq.gdeltv2.gkg_partitioned"
 # matching is title-anchored, earlier partitions cannot match anything, and
 # scanning them costs ~100 GB of the monthly tier to return no rows.
 #
-# Consequence, recorded in docs/step2_design.md §4.3 and §7: the 252-day
+# Consequence, recorded in docs/archive/step2_design.md §4.3 and §7: the 252-day
 # z-window does NOT warm up before the first dataset row (2019-03-27), so
 # GDELT features begin 2020-02-02 and the first ~1,775 dev bars carry NaNs.
 SNAPSHOT_START = "2019-09-22"
@@ -305,7 +305,7 @@ def _mask_zero_article_days(frame: pd.DataFrame) -> pd.DataFrame:
 
 def derive_daily(gdelt: pd.DataFrame) -> pd.DataFrame:
     """The three pre-registered features on the daily index — the one place
-    the formulas live (docs/step2_design.md §3). Short gaps are bridged with a
+    the formulas live (docs/archive/step2_design.md §3). Short gaps are bridged with a
     limited ffill; anything longer stays NaN and the alignment tolerance turns
     it into missing features rather than fossils."""
     daily = gdelt.reindex(pd.date_range(gdelt.index.min(), gdelt.index.max(), freq="D"))
@@ -387,5 +387,5 @@ def _check_gdelt_sidecar(meta: dict, cfg) -> None:
             f"GDELT snapshot was fetched with title phrases {have!r} but the config "
             f"says {want!r}. The snapshot IS the sample — either restore the yaml or "
             "refetch with scripts/fetch_altdata.py --force and record it in "
-            "docs/step2_design.md §11."
+            "docs/archive/step2_design.md §11."
         )

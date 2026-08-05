@@ -67,7 +67,7 @@ class FeatureConfig:
     technical: bool = True
     macro: bool = True
     crossasset: bool = True
-    # Step-2 alt-data families (docs/step2_design.md). Default FALSE on purpose:
+    # Step-2 alt-data families (docs/archive/step2_design.md). Default FALSE on purpose:
     # the step-1 template frozen at 69f0527 must stay reproducible without them,
     # and turning one on is a pre-registered decision, not a code side effect.
     cot: bool = False    # CFTC COT positioning (features/cot.py)
@@ -116,7 +116,7 @@ class GDELTConfig:
     BigQuery there is no article full text to search, so the filter is a list
     of headline phrases rather than a DOC 2.0 query string — tighter, because
     it selects articles ABOUT the metal rather than ones mentioning it in
-    passing. See features/gdelt.py and docs/step2_design.md §4.1.
+    passing. See features/gdelt.py and docs/archive/step2_design.md §4.1.
 
     This is the one genuinely per-asset judgment call in the alt-data layer
     (README: a blended 'commodities sentiment' is rejected as too diffuse). It
@@ -224,7 +224,7 @@ class AssetConfig:
                 "features.gdelt is enabled but gdelt.title_phrases is empty. The "
                 "phrases must be validated first — run scripts/fetch_altdata.py "
                 "--preview, eyeball the headlines, and record the final list in the "
-                "yaml and in docs/step2_design.md §4."
+                "yaml and in docs/archive/step2_design.md §4."
             )
 
     # ---- development / holdout split ----

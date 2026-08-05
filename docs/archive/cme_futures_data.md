@@ -49,7 +49,7 @@ books are retained with `book_valid=false` for audit and excluded from feature
 aggregation rather than repaired.
 
 Start with the validation range specified in
-`docs/intraday_order_flow_design.md`. The continuous-history quote was rejected
+`docs/archive/intraday_order_flow_design.md`. The continuous-history quote was rejected
 after validation. Development TBBO must instead follow the checksummed sparse
 plan produced by `scripts/plan_cme_gc_tbbo_windows.py`: exact 30-minute causal
 windows and the causally selected raw contract only. Strategy evaluation was
@@ -66,7 +66,7 @@ outside feature design and development evaluation.
 
 P4 uses the same temporal-identity safeguards for `ZN.FUT` and `6E.FUT`, but
 needs only `ohlcv-1m` and `definition`. Its complete development request is
-frozen before acquisition in `docs/intraday_macro_impulse_design.md`.
+frozen before acquisition in `docs/archive/intraday_macro_impulse_design.md`.
 
 Quote it without purchasing data:
 

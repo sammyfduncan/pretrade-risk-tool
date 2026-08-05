@@ -52,7 +52,7 @@ def main() -> None:
     report = {
         "schema_version": 1,
         "program": "rv1_causal_state",
-        "frozen_design": "docs/intraday_relative_value_design.md",
+        "frozen_design": "docs/archive/intraday_relative_value_design.md",
         "quotes": str(quotes_path),
         "quotes_sha256": _sha256(quotes_path),
         "quotes_manifest": str(quotes_manifest_path),

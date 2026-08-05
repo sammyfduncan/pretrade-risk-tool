@@ -122,7 +122,7 @@ def test_decision_uses_the_raw_score_not_the_calibrated_probability(artifact):
     """The stored threshold is a quantile of the raw OOF distribution. Isotonic
     calibration is a step function that collapses distinct scores, so comparing
     a calibrated value against a raw threshold would change which bars trade for
-    reasons unrelated to signal (`docs/step1_freeze_record.md`)."""
+    reasons unrelated to signal (`docs/archive/step1_freeze_record.md`)."""
     reloaded, X = artifact
     row = feature_row(X)
     d = decide(reloaded, row, primary_long=True)

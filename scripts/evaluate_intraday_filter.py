@@ -5,7 +5,7 @@ Only the two registered leads are accepted:
 * P1 + logistic
 * P2 + LightGBM
 
-The procedure is fixed in ``docs/intraday_filter_gate.md``. It cannot select a
+The procedure is fixed in ``docs/archive/intraday_filter_gate.md``. It cannot select a
 threshold from outer-test outcomes and never reads the confirmation period.
 """
 

@@ -48,7 +48,7 @@ def decide(artifact: dict, features: pd.Series, primary_long: bool) -> Decision:
     raw model output and is what the threshold was derived from, so it decides.
     `calibrated_proba` is what the score *means* and is for reporting and
     position sizing. Ranking on the calibrated value would change which bars
-    trade, for reasons unrelated to signal (`docs/step1_freeze_record.md`).
+    trade, for reasons unrelated to signal (`docs/archive/step1_freeze_record.md`).
     """
     model = artifact["model"]
     row = features.to_frame().T
