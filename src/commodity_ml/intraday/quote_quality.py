@@ -35,6 +35,8 @@ class QuoteCollectionQuality:
     clean_disconnect_events: int
     path_invalidating_events: int
     unexpected_invalidating_events: int
+    recovered_invalidating_events: int
+    unresolved_invalidating_events: int
     instruments: tuple[InstrumentQuoteQuality, ...]
 
     def to_dict(self) -> dict:
@@ -65,6 +67,18 @@ def summarize_quote_collection(
         lambda value: any(value.startswith(prefix) for prefix in INVALIDATING_EVENTS)
     )
     clean_disconnect = normalized_events.str.startswith("DISCONNECTED_CLEAN")
+    unexpected = invalidating & ~clean_disconnect
+    connected_positions = [
+        position
+        for position, value in enumerate(normalized_events)
+        if value.startswith("CONNECTED")
+    ]
+    last_connected_position = connected_positions[-1] if connected_positions else -1
+    unexpected_positions = [
+        position for position, value in enumerate(unexpected) if bool(value)
+    ]
+    recovered = sum(position < last_connected_position for position in unexpected_positions)
+    unresolved = len(unexpected_positions) - recovered
     instruments: list[InstrumentQuoteQuality] = []
     for instrument, group in quotes.groupby("instrument", sort=True):
         frame = group.copy()
@@ -104,6 +118,8 @@ def summarize_quote_collection(
         connected_events=int(normalized_events.str.startswith("CONNECTED").sum()),
         clean_disconnect_events=int(clean_disconnect.sum()),
         path_invalidating_events=int(invalidating.sum()),
-        unexpected_invalidating_events=int((invalidating & ~clean_disconnect).sum()),
+        unexpected_invalidating_events=int(unexpected.sum()),
+        recovered_invalidating_events=int(recovered),
+        unresolved_invalidating_events=int(unresolved),
         instruments=tuple(instruments),
     )

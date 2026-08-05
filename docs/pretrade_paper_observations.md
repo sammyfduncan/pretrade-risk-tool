@@ -1,8 +1,8 @@
 # Prospective paper-risk observation ledger
 
-**Status:** storage, validation and descriptive summary implemented; the first
-live shadow cycle has recorded six no-signal checks, while no trade assessment
-or outcome exists yet
+**Status:** storage, validation and descriptive summary implemented;
+operational no-signal checks exist, while standardized assessments and paired
+future-path outcomes have not yet been collected
 **Purpose:** compare pre-trade risk assessments with later measured execution
 and path outcomes without changing history
 

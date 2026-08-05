@@ -77,7 +77,7 @@ def test_integrity_fault_requires_review_and_block_reason_is_counted():
     assert report["readiness"] == "REVIEW"
     assert report["shadow"]["decision_counts"] == {"BLOCK": 1}
     assert report["shadow"]["reason_counts"] == {"median_cost_above_0.10R": 1}
-    assert "unexpected_stream_invalidating_events" in report["integrity_issues"]
+    assert "unresolved_stream_invalidating_events" in report["integrity_issues"]
 
 
 def test_default_policy_keeps_first_cycle_in_collecting_state():

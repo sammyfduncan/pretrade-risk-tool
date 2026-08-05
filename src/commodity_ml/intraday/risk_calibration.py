@@ -65,6 +65,9 @@ class CalibratedRiskLookup:
     reference_spread_points: dict[str, float]
     broker_spread_eligible: bool = False
     volatility_sizing_approved: bool = False
+    admitted_for_current_use: bool = False
+    policy_version: str | None = None
+    release_id: str | None = None
 
 
 def build_calibration_outcomes(

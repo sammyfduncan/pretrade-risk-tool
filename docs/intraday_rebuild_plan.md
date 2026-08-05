@@ -1,4 +1,11 @@
-# Intraday commodity-system rebuild plan
+# Historical intraday trading research and implementation ledger
+
+> **Current status:** this document preserves the chronological strategy, ML,
+> execution and broker-rebuild record. It is no longer the active product
+> roadmap. The current objective and completion criteria are defined in
+> [`risk_framework_roadmap.md`](risk_framework_roadmap.md). Historical
+> strategy-profitability and paper-execution gates below do not block the
+> standalone quantitative pre-trade risk framework.
 
 **Status:** VERSION-ONE DIRECTIONAL DISCOVERY CLOSED — QUANTITATIVE PRE-TRADE
 RISK ENGINE ACTIVE
@@ -1277,3 +1284,8 @@ a valid research result.
   signals, one observed London date, 46 streamed quotes and zero integrity
   issues. The 15 collection issues are all explicit sample/coverage shortfalls,
   not system failures.
+- The first longer collection session encountered three OANDA HTTP 520 stream
+  responses before connecting successfully. All failures and retries remain in
+  the event ledger. Reporting distinguishes recovered failures before the
+  latest successful `CONNECTED` event from unresolved failures after it; the
+  interrupted paths themselves remain unusable and are never filled.

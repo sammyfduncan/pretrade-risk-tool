@@ -321,13 +321,13 @@ def test_short_trade_uses_symmetric_geometry_and_signed_exposure():
     assert report.portfolio["proposed_signed_one_pct_move"] == pytest.approx(-240.0)
 
 
-def test_trusted_historical_calibration_adds_quantile_scenarios():
+def test_admitted_current_calibration_adds_quantile_scenarios():
     calibration = CalibratedRiskLookup(
         instrument="XAUUSD",
         side="long",
         horizon_minutes=180,
         london_slot_minute=11 * 60,
-        profile_as_of=pd.Timestamp("2026-07-01T10:00:00Z"),
+        profile_as_of=pd.Timestamp("2026-07-30T10:00:00Z"),
         sample_count=252,
         range_points={"p50": 8.0, "p80": 12.0, "p95": 18.0, "p99": 25.0},
         adverse_points={"p50": 4.0, "p80": 7.0, "p95": 11.0, "p99": 16.0},
@@ -337,6 +337,9 @@ def test_trusted_historical_calibration_adds_quantile_scenarios():
             "p95": 0.4,
             "p99": 0.6,
         },
+        admitted_for_current_use=True,
+        policy_version="current_range_v1",
+        release_id="release-2026-08-01",
     )
 
     report = evaluate_pretrade_payload(
@@ -348,3 +351,23 @@ def test_trusted_historical_calibration_adds_quantile_scenarios():
     assert "historical_total_range_p95" in names
     assert "historical_side_adverse_p95" in names
     assert report.market_risk["historical_calibration"]["sample_count"] == 252
+    assert report.market_risk["historical_calibration"]["admitted_for_current_use"] is True
+
+
+def test_unadmitted_calibration_fails_closed_without_scenarios():
+    calibration = CalibratedRiskLookup(
+        instrument="XAUUSD",
+        side="long",
+        horizon_minutes=180,
+        london_slot_minute=11 * 60,
+        profile_as_of=pd.Timestamp("2026-08-01T10:00:00Z"),
+        sample_count=252,
+        range_points={"p50": 8.0, "p80": 12.0, "p95": 18.0, "p99": 25.0},
+        adverse_points={"p50": 4.0, "p80": 7.0, "p95": 11.0, "p99": 16.0},
+        reference_spread_points={"p50": 0.2, "p80": 0.3, "p95": 0.4, "p99": 0.6},
+    )
+
+    report = evaluate_pretrade_payload(valid_payload(), historical_calibration=calibration)
+
+    assert "historical_calibration_context_mismatch" in report.reasons
+    assert not any(row["name"].startswith("historical_") for row in report.scenarios)

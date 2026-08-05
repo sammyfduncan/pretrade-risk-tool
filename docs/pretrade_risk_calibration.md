@@ -168,3 +168,8 @@ more than 90 days old, so this artifact is a validated historical baseline but
 is intentionally stale for a 2026 live decision. Refreshing the range profile
 requires a separately admitted post-development source. OANDA spread measurement
 remains mandatory and cannot be replaced by the Dukascopy reference spreads.
+
+That admission policy was frozen on 2026-08-05 in
+[`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md).
+It supersedes the historical 90-day lookup tolerance for current assessments
+with a ten-day profile limit plus source and feed-parity release gates.

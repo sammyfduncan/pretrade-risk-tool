@@ -1,9 +1,9 @@
 # OANDA executable-quote stream recorder
 
 **Status:** implemented and smoke-validated against the practice account on
-2026-08-04. The smoke run proves connectivity and storage only; a multi-week
-prospective sample is still required before its data may calibrate paper
-execution costs.
+2026-08-04. The smoke run proves connectivity and storage only. Longer samples
+are useful for optional operational and time-of-day cost diagnostics; raw quote
+counts are not a completion gate for the standalone risk evaluator.
 
 `scripts/record_oanda_quotes.py` connects to OANDA's v20 pricing stream and
 stores every complete top-of-book update in append-only SQLite. It also records
@@ -41,6 +41,11 @@ python3 scripts/summarize_oanda_quotes.py \
 This summary is descriptive. It reports duplicates, crossed quotes, receipt
 latency and invalidating stream events, but it cannot pass the cost/admission
 gate by itself. Do not delete or forward-fill outages.
+
+Connection failures remain counted permanently. If a later `CONNECTED` event
+establishes a fresh stream, earlier failures are classified as recovered while
+any failure after the latest successful connection remains unresolved. This
+classification never repairs or makes the interrupted historical path valid.
 
 Export an uninterrupted path for one completed paper trade:
 

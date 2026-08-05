@@ -1,5 +1,9 @@
 # Conservative volatility-risk policy
 
+> **Historical experiment:** this strategy-sizing overlay is not the active
+> standalone pre-trade risk policy. See
+> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+
 **Design locked:** 2026-07-31 before generating any intraday-risk forecast  
 **Depends on:** `docs/intraday_risk_design.md`  
 **Status:** joint forecast gate passed; B0 plus GVZ plus calendar is the

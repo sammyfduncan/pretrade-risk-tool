@@ -1,7 +1,7 @@
 # Restart-safe paper risk runtime
 
-**Status:** state bridge and local controls implemented; first OANDA practice
-initialization pending
+**Status:** state bridge and local controls implemented; authenticated flat
+practice-account initialization completed on 2026-08-04
 
 ## Purpose
 
@@ -68,10 +68,10 @@ engine. These commands change only the local state; they do not contact OANDA,
 submit an order or close a position. Therefore `kill-on` prevents new project
 intents but is not itself an emergency broker flatten command.
 
-## Remaining lifecycle integration
+## Optional lifecycle integration
 
 Entry count and expected position IDs already update atomically when a future
 submit-once adapter marks an intent confirmed, and positions are removed only
-after authoritative broker closure. That order adapter remains disabled. Until
-it exists, the state bridge is operationally ready but cannot be treated as a
-complete automated trade lifecycle.
+after authoritative broker closure. That order adapter remains disabled. It is
+not required by the standalone pre-trade risk evaluator; it would be required
+only for a separately authorized automated paper-trade lifecycle.

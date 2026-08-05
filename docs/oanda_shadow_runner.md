@@ -4,6 +4,10 @@
 2026-08-04. The first cycle evaluated six asset/strategy checks and correctly
 recorded six `NO_SIGNAL` observations. It created no broker order.
 
+**Product role:** optional strategy-integration and operational diagnostics.
+This runner is not the direction-balanced prospective validation design and is
+not required to complete the standalone pre-trade risk evaluator.
+
 The shadow runner connects the frozen P1/P2/P3 mathematical rules to the
 read-only OANDA risk adapter. It exists to collect prospective operational
 evidence before any order adapter is considered.

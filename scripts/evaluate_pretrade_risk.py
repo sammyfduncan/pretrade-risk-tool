@@ -6,10 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
-import pandas as pd
-
 from commodity_ml.intraday.pretrade_risk import evaluate_pretrade_payload
-from commodity_ml.intraday.risk_calibration import lookup_calibrated_risk
+from commodity_ml.intraday.calibration_release import load_admitted_calibrated_risk
 
 
 def main() -> None:
@@ -20,21 +18,31 @@ def main() -> None:
         "--calibration-profile",
         type=Path,
         help=(
-            "Optional development profile. Refused when its exact "
-            "instrument/horizon/clock row is missing or more than 90 days old."
+            "Optional current profile. Requires --calibration-release and is "
+            "refused unless every frozen admission gate passed."
         ),
+    )
+    parser.add_argument(
+        "--calibration-release",
+        type=Path,
+        help="Admission JSON matching --calibration-profile exactly",
     )
     args = parser.parse_args()
 
     try:
         payload = json.loads(args.input.read_text(encoding="utf-8"))
+        if bool(args.calibration_profile) != bool(args.calibration_release):
+            raise ValueError(
+                "--calibration-profile and --calibration-release must be supplied together"
+            )
         calibration = None
         if args.calibration_profile:
             trade = payload.get("trade_intent") or {}
-            calibration = lookup_calibrated_risk(
-                pd.read_parquet(args.calibration_profile),
+            calibration = load_admitted_calibrated_risk(
+                args.calibration_profile,
+                args.calibration_release,
                 instrument=trade.get("instrument"),
-                decision_time=pd.Timestamp(trade.get("decision_time")),
+                decision_time=trade.get("decision_time"),
                 horizon_minutes=trade.get("holding_period_minutes"),
                 entry_price=trade.get("entry_price"),
                 side=trade.get("side"),

@@ -1,5 +1,9 @@
 # Joint intraday volatility forecast experiment
 
+> **Historical experiment:** this tests a strategy-overlay forecast and is not
+> the active standalone pre-trade risk framework. See
+> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+
 **Frozen:** 2026-07-31 after the separate-family gate and before generating a
 joint-model outcome  
 **Development:** gold M30 decisions from `2021-01-01` through `2025-06-30`  

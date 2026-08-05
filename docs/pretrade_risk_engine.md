@@ -1,6 +1,7 @@
 # Quantitative pre-trade risk engine — schema 2 / policy version 1
 
-**Status:** offline foundation plus development-only historical calibration
+**Status:** functional offline and authenticated read-only OANDA assessment;
+current calibration admission and standardized prospective validation remain
 **Decision date:** 2026-08-03; OANDA schema migration 2026-08-04
 **Assets:** spot gold (`XAUUSD`) and spot silver (`XAGUSD`) spread bets
 **Scope:** technical and mathematical risk assessment, not directional or
@@ -185,11 +186,14 @@ version and a JSON-serializable calculation record.
 5. **Implemented offline:** gold/silver existing-position aggregation and a
    dependency-free static HTML report. Cross-metal broker mapping requires
    both account-specific configs; ambiguous margin allocation fails closed.
-6. **Implemented foundation, awaiting prospective observations:** immutable
+6. **Implemented foundation, awaiting standardized prospective observations:** immutable
    pre-outcome assessment logging followed by separately validated realised
    excursion, slippage, spread, margin and P&L observations. No outcome is
    predicted or backfilled. Executable bid/ask path validation and outcome
-   construction plus an outage-aware OANDA stream recorder are implemented;
-   the first bounded practice-account recording remains pending.
-7. Only after operational validation, connect `ALLOW` decisions to the existing
-   dry-run paper-intent path. Order submission remains a separate authority.
+   construction plus an outage-aware OANDA stream recorder are implemented and
+   practice-account smoke validated. No direction-balanced validation sample
+   with paired future paths has yet been collected.
+7. Define the current calibration-refresh policy, collect the preregistered
+   prospective coverage sample, and provide a simpler user-facing assessment
+   workflow. Strategy integration and order submission are optional extensions
+   under separate authority.

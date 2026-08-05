@@ -1,7 +1,7 @@
 # Executable quote-path measurement
 
 **Status:** offline measurement and outcome construction implemented; OANDA
-stream recorder implemented but first bounded practice validation pending
+stream recording smoke validated, with no completed standardized trade outcome
 **Purpose:** measure realised paper-trade path risk without midpoint or candle
 substitution
 
@@ -70,6 +70,7 @@ or product semantics may differ. It is not silently forced to zero.
 
 The sampled-pricing recorder and outage-aware path exporter are implemented in
 `scripts/record_oanda_quotes.py` and `scripts/export_oanda_quote_path.py`; see
-`docs/oanda_stream_recorder.md`. The REST response shapes are verified; only
-after a bounded stream run confirms continuity should an exported path feed
-this measurement layer.
+`docs/oanda_stream_recorder.md`. Authenticated practice runs have verified
+streaming, storage and reconnect recording. Every exported trade interval must
+still pass its own continuity checks. The full assessment-to-future-path
+workflow has not yet been exercised on the standardized validation design.

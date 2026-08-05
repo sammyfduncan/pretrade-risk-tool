@@ -123,8 +123,8 @@ def build_operational_readiness_report(
             integrity_issues.append(f"{symbol}:crossed_quotes")
         if quality.duplicate_broker_times:
             integrity_issues.append(f"{symbol}:duplicate_broker_times")
-    if quote_quality.unexpected_invalidating_events:
-        integrity_issues.append("unexpected_stream_invalidating_events")
+    if quote_quality.unresolved_invalidating_events:
+        integrity_issues.append("unresolved_stream_invalidating_events")
     if (frame["status"] == "ERROR").any():
         integrity_issues.append("shadow_error_checks_present")
 

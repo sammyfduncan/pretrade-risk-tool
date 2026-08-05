@@ -620,6 +620,9 @@ def evaluate_pretrade_risk(
                     "adverse_points": historical_calibration.adverse_points,
                     "broker_spread_eligible": historical_calibration.broker_spread_eligible,
                     "volatility_sizing_approved": historical_calibration.volatility_sizing_approved,
+                    "admitted_for_current_use": historical_calibration.admitted_for_current_use,
+                    "policy_version": historical_calibration.policy_version,
+                    "release_id": historical_calibration.release_id,
                 }
                 if historical_calibration is not None
                 else None
@@ -1068,7 +1071,10 @@ def _calibration_matches(
         and calibration.horizon_minutes == intent.holding_period_minutes
         and calibration.london_slot_minute == slot
         and calibration.profile_as_of < decision_time
-        and decision_time - calibration.profile_as_of <= pd.Timedelta(days=90)
+        and calibration.admitted_for_current_use is True
+        and calibration.policy_version == "current_range_v1"
+        and bool(calibration.release_id)
+        and decision_time - calibration.profile_as_of <= pd.Timedelta(days=10)
         and calibration.sample_count >= 126
         and calibration.broker_spread_eligible is False
         and all(

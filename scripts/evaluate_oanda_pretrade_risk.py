@@ -17,6 +17,7 @@ from commodity_ml.config import load_config
 from commodity_ml.data import oanda
 from commodity_ml.features import event_dates
 from commodity_ml.intraday.event_blackouts import scheduled_blackout_state
+from commodity_ml.intraday.calibration_release import load_admitted_calibrated_risk
 from commodity_ml.intraday.oanda_risk_snapshot import build_oanda_read_only_snapshot
 from commodity_ml.intraday.pretrade_risk import evaluate_pretrade_payload
 from commodity_ml.intraday.risk_runtime import roll_and_reconcile_paper_runtime
@@ -38,6 +39,16 @@ def main() -> None:
     parser.add_argument("--week-start-equity", type=float)
     parser.add_argument("--entries-today", type=int)
     parser.add_argument("--paper-state", type=Path)
+    parser.add_argument(
+        "--calibration-profile",
+        type=Path,
+        help="Optional current range-risk profile; requires its admitted release JSON",
+    )
+    parser.add_argument(
+        "--calibration-release",
+        type=Path,
+        help="Admission JSON matching --calibration-profile exactly",
+    )
     parser.add_argument(
         "--event-state",
         choices=("auto", "unknown", "clear", "blackout"),
@@ -61,6 +72,10 @@ def main() -> None:
             raise ValueError("portfolio configs contain duplicate OANDA instruments")
 
         source = json.loads(args.input.read_text(encoding="utf-8"))
+        if bool(args.calibration_profile) != bool(args.calibration_release):
+            raise ValueError(
+                "--calibration-profile and --calibration-release must be supplied together"
+            )
         trade_intent = source.get("trade_intent")
         if not isinstance(trade_intent, dict):
             raise ValueError("input must contain a trade_intent object")
@@ -160,7 +175,21 @@ def main() -> None:
         )
         if isinstance(source.get("policy"), dict):
             snapshot.payload["policy"] = source["policy"]
-        report = evaluate_pretrade_payload(snapshot.payload)
+        calibration = None
+        if args.calibration_profile:
+            calibration = load_admitted_calibrated_risk(
+                args.calibration_profile,
+                args.calibration_release,
+                instrument=trade_intent.get("instrument"),
+                decision_time=trade_intent.get("decision_time"),
+                horizon_minutes=trade_intent.get("holding_period_minutes"),
+                entry_price=trade_intent.get("entry_price"),
+                side=trade_intent.get("side"),
+            )
+        report = evaluate_pretrade_payload(
+            snapshot.payload,
+            historical_calibration=calibration,
+        )
         result = {
             "schema_version": 2,
             "mode": "OANDA_V20_READ_ONLY",

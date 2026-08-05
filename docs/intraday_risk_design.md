@@ -1,5 +1,9 @@
 # Intraday volatility and event-risk experiment
 
+> **Historical experiment:** this tests a strategy-overlay forecast and is not
+> the active standalone pre-trade risk framework. See
+> [`risk_framework_roadmap.md`](risk_framework_roadmap.md).
+
 **Design locked:** 2026-07-31, before generating any intraday-risk forecast or
 reading any intraday-risk outcome  
 **Scope:** gold development data from `2021-01-01` through `2025-06-30`  

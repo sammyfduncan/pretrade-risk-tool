@@ -21,7 +21,6 @@ from diagnose_altdata import (  # noqa: E402
     spearman_ic_newey_west,
 )
 
-
 @pytest.fixture
 def daily_close() -> pd.Series:
     idx = pd.date_range("2019-01-01", periods=400, freq="D", tz="UTC")

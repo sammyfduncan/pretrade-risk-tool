@@ -52,7 +52,8 @@ def main() -> None:
     print(
         f"OANDA quote collection: {report.total_quotes:,} quotes, "
         f"{report.total_events:,} events, "
-        f"{report.unexpected_invalidating_events} unexpected invalidating events"
+        f"{report.unresolved_invalidating_events} unresolved / "
+        f"{report.recovered_invalidating_events} recovered invalidating events"
     )
     for item in report.instruments:
         print(
