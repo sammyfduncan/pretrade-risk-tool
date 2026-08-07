@@ -62,6 +62,23 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
       : null;
   const grossExposure = finite(portfolio.proposed_total_gross_exposure);
   const margin = finite(portfolio.proposed_total_margin);
+  const grossExposureFraction =
+    grossExposure !== null && accountEquity ? grossExposure / accountEquity : null;
+  const marginFraction = margin !== null && accountEquity ? margin / accountEquity : null;
+  const sizePressure = ratio(finite(sizing.assessed_size), finite(sizing.recommended_max_size));
+  const pressureComponents = [
+    ["Risk allowance", budgetUsage],
+    ["Size cap", sizePressure],
+    ["Current cost", ratio(finite(costs.current_cost_r), 0.25)],
+    ["Typical cost", ratio(finite(costs.median_cost_r), 0.10)],
+    ["Stressed cost", ratio(finite(costs.p95_cost_r), 0.25)],
+    ["Exposure", grossExposureFraction],
+    ["Margin", marginFraction === null ? null : marginFraction / 0.30],
+  ].filter((item) => item[1] !== null);
+  const dominantPressure = pressureComponents.length
+    ? pressureComponents.reduce((highest, item) => (item[1] > highest[1] ? item : highest))
+    : null;
+  const riskScore = scorePressure(decision, dominantPressure?.[1] ?? null);
 
   return {
     decision,
@@ -69,6 +86,10 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
     decisionMeaning: decisionMeaning(decision),
     evidenceLevel:
       limitations.length >= 2 ? "LIMITED" : limitations.length === 1 ? "PARTIAL" : "COMPLETE",
+    evidenceScore: decision === "INCOMPLETE" ? 0 : Math.max(1, 3 - limitations.length),
+    riskScore,
+    riskDriver: dominantPressure?.[0] || "Unavailable",
+    pressureRatio: dominantPressure?.[1] ?? null,
     currency: report.cash_risk?.account_currency || "",
     assessedSize: finite(sizing.assessed_size),
     requestedSize: finite(sizing.requested_size),
@@ -81,10 +102,9 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
     currentCostR: finite(costs.current_cost_r),
     medianCostR: finite(costs.median_cost_r),
     grossExposure,
-    grossExposureFraction:
-      grossExposure !== null && accountEquity ? grossExposure / accountEquity : null,
+    grossExposureFraction,
     margin,
-    marginFraction: margin !== null && accountEquity ? margin / accountEquity : null,
+    marginFraction,
     openPositions: finite(portfolio.existing_position_count),
     limitations,
     translatedReasons: reasons.map(translateNotice),
@@ -92,6 +112,17 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
     translatedAdapterIssues: (Array.isArray(adapterIssues) ? adapterIssues : []).map(translateNotice),
     calibratedMovementIncluded: Boolean(market.historical_calibration),
   };
+}
+
+function scorePressure(decision, pressure) {
+  if (decision === "INCOMPLETE" || pressure === null) return null;
+  if (decision === "BLOCK" || pressure > 1) return 7;
+  if (pressure <= 0.15) return 1;
+  if (pressure <= 0.30) return 2;
+  if (pressure <= 0.45) return 3;
+  if (pressure <= 0.60) return 4;
+  if (pressure <= 0.75) return 5;
+  return 6;
 }
 
 export function translateNotice(code) {
@@ -133,6 +164,11 @@ function finite(value) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function ratio(numerator, denominator) {
+  if (numerator === null || denominator === null || denominator <= 0) return null;
+  return numerator / denominator;
 }
 
 function humanize(value) {

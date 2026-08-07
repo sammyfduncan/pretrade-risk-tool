@@ -157,7 +157,6 @@ function Assessment({ document, onJson, onHtml }) {
   const market = report.market_risk || {};
   const portfolio = report.portfolio || {};
   const scenarios = Array.isArray(report.scenarios) ? report.scenarios : [];
-  const limitations = Array.isArray(report.limitations) ? report.limitations : [];
   const summary = buildRiskSummary(report, document.adapter_issues);
   const notices = [
     ...summary.translatedReasons.map((text) => ["Decision reason", text]),
@@ -174,96 +173,76 @@ function Assessment({ document, onJson, onHtml }) {
         </div>
         <div className="actions"><button type="button" className="secondary" onClick={onJson}>Download JSON</button><button type="button" className="secondary" onClick={onHtml}>Download HTML</button></div>
       </div>
-      <PlainLanguageSummary summary={summary} />
-      {notices.length > 0 && <div className="notices">{notices.map(([label, text], index) => <p key={`${label}-${index}`}><strong>{label}:</strong> {text}</p>)}</div>}
-      <div className="cards">
-        <Card title="Sizing" rows={[
-          ["Requested", show(sizing.requested_size, 4)],
-          ["Assessed", show(sizing.assessed_size, 4)],
-          ["Recommended maximum", show(sizing.recommended_max_size, 4)],
-          ["Binding constraint", sizing.binding_constraint || "—"],
-        ]} />
-        <Card title="Trade risk" rows={[
-          ["Planned stop loss", formatMoney(cash.planned_stop_loss, summary.currency)],
-          ["Stop loss / equity", percent(cash.planned_stop_loss_fraction)],
-          ["Net target reward", formatMoney(cash.net_target_reward, summary.currency)],
-          ["Net reward / risk", show(cash.net_reward_risk)],
-        ]} />
-        <Card title="Market and cost" rows={[
-          ["Current spread", show(costs.current_spread_points, 4)],
-          ["Current cost / R", show(costs.current_cost_r, 4)],
-          ["Quote age (seconds)", show(market.quote_age_seconds, 1)],
-          ["Volatility state", market.volatility_state || "—"],
-        ]} />
-        <Card title="Portfolio after trade" rows={[
-          ["OANDA positions detected", show(portfolio.existing_position_count, 0)],
-          ["Total stop risk", formatMoney(portfolio.proposed_total_stop_risk, summary.currency)],
-          ["Total margin", formatMoney(portfolio.proposed_total_margin, summary.currency)],
-          ["Gross exposure", formatMoney(portfolio.proposed_total_gross_exposure, summary.currency)],
-        ]} />
-      </div>
-      {scenarios.length > 0 && <div className="table-wrap">
-        <h3>Stress scenarios</h3>
-        <table>
-          <thead><tr><th>Scenario</th><th>Cash loss</th><th>Equity loss</th></tr></thead>
-          <tbody>{scenarios.map((scenario, index) => <tr key={`${scenario.name}-${index}`}><td>{scenarioName(scenario.name)}</td><td>{formatMoney(scenario.cash_loss, summary.currency)}</td><td>{percent(scenario.equity_fraction)}</td></tr>)}</tbody>
-        </table>
-      </div>}
-      <div className="calibration"><strong>Current calibrated range evidence:</strong> {market.historical_calibration ? "included" : "unavailable or not admitted"}</div>
-      {limitations.length > 0 && <details><summary>Assessment limitations</summary><ul>{limitations.map((text, index) => <li key={index}>{text}</li>)}</ul></details>}
-      <p className="footnote">Quantitative risk assessment only. It does not predict direction or profitability, and an ALLOW result is not a recommendation to trade.</p>
+      <CompactRiskSummary summary={summary} cash={cash} />
+      {notices.length > 0 && <details className="result-details">
+        <summary>Notes <span>{notices.length}</span></summary>
+        <ul>{notices.map(([label, text], index) => <li key={`${label}-${index}`}><strong>{label}</strong> {text}</li>)}</ul>
+      </details>}
+      <details className="result-details">
+        <summary>All figures</summary>
+        <div className="cards">
+          <Card title="Sizing" rows={[
+            ["Requested", show(sizing.requested_size, 4)],
+            ["Assessed", show(sizing.assessed_size, 4)],
+            ["Maximum", show(sizing.recommended_max_size, 4)],
+            ["Constraint", sizing.binding_constraint || "—"],
+          ]} />
+          <Card title="Trade" rows={[
+            ["Stop loss", formatMoney(cash.planned_stop_loss, summary.currency)],
+            ["Stop / equity", percent(cash.planned_stop_loss_fraction)],
+            ["Target reward", formatMoney(cash.net_target_reward, summary.currency)],
+            ["Reward / risk", show(cash.net_reward_risk)],
+          ]} />
+          <Card title="Cost" rows={[
+            ["Spread", show(costs.current_spread_points, 4)],
+            ["Cost / R", percent(costs.current_cost_r)],
+            ["Quote age", show(market.quote_age_seconds, 1)],
+            ["Volatility", market.volatility_state || "—"],
+          ]} />
+          <Card title="Portfolio" rows={[
+            ["Positions", show(portfolio.existing_position_count, 0)],
+            ["Stop risk", formatMoney(portfolio.proposed_total_stop_risk, summary.currency)],
+            ["Margin", formatMoney(portfolio.proposed_total_margin, summary.currency)],
+            ["Exposure", formatMoney(portfolio.proposed_total_gross_exposure, summary.currency)],
+          ]} />
+        </div>
+        {scenarios.length > 0 && <div className="table-wrap">
+          <table>
+            <thead><tr><th>Scenario</th><th>Loss</th><th>Equity</th></tr></thead>
+            <tbody>{scenarios.map((scenario, index) => <tr key={`${scenario.name}-${index}`}><td>{scenarioName(scenario.name)}</td><td>{formatMoney(scenario.cash_loss, summary.currency)}</td><td>{percent(scenario.equity_fraction)}</td></tr>)}</tbody>
+          </table>
+        </div>}
+      </details>
     </section>
   );
 }
 
-function PlainLanguageSummary({ summary }) {
+function CompactRiskSummary({ summary, cash }) {
+  const score = summary.riskScore ?? "—";
+  const tone = score === "—" ? "unknown" : score <= 2 ? "low" : score <= 4 ? "medium" : "high";
   return (
-    <section className="plain-summary" aria-labelledby="plain-summary-title">
-      <div className="summary-heading">
-        <h3 id="plain-summary-title">What this means</h3>
-        <span className={`evidence evidence-${summary.evidenceLevel.toLowerCase()}`}>Evidence: {summary.evidenceLevel}</span>
+    <section className="compact-summary" aria-label="Risk summary">
+      <div className={`score score-${tone}`}>
+        <strong>{score}<small>/7</small></strong>
+        <span>Policy pressure</span>
+        <small>{summary.riskDriver}</small>
       </div>
-      <p className="summary-lead">{summary.decisionMeaning}</p>
-      <div className="summary-metrics">
-        <SummaryMetric
-          label="Estimated loss if stop executes"
-          value={formatMoney(summary.plannedLoss, summary.currency)}
-          detail={`${percent(summary.lossFraction)} of assessed account equity`}
-        />
-        <SummaryMetric
-          label="Per-trade risk allowance used"
-          value={percent(summary.budgetUsage)}
-          detail={`${formatMoney(summary.plannedLoss, summary.currency)} of ${formatMoney(summary.riskBudget, summary.currency)}`}
-        />
-        <SummaryMetric
-          label="Account equity assessed"
-          value={formatMoney(summary.accountEquity, summary.currency)}
-          detail="Taken from the connected OANDA account"
-        />
+      <div className="number-grid">
+        <NumberTile label="Stop loss" value={formatMoney(summary.plannedLoss, summary.currency)} />
+        <NumberTile label="Equity" value={percent(summary.lossFraction)} />
+        <NumberTile label="Risk budget" value={percent(summary.budgetUsage)} />
+        <NumberTile label="Cost / R" value={percent(summary.currentCostR)} />
+        <NumberTile label="Exposure" value={percent(summary.grossExposureFraction)} />
+        <NumberTile label="Margin" value={percent(summary.marginFraction)} />
+        <NumberTile label="Reward / risk" value={show(cash.net_reward_risk)} />
+        <NumberTile label="Evidence" value={`${summary.evidenceScore}/3`} />
       </div>
-      <ul className="summary-points">
-        <li>
-          The assessed size is <strong>{show(summary.assessedSize, 4)}</strong>; the maximum under the current policy is <strong>{show(summary.recommendedMaxSize, 4)}</strong>.
-        </li>
-        <li>
-          Current execution cost is approximately <strong>{percent(summary.currentCostR)}</strong> of one unit of planned risk{summary.medianCostR !== null ? <>; the same-session median is <strong>{percent(summary.medianCostR)}</strong></> : null}.
-        </li>
-        <li>
-          Gross exposure is <strong>{formatMoney(summary.grossExposure, summary.currency)}</strong> ({percent(summary.grossExposureFraction)} of assessed equity), with <strong>{formatMoney(summary.margin, summary.currency)}</strong> margin ({percent(summary.marginFraction)}).
-        </li>
-        {summary.openPositions === 0 && <li>No existing OANDA positions were included in this assessment.</li>}
-      </ul>
-      {summary.limitations.length > 0 && <div className="summary-limits">
-        <strong>What this assessment could not determine</strong>
-        <ul>{summary.limitations.map((item) => <li key={item}>{item}</li>)}</ul>
-        <p>It therefore cannot estimate how likely the stop is to be reached or describe the trade as generally low risk.</p>
-      </div>}
     </section>
   );
 }
 
-function SummaryMetric({ label, value, detail }) {
-  return <div><span>{label}</span><strong>{value}</strong><small>{detail}</small></div>;
+function NumberTile({ label, value }) {
+  return <div><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function Field({ label, help, children }) {

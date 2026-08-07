@@ -7,13 +7,19 @@ Python risk engine. It is a convenience layer, not a second calculation
 implementation. The established read-only OANDA command still constructs and
 evaluates the versioned risk payload.
 
-The result begins with a plain-language interpretation: cost-inclusive stop
-loss, percentage of assessed account equity, use of the per-trade risk
-allowance, exposure, margin and evidence completeness. `ALLOW` is retained as
-an audit code but displayed as “Within configured limits”; it is never
-described as proof that a trade is safe or likely to profit. Internal reason,
-warning and adapter codes are translated for the browser while remaining
-unchanged in downloadable JSON.
+The default result is deliberately numeric. It shows a 1–7 **policy-pressure**
+scale, stop loss, equity fraction, risk-budget use, cost/R, exposure, margin,
+reward/risk and a separate 0–3 evidence score. `ALLOW` remains an audit code;
+the scale does not estimate the probability of loss.
+
+The pressure score is the highest utilisation among the binding size cap,
+per-trade risk allowance, current/median/p95 execution-cost gates, gross
+exposure and margin gates. Scores 1–6 divide utilisation up to the applicable
+limit; exceeding a limit or a hard `BLOCK` is 7. Evidence is separate because
+missing volatility or calibrated movement data must not be disguised as a
+precise risk probability. Explanations and translated internal codes remain
+available only under the collapsed `Notes` and `All figures` controls and in
+downloadable JSON.
 
 ## What the user supplies
 

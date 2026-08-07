@@ -22,7 +22,7 @@ test("summarizes an allow decision without calling the trade safe", () => {
         planned_stop_loss_fraction: 0.0002458,
       },
     },
-    costs: { current_cost_r: 0.0553, median_cost_r: 0.05 },
+    costs: { current_cost_r: 0.0553, median_cost_r: 0.0799, p95_cost_r: 0.08 },
     market_risk: { historical_calibration: null },
     portfolio: {
       existing_position_count: 0,
@@ -35,6 +35,9 @@ test("summarizes an allow decision without calling the trade safe", () => {
   assert.equal(summary.evidenceLevel, "LIMITED");
   assert.ok(Math.abs(summary.accountEquity - 100000) < 1e-9);
   assert.ok(Math.abs(summary.budgetUsage - 0.09832) < 1e-12);
+  assert.equal(summary.riskScore, 6);
+  assert.equal(summary.riskDriver, "Typical cost");
+  assert.equal(summary.evidenceScore, 1);
   assert.match(summary.decisionMeaning, /does not mean the trade is safe/i);
 });
 
