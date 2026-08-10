@@ -83,6 +83,13 @@ def test_complete_trade_is_allowed_and_risk_is_cost_inclusive():
     assert report.cash_risk["proposed"]["gross_exposure"] == pytest.approx(24_000)
     assert report.cash_risk["proposed"]["initial_margin"] == pytest.approx(1_200)
     assert report.costs["current_cost_r"] == pytest.approx(0.015)
+    assert report.schema_version == 3
+    assert report.assessment["version"] == "policy-pressure-v1-2026-08-10"
+    assert report.assessment["policy_pressure_score"] == 6
+    assert report.assessment["policy_pressure_driver"] == "size_cap"
+    assert report.assessment["maximum_pressure_ratio"] == pytest.approx(10 / 12.3)
+    assert report.assessment["evidence_score"] == 1
+    assert report.assessment["score_is_loss_probability"] is False
     assert [row["name"] for row in report.scenarios] == [
         "planned_stop",
         "planned_stop_spread_1_5x",
@@ -105,6 +112,8 @@ def test_oversized_request_is_reduced_to_broker_step():
     assert report.sizing["recommended_max_size"] == pytest.approx(12.3)
     assert report.cash_risk["proposed"]["planned_stop_loss"] > 250
     assert report.cash_risk["at_recommended_max"]["planned_stop_loss"] <= 250
+    assert report.assessment["policy_pressure_score"] == 7
+    assert report.assessment["policy_pressure_driver"] == "size_cap"
 
 
 def test_missing_broker_fact_is_incomplete_not_guessed():
@@ -116,6 +125,7 @@ def test_missing_broker_fact_is_incomplete_not_guessed():
     assert report.decision == "INCOMPLETE"
     assert "missing:instrument.value_per_price_unit" in report.reasons
     assert report.sizing == {}
+    assert report.assessment["policy_pressure_score"] is None
 
 
 def test_missing_spread_history_blocks_shadow_admission():
@@ -149,6 +159,8 @@ def test_invalid_directional_geometry_is_blocked():
 
     assert report.decision == "BLOCK"
     assert report.reasons == ("invalid_long_price_geometry",)
+    assert report.assessment["policy_pressure_score"] == 7
+    assert report.assessment["policy_pressure_driver"] == "hard_gate:invalid_long_price_geometry"
 
 
 def test_quote_for_a_different_broker_instrument_is_blocked():

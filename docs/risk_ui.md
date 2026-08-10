@@ -4,8 +4,9 @@
 
 The browser interface is a deliberately simple React form over the existing
 Python risk engine. It is a convenience layer, not a second calculation
-implementation. The established read-only OANDA command still constructs and
-evaluates the versioned risk payload.
+implementation. The Python report now owns the versioned pressure score; the
+React app only displays it. Both account modes use OANDA only for read-only
+market prices, spreads and recent candles.
 
 The default result is deliberately numeric. It shows a 1–7 **policy-pressure**
 scale, stop loss, equity fraction, risk-budget use, cost/R, exposure, margin,
@@ -20,6 +21,11 @@ missing volatility or calibrated movement data must not be disguised as a
 precise risk probability. Explanations and translated internal codes remain
 available only under the collapsed `Notes` and `All figures` controls and in
 downloadable JSON.
+
+The current score contract is
+`policy-pressure-v1-2026-08-10`, embedded with the component ratios in every
+JSON and HTML report. That makes later changes auditable instead of silently
+changing how an old assessment should be interpreted.
 
 ## What the user supplies
 
@@ -36,6 +42,15 @@ Current price, spread, contract rules, currency conversion, account equity,
 margin, open precious-metals positions and recent M30 candles come from the
 configured OANDA practice account. The browser never receives the API key or
 account ID.
+
+Alternatively, **External GBP spread-bet account** accepts account equity,
+available funds, day/week starting equity, entries today, the external
+provider's margin percentage, commission and stake in GBP per quoted-price
+unit. It requires an explicit confirmation that no other gold or silver
+positions are open. Those account facts are not broker-verified; current
+bid/ask and spread history still come from OANDA. This mode is suitable for
+assessing a proposed trade held with another provider, but not for maintaining
+an automatically reconciled external portfolio.
 
 If a complete current-calibration release has status `ADMITTED`, the backend
 selects the newest pair and the risk engine revalidates its hashes, context and
@@ -68,7 +83,8 @@ the `/api` path to the local backend.
 
 - The server binds only to `127.0.0.1` or `localhost`.
 - It loads credentials server-side from the ignored `.env`.
-- The assessment endpoint invokes only the existing read-only OANDA evaluator.
+- The assessment endpoint invokes either the read-only OANDA-account adapter or
+  the manual-account/read-only-market adapter.
 - The only POST routes evaluate risk and render an existing result as HTML.
 - There is no endpoint for creating, amending or closing orders.
 - The backend rejects unsupported assets, directions, order types, horizons,

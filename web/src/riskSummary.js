@@ -14,6 +14,12 @@ const NOTICE_TEXT = {
     "OANDA does not expose the account product through this API; the configured spread-bet account type could not be independently confirmed.",
   broker_reports_hedging_disabled:
     "OANDA reports hedging disabled for this account. The current one-position policy does not require hedging.",
+  manual_account_facts_not_broker_verified:
+    "External account values were supplied manually and were not verified by a broker API.",
+  external_margin_rate_user_supplied:
+    "The external broker margin requirement was supplied manually.",
+  external_existing_positions_limited_to_explicit_none_confirmation:
+    "Portfolio exposure relies on your confirmation that no other gold or silver positions are open.",
   "median_cost_above_0.10R":
     "Typical same-session execution cost is above 10% of the planned trade risk.",
   "current_cost_above_0.25R":
@@ -38,6 +44,7 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
   const costs = report.costs || {};
   const market = report.market_risk || {};
   const portfolio = report.portfolio || {};
+  const assessment = report.assessment || {};
   const warnings = Array.isArray(report.warnings) ? report.warnings : [];
   const reasons = Array.isArray(report.reasons) ? report.reasons : [];
   const limitations = [];
@@ -65,20 +72,8 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
   const grossExposureFraction =
     grossExposure !== null && accountEquity ? grossExposure / accountEquity : null;
   const marginFraction = margin !== null && accountEquity ? margin / accountEquity : null;
-  const sizePressure = ratio(finite(sizing.assessed_size), finite(sizing.recommended_max_size));
-  const pressureComponents = [
-    ["Risk allowance", budgetUsage],
-    ["Size cap", sizePressure],
-    ["Current cost", ratio(finite(costs.current_cost_r), 0.25)],
-    ["Typical cost", ratio(finite(costs.median_cost_r), 0.10)],
-    ["Stressed cost", ratio(finite(costs.p95_cost_r), 0.25)],
-    ["Exposure", grossExposureFraction],
-    ["Margin", marginFraction === null ? null : marginFraction / 0.30],
-  ].filter((item) => item[1] !== null);
-  const dominantPressure = pressureComponents.length
-    ? pressureComponents.reduce((highest, item) => (item[1] > highest[1] ? item : highest))
-    : null;
-  const riskScore = scorePressure(decision, dominantPressure?.[1] ?? null);
+  const riskScore = finite(assessment.policy_pressure_score);
+  const evidenceScore = finite(assessment.evidence_score);
 
   return {
     decision,
@@ -86,10 +81,10 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
     decisionMeaning: decisionMeaning(decision),
     evidenceLevel:
       limitations.length >= 2 ? "LIMITED" : limitations.length === 1 ? "PARTIAL" : "COMPLETE",
-    evidenceScore: decision === "INCOMPLETE" ? 0 : Math.max(1, 3 - limitations.length),
+    evidenceScore: evidenceScore ?? 0,
     riskScore,
-    riskDriver: dominantPressure?.[0] || "Unavailable",
-    pressureRatio: dominantPressure?.[1] ?? null,
+    riskDriver: humanize(assessment.policy_pressure_driver || "Unavailable"),
+    pressureRatio: finite(assessment.maximum_pressure_ratio),
     currency: report.cash_risk?.account_currency || "",
     assessedSize: finite(sizing.assessed_size),
     requestedSize: finite(sizing.requested_size),
@@ -112,17 +107,6 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
     translatedAdapterIssues: (Array.isArray(adapterIssues) ? adapterIssues : []).map(translateNotice),
     calibratedMovementIncluded: Boolean(market.historical_calibration),
   };
-}
-
-function scorePressure(decision, pressure) {
-  if (decision === "INCOMPLETE" || pressure === null) return null;
-  if (decision === "BLOCK" || pressure > 1) return 7;
-  if (pressure <= 0.15) return 1;
-  if (pressure <= 0.30) return 2;
-  if (pressure <= 0.45) return 3;
-  if (pressure <= 0.60) return 4;
-  if (pressure <= 0.75) return 5;
-  return 6;
 }
 
 export function translateNotice(code) {
@@ -164,11 +148,6 @@ function finite(value) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
-}
-
-function ratio(numerator, denominator) {
-  if (numerator === null || denominator === null || denominator <= 0) return null;
-  return numerator / denominator;
 }
 
 function humanize(value) {

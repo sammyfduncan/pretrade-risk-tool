@@ -189,8 +189,12 @@ Then start the localhost server:
 ```
 
 Open `http://127.0.0.1:8765`. The browser sends only the proposed trade
-characteristics to the local Python backend. OANDA credentials remain in the
-ignored `.env`, and the app exposes no create, amend or close-order action.
+characteristics to the local Python backend. It can evaluate the OANDA demo
+account directly or manually supplied GBP spread-bet account facts while using
+OANDA only for current read-only market data. The versioned 1–7 pressure score
+is calculated in Python and is not a loss probability. OANDA credentials remain
+in the ignored `.env`, and the app exposes no create, amend or close-order
+action.
 
 ### Manual calibration refresh
 

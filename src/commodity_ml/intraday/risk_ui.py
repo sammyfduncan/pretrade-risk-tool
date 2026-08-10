@@ -101,6 +101,44 @@ def normalize_trade_request(source: Mapping[str, Any]) -> dict[str, Any]:
     return {"trade_intent": normalized}
 
 
+def normalize_manual_request(source: Mapping[str, Any]) -> dict[str, Any]:
+    payload = normalize_trade_request(source)
+    manual = source.get("manual_account")
+    if not isinstance(manual, Mapping):
+        raise RiskUIError("manual mode requires a manual_account object")
+    if payload["trade_intent"]["requested_size"] is None:
+        raise RiskUIError("manual mode requires stake per quoted-price unit")
+    normalized = {
+        "equity": _required_positive(manual.get("equity"), "equity"),
+        "available_funds": _required_nonnegative(
+            manual.get("available_funds"), "available_funds"
+        ),
+        "day_start_equity": _required_positive(
+            manual.get("day_start_equity"), "day_start_equity"
+        ),
+        "week_start_equity": _required_positive(
+            manual.get("week_start_equity"), "week_start_equity"
+        ),
+        "entries_today": _integer(manual.get("entries_today"), "entries_today"),
+        "kill_switch_active": manual.get("kill_switch_active", False),
+        "margin_rate": _required_fraction(manual.get("margin_rate"), "margin_rate"),
+        "commission_per_stake_per_side": _required_nonnegative(
+            manual.get("commission_per_stake_per_side", 0),
+            "commission_per_stake_per_side",
+        ),
+        "no_other_metals_positions_confirmed": manual.get(
+            "no_other_metals_positions_confirmed"
+        ),
+    }
+    if normalized["entries_today"] < 0:
+        raise RiskUIError("entries_today cannot be negative")
+    if not isinstance(normalized["kill_switch_active"], bool):
+        raise RiskUIError("kill_switch_active must be true or false")
+    if normalized["no_other_metals_positions_confirmed"] is not True:
+        raise RiskUIError("confirm that no other gold or silver positions are open")
+    return {**payload, "manual_account": normalized}
+
+
 def evaluate_read_only_request(
     source: Mapping[str, Any],
     *,
@@ -113,62 +151,50 @@ def evaluate_read_only_request(
     root = Path(project_root).resolve()
     instrument = payload["trade_intent"]["instrument"]
     primary_config, portfolio_config = SUPPORTED_INSTRUMENTS[instrument]
-    executable = str(python_executable or sys.executable)
+    arguments: list[str] = [
+        "--config",
+        str(root / primary_config),
+        "--portfolio-config",
+        str(root / portfolio_config),
+        "--event-state",
+        "auto",
+    ]
+    paper_state = root / "data/runtime/oanda_paper_state.json"
+    if paper_state.is_file():
+        arguments.extend(("--paper-state", str(paper_state)))
+    return _run_assessment_command(
+        payload,
+        root=root,
+        python_executable=python_executable,
+        timeout_seconds=timeout_seconds,
+        script="evaluate_oanda_pretrade_risk.py",
+        arguments=tuple(arguments),
+        failure_prefix="Read-only OANDA assessment refused: ",
+        timeout_message="OANDA risk assessment timed out",
+    )
 
-    with tempfile.TemporaryDirectory(prefix="commodity-risk-ui-") as temporary:
-        temp = Path(temporary)
-        input_path = temp / "intent.json"
-        output_path = temp / "risk.json"
-        input_path.write_text(json.dumps(payload), encoding="utf-8")
-        command = [
-            executable,
-            str(root / "scripts/evaluate_oanda_pretrade_risk.py"),
-            str(input_path),
-            "--config",
-            str(root / primary_config),
-            "--portfolio-config",
-            str(root / portfolio_config),
-            "--event-state",
-            "auto",
-            "--output",
-            str(output_path),
-        ]
-        paper_state = root / "data/runtime/oanda_paper_state.json"
-        if paper_state.is_file():
-            command.extend(("--paper-state", str(paper_state)))
-        calibration = latest_admitted_calibration(root)
-        if calibration is not None:
-            profile, release = calibration
-            command.extend(
-                (
-                    "--calibration-profile",
-                    str(profile),
-                    "--calibration-release",
-                    str(release),
-                )
-            )
-        try:
-            completed = subprocess.run(
-                command,
-                cwd=root,
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            raise RiskUIError("OANDA risk assessment timed out") from exc
-        if completed.returncode != 0:
-            detail = (completed.stderr or completed.stdout).strip().splitlines()
-            message = detail[-1] if detail else "read-only OANDA assessment failed"
-            raise RiskUIError(message.removeprefix("Read-only OANDA assessment refused: "))
-        try:
-            result = json.loads(output_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise RiskUIError("risk engine did not produce a valid report") from exc
-    if result.get("order_authority") is not False:
-        raise RiskUIError("risk engine violated the read-only boundary")
-    return result
+
+def evaluate_manual_request(
+    source: Mapping[str, Any],
+    *,
+    project_root: str | Path,
+    python_executable: str | Path | None = None,
+    timeout_seconds: int = 90,
+) -> dict[str, Any]:
+    payload = normalize_manual_request(source)
+    root = Path(project_root).resolve()
+    instrument = payload["trade_intent"]["instrument"]
+    primary_config, _ = SUPPORTED_INSTRUMENTS[instrument]
+    return _run_assessment_command(
+        payload,
+        root=root,
+        python_executable=python_executable,
+        timeout_seconds=timeout_seconds,
+        script="evaluate_manual_pretrade_risk.py",
+        arguments=("--config", str(root / primary_config)),
+        failure_prefix="Manual external assessment refused: ",
+        timeout_message="manual external assessment timed out",
+    )
 
 
 def render_request_report(document: Mapping[str, Any]) -> str:
@@ -220,3 +246,84 @@ def _optional_number(value: Any, name: str) -> float | None:
     if not math.isfinite(number):
         raise RiskUIError(f"{name} must be finite")
     return number
+
+
+def _required_positive(value: Any, name: str) -> float:
+    number = _optional_positive(value, name)
+    if number is None:
+        raise RiskUIError(f"{name} is required")
+    return number
+
+
+def _required_nonnegative(value: Any, name: str) -> float:
+    number = _optional_nonnegative(value, name)
+    if number is None:
+        raise RiskUIError(f"{name} is required")
+    return number
+
+
+def _required_fraction(value: Any, name: str) -> float:
+    number = _required_positive(value, name)
+    if number > 1:
+        raise RiskUIError(f"{name} must be a decimal fraction no greater than 1")
+    return number
+
+
+def _run_assessment_command(
+    payload: Mapping[str, Any],
+    *,
+    root: Path,
+    python_executable: str | Path | None,
+    timeout_seconds: int,
+    script: str,
+    arguments: tuple[str, ...],
+    failure_prefix: str,
+    timeout_message: str,
+) -> dict[str, Any]:
+    """Invoke a read-only adapter through an isolated JSON boundary."""
+    executable = str(python_executable or sys.executable)
+    with tempfile.TemporaryDirectory(prefix="commodity-risk-ui-") as temporary:
+        temp = Path(temporary)
+        input_path = temp / "intent.json"
+        output_path = temp / "risk.json"
+        input_path.write_text(json.dumps(payload), encoding="utf-8")
+        command = [
+            executable,
+            str(root / "scripts" / script),
+            str(input_path),
+            *arguments,
+        ]
+        calibration = latest_admitted_calibration(root)
+        if calibration is not None:
+            profile, release = calibration
+            command.extend(
+                (
+                    "--calibration-profile",
+                    str(profile),
+                    "--calibration-release",
+                    str(release),
+                )
+            )
+        command.extend(("--output", str(output_path)))
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=timeout_seconds,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RiskUIError(timeout_message) from exc
+        if completed.returncode != 0:
+            detail = (completed.stderr or completed.stdout).strip().splitlines()
+            message = detail[-1] if detail else "read-only risk assessment failed"
+            raise RiskUIError(message.removeprefix(failure_prefix))
+        try:
+            result = json.loads(output_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise RiskUIError("risk engine did not produce a valid report") from exc
+    if result.get("order_authority") is not False:
+        raise RiskUIError("risk engine violated the read-only boundary")
+    return result

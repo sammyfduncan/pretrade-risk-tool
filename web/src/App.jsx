@@ -14,6 +14,18 @@ const initialForm = {
   allow_overnight: false,
 };
 
+const initialManualAccount = {
+  equity: "",
+  available_funds: "",
+  day_start_equity: "",
+  week_start_equity: "",
+  entries_today: "0",
+  margin_rate_percent: "",
+  commission_per_stake_per_side: "0",
+  kill_switch_active: false,
+  no_other_metals_positions_confirmed: false,
+};
+
 const optionalNumber = (value) => (value === "" ? null : Number(value));
 const show = (value, digits = 2) => {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
@@ -23,7 +35,9 @@ const percent = (value) =>
   value === null || value === undefined ? "—" : `${(Number(value) * 100).toFixed(2)}%`;
 
 export default function App() {
+  const [mode, setMode] = useState("oanda");
   const [form, setForm] = useState(initialForm);
+  const [manualAccount, setManualAccount] = useState(initialManualAccount);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -31,6 +45,14 @@ export default function App() {
   const update = (event) => {
     const { name, value, type, checked } = event.target;
     setForm((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const updateManual = (event) => {
+    const { name, value, type, checked } = event.target;
+    setManualAccount((current) => ({
+      ...current,
+      [name]: type === "checkbox" ? checked : value,
+    }));
   };
 
   const evaluate = async (event) => {
@@ -51,7 +73,26 @@ export default function App() {
       const response = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ trade_intent }),
+        body: JSON.stringify({
+          mode,
+          trade_intent,
+          ...(mode === "manual" ? {
+            manual_account: {
+              equity: optionalNumber(manualAccount.equity),
+              available_funds: optionalNumber(manualAccount.available_funds),
+              day_start_equity: optionalNumber(manualAccount.day_start_equity),
+              week_start_equity: optionalNumber(manualAccount.week_start_equity),
+              entries_today: Number(manualAccount.entries_today),
+              margin_rate: Number(manualAccount.margin_rate_percent) / 100,
+              commission_per_stake_per_side: optionalNumber(
+                manualAccount.commission_per_stake_per_side,
+              ),
+              kill_switch_active: manualAccount.kill_switch_active,
+              no_other_metals_positions_confirmed:
+                manualAccount.no_other_metals_positions_confirmed,
+            },
+          } : {}),
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Assessment failed");
@@ -89,13 +130,19 @@ export default function App() {
       <header>
         <p className="kicker">Read-only decision support</p>
         <h1>Commodity risk assessment</h1>
-        <p>Describe a possible gold or silver trade. The tool checks it against your OANDA demo account, current market conditions and the quantitative risk policy.</p>
+        <p>Describe a possible gold or silver trade. The tool checks it against the selected account facts, current OANDA market data and the quantitative risk policy.</p>
         <p className="safe">This app cannot place, change or close orders.</p>
       </header>
 
       <form onSubmit={evaluate}>
         <h2>Trade idea</h2>
         <div className="fields">
+          <Field label="Account source">
+            <select value={mode} onChange={(event) => setMode(event.target.value)}>
+              <option value="oanda">OANDA demo account</option>
+              <option value="manual">External GBP spread-bet account</option>
+            </select>
+          </Field>
           <Field label="Instrument">
             <select name="instrument" value={form.instrument} onChange={update}>
               <option value="XAUUSD">Gold (XAU/USD)</option>
@@ -126,7 +173,13 @@ export default function App() {
           {form.order_type !== "market" && <NumberField label="Entry price" name="entry_price" value={form.entry_price} onChange={update} required />}
           <NumberField label="Stop price" name="stop_price" value={form.stop_price} onChange={update} required />
           <NumberField label="Target price" name="target_price" value={form.target_price} onChange={update} required />
-          <NumberField label="Requested size (optional)" name="requested_size" value={form.requested_size} onChange={update} />
+          <NumberField
+            label={mode === "manual" ? "Stake (£ per price unit)" : "Requested OANDA units (optional)"}
+            name="requested_size"
+            value={form.requested_size}
+            onChange={update}
+            required={mode === "manual"}
+          />
           <NumberField
             label="Maximum slippage per side"
             help="Enter quoted-price units, not ticks. Around a gold price of 4,185, 0.21 is approximately 0.5 basis points per side."
@@ -136,6 +189,26 @@ export default function App() {
             required
           />
         </div>
+        {mode === "manual" && <>
+          <h2>External account</h2>
+          <div className="fields">
+            <NumberField label="Account equity (£)" name="equity" value={manualAccount.equity} onChange={updateManual} required />
+            <NumberField label="Available funds (£)" name="available_funds" value={manualAccount.available_funds} onChange={updateManual} required />
+            <NumberField label="Equity at start of day (£)" name="day_start_equity" value={manualAccount.day_start_equity} onChange={updateManual} required />
+            <NumberField label="Equity at start of week (£)" name="week_start_equity" value={manualAccount.week_start_equity} onChange={updateManual} required />
+            <NumberField label="Entries today" name="entries_today" value={manualAccount.entries_today} onChange={updateManual} required />
+            <NumberField label="Margin requirement (%)" name="margin_rate_percent" value={manualAccount.margin_rate_percent} onChange={updateManual} required />
+            <NumberField label="Commission per £ stake, per side" name="commission_per_stake_per_side" value={manualAccount.commission_per_stake_per_side} onChange={updateManual} required />
+          </div>
+          <label className="check">
+            <input type="checkbox" name="kill_switch_active" checked={manualAccount.kill_switch_active} onChange={updateManual} />
+            Account kill switch is active
+          </label>
+          <label className="check">
+            <input type="checkbox" name="no_other_metals_positions_confirmed" checked={manualAccount.no_other_metals_positions_confirmed} onChange={updateManual} required />
+            I confirm there are no other open gold or silver positions
+          </label>
+        </>}
         <label className="check">
           <input type="checkbox" name="allow_overnight" checked={form.allow_overnight} onChange={update} />
           Allow the intended trade to remain open overnight

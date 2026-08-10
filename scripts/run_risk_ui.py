@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 
 from commodity_ml.intraday.risk_ui import (
     RiskUIError,
+    evaluate_manual_request,
     evaluate_read_only_request,
     render_request_report,
 )
@@ -34,7 +35,11 @@ class RiskUIHandler(BaseHTTPRequestHandler):
                 HTTPStatus.OK,
                 {
                     "status": "ok",
-                    "mode": "OANDA_V20_READ_ONLY",
+                    "mode": "READ_ONLY_RISK_UI",
+                    "assessment_modes": [
+                        "OANDA_V20_READ_ONLY",
+                        "MANUAL_GBP_ACCOUNT_OANDA_MARKET_READ_ONLY",
+                    ],
                     "order_authority": False,
                 },
             )
@@ -49,10 +54,19 @@ class RiskUIHandler(BaseHTTPRequestHandler):
         try:
             document = self._request_json()
             if path == "/api/evaluate":
-                result = evaluate_read_only_request(
-                    document,
-                    project_root=self.server.project_root,
-                )
+                mode = str(document.get("mode") or "oanda").lower()
+                if mode == "oanda":
+                    result = evaluate_read_only_request(
+                        document,
+                        project_root=self.server.project_root,
+                    )
+                elif mode == "manual":
+                    result = evaluate_manual_request(
+                        document,
+                        project_root=self.server.project_root,
+                    )
+                else:
+                    raise RiskUIError("mode must be oanda or manual")
                 self._json(HTTPStatus.OK, result)
             elif path == "/api/report-html":
                 html = render_request_report(document).encode("utf-8")

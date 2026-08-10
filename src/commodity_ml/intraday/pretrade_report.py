@@ -27,6 +27,7 @@ def render_pretrade_report_html(
     costs = _mapping(report.get("costs"))
     market = _mapping(report.get("market_risk"))
     portfolio = _mapping(report.get("portfolio"))
+    assessment = _mapping(report.get("assessment"))
     provenance = _mapping(wrapper.get("provenance"))
     reasons = _strings(report.get("reasons"))
     warnings = _strings(report.get("warnings"))
@@ -60,6 +61,17 @@ def render_pretrade_report_html(
         "</header>",
         _notice_block(reasons, warnings, adapter_issues),
         '<section class="grid">',
+        _card(
+            "Policy pressure",
+            (
+                ("Score", _score(assessment.get("policy_pressure_score"), 7)),
+                ("Primary constraint", _display(assessment.get("policy_pressure_driver"))),
+                ("Maximum pressure ratio", _number(assessment.get("maximum_pressure_ratio"))),
+                ("Evidence", _score(assessment.get("evidence_score"), assessment.get("evidence_maximum"))),
+                ("Loss probability", "no"),
+                ("Assessment version", _display(assessment.get("version"))),
+            ),
+        ),
         _card(
             "Sizing",
             (
@@ -227,6 +239,14 @@ def _number(value: Any, decimals: int = 3) -> str:
     except (TypeError, ValueError):
         return "—"
     return f"{number:,.{decimals}f}".rstrip("0").rstrip(".")
+
+
+def _score(value: Any, maximum: Any) -> str:
+    score = _number(value, 0)
+    limit = _number(maximum, 0)
+    if score == "—" or limit == "—":
+        return "—"
+    return f"{score}/{limit}"
 
 
 def _money(value: Any) -> str:

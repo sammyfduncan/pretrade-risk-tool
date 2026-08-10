@@ -23,6 +23,7 @@ Side = Literal["long", "short"]
 OrderType = Literal["market", "limit", "stop"]
 
 POLICY_VERSION = "pretrade-risk-v1-oanda-2026-08-04"
+ASSESSMENT_VERSION = "policy-pressure-v1-2026-08-10"
 SUPPORTED_INSTRUMENTS = ("XAUUSD", "XAGUSD")
 LONDON = ZoneInfo("Europe/London")
 
@@ -164,6 +165,7 @@ class PreTradeRiskReport:
     costs: dict[str, Any]
     market_risk: dict[str, Any]
     portfolio: dict[str, Any]
+    assessment: dict[str, Any]
     scenarios: tuple[dict[str, Any], ...]
     limitations: tuple[str, ...]
 
@@ -567,8 +569,31 @@ def evaluate_pretrade_risk(
         assessed_size * entry * value_per_point
     )
 
+    proposed_total_stop_risk = existing_stop_risk + proposed_incremental_risk
+    proposed_total_margin = existing_margin + proposed_cash["initial_margin"]
+    proposed_total_gross = existing_gross + proposed_cash["gross_exposure"]
+    assessment = _policy_pressure_assessment(
+        decision=status,
+        reasons=blocking_reasons,
+        warnings=tuple(dict.fromkeys(warnings)),
+        policy=policy,
+        account=account,
+        assessed_size=assessed_size,
+        recommended_size=recommended_size,
+        effective_risk_budget=effective_risk_budget,
+        planned_stop_loss=proposed_cash["planned_stop_loss"],
+        current_cost_r=current_cost_r,
+        median_cost_r=median_cost_r,
+        p95_cost_r=p95_cost_r,
+        proposed_total_stop_risk=proposed_total_stop_risk,
+        proposed_total_margin=proposed_total_margin,
+        proposed_total_gross=proposed_total_gross,
+        historical_calibration=historical_calibration,
+        volatility_approved=market.volatility_artifact_approved,
+    )
+
     return PreTradeRiskReport(
-        schema_version=2,
+        schema_version=3,
         policy_version=POLICY_VERSION,
         intent_id=intent.intent_id,
         decision=status,
@@ -631,12 +656,11 @@ def evaluate_pretrade_risk(
         portfolio={
             "existing_position_count": len(existing_positions),
             "existing_stop_risk": existing_stop_risk,
-            "proposed_total_stop_risk": existing_stop_risk + proposed_incremental_risk,
+            "proposed_total_stop_risk": proposed_total_stop_risk,
             "existing_margin": existing_margin,
-            "proposed_total_margin": existing_margin + proposed_cash["initial_margin"],
+            "proposed_total_margin": proposed_total_margin,
             "existing_gross_exposure": existing_gross,
-            "proposed_total_gross_exposure": existing_gross
-            + proposed_cash["gross_exposure"],
+            "proposed_total_gross_exposure": proposed_total_gross,
             "existing_signed_one_pct_move": position_values[
                 "signed_one_pct_move"
             ],
@@ -647,6 +671,7 @@ def evaluate_pretrade_risk(
             + proposed_signed_one_pct,
             "gross_exposure_by_instrument": concentration,
         },
+        assessment=assessment,
         scenarios=tuple(scenarios),
         limitations=_limitations(),
     )
@@ -1004,6 +1029,105 @@ def _scenario(name: str, loss: float, equity: float) -> dict[str, Any]:
     }
 
 
+def _policy_pressure_assessment(
+    *,
+    decision: DecisionStatus,
+    reasons: Sequence[str],
+    warnings: Sequence[str],
+    policy: PreTradeRiskPolicy,
+    account: AccountSnapshot,
+    assessed_size: float,
+    recommended_size: float,
+    effective_risk_budget: float,
+    planned_stop_loss: float,
+    current_cost_r: float,
+    median_cost_r: float | None,
+    p95_cost_r: float | None,
+    proposed_total_stop_risk: float,
+    proposed_total_margin: float,
+    proposed_total_gross: float,
+    historical_calibration: CalibratedRiskLookup | None,
+    volatility_approved: bool,
+) -> dict[str, Any]:
+    """Create an auditable ordinal pressure score from versioned policy gates.
+
+    This measures proximity to deterministic policy limits. It is deliberately
+    separate from evidence completeness and is never a loss probability.
+    """
+    equity = float(account.equity)
+    components = {
+        "risk_allowance": _optional_ratio(planned_stop_loss, effective_risk_budget),
+        "size_cap": _optional_ratio(assessed_size, recommended_size),
+        "current_cost": _optional_ratio(current_cost_r, policy.max_current_cost_r),
+        "median_cost": _optional_ratio(median_cost_r, policy.max_median_cost_r),
+        "p95_cost": _optional_ratio(p95_cost_r, policy.max_p95_cost_r),
+        "portfolio_stop_risk": _optional_ratio(
+            proposed_total_stop_risk,
+            equity * policy.max_total_stop_risk_fraction,
+        ),
+        "gross_exposure": _optional_ratio(
+            proposed_total_gross,
+            equity * policy.max_notional_fraction,
+        ),
+        "margin": _optional_ratio(
+            proposed_total_margin,
+            equity * policy.max_margin_fraction,
+        ),
+        "daily_drawdown": _optional_ratio(
+            max(0.0, 1.0 - equity / float(account.day_start_equity)),
+            policy.daily_loss_limit,
+        ),
+        "weekly_drawdown": _optional_ratio(
+            max(0.0, 1.0 - equity / float(account.week_start_equity)),
+            policy.weekly_loss_limit,
+        ),
+        "entry_count": _optional_ratio(
+            float(account.entries_today),
+            float(policy.max_entries_per_day),
+        ),
+    }
+    available = {key: value for key, value in components.items() if value is not None}
+    driver, maximum = max(available.items(), key=lambda item: item[1])
+    hard_block = decision == "BLOCK"
+    if hard_block and maximum <= 1:
+        driver = f"hard_gate:{reasons[0]}" if reasons else "hard_gate"
+    score = _pressure_score(maximum, hard_block=hard_block)
+    evidence_components = {
+        "deterministic_account_and_trade": True,
+        "approved_current_volatility": bool(volatility_approved),
+        "admitted_historical_calibration": historical_calibration is not None,
+    }
+    return {
+        "version": ASSESSMENT_VERSION,
+        "policy_pressure_score": score,
+        "policy_pressure_driver": driver,
+        "maximum_pressure_ratio": maximum,
+        "pressure_components": components,
+        "evidence_score": sum(evidence_components.values()),
+        "evidence_maximum": 3,
+        "evidence_components": evidence_components,
+        "score_is_loss_probability": False,
+        "warnings_count": len(warnings),
+    }
+
+
+def _pressure_score(pressure: float, *, hard_block: bool) -> int:
+    if hard_block or pressure > 1:
+        return 7
+    for score, ceiling in enumerate((0.15, 0.30, 0.45, 0.60, 0.75), start=1):
+        if pressure <= ceiling:
+            return score
+    return 6
+
+
+def _optional_ratio(numerator: float | None, denominator: float | None) -> float | None:
+    if numerator is None or denominator is None:
+        return None
+    if not np.isfinite(numerator) or not np.isfinite(denominator) or denominator <= 0:
+        return None
+    return float(numerator) / float(denominator)
+
+
 def _empty_report(
     intent: TradeIntent,
     *,
@@ -1012,7 +1136,7 @@ def _empty_report(
     warnings: tuple[str, ...],
 ) -> PreTradeRiskReport:
     return PreTradeRiskReport(
-        schema_version=2,
+        schema_version=3,
         policy_version=POLICY_VERSION,
         intent_id=intent.intent_id,
         decision=decision,
@@ -1024,6 +1148,24 @@ def _empty_report(
         costs={},
         market_risk={},
         portfolio={},
+        assessment={
+            "version": ASSESSMENT_VERSION,
+            "policy_pressure_score": 7 if decision == "BLOCK" else None,
+            "policy_pressure_driver": (
+                f"hard_gate:{reasons[0]}" if decision == "BLOCK" and reasons else None
+            ),
+            "maximum_pressure_ratio": None,
+            "pressure_components": {},
+            "evidence_score": 0,
+            "evidence_maximum": 3,
+            "evidence_components": {
+                "deterministic_account_and_trade": False,
+                "approved_current_volatility": False,
+                "admitted_historical_calibration": False,
+            },
+            "score_is_loss_probability": False,
+            "warnings_count": len(warnings),
+        },
         scenarios=(),
         limitations=_limitations(),
     )

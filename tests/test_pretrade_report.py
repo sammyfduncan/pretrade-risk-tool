@@ -52,6 +52,15 @@ def report() -> dict:
             "proposed_total_gross_exposure": 48_000,
             "combined_signed_one_pct_move": 480,
         },
+        "assessment": {
+            "version": "policy-pressure-v1-2026-08-10",
+            "policy_pressure_score": 7,
+            "policy_pressure_driver": "risk_allowance",
+            "maximum_pressure_ratio": 1.624,
+            "evidence_score": 1,
+            "evidence_maximum": 3,
+            "score_is_loss_probability": False,
+        },
         "scenarios": [
             {
                 "name": "planned_stop",
@@ -70,6 +79,8 @@ def test_renderer_outputs_standalone_auditable_report():
     assert html.startswith("<!doctype html>")
     assert "REDUCE" in html
     assert "12.3" in html
+    assert "7/7" in html
+    assert "policy-pressure-v1-2026-08-10" in html
     assert "planned_stop" in html
     assert "Order authority" in html
     assert "disabled" in html
