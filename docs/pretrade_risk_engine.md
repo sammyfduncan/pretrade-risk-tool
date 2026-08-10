@@ -1,7 +1,7 @@
-# Quantitative pre-trade risk engine — schema 2 / policy version 1
+# Quantitative pre-trade risk engine — schema 3 / policy version 1
 
-**Status:** functional offline and authenticated read-only OANDA assessment;
-current calibration admission and standardized prospective validation remain
+**Status:** completed research-prototype engine; current calibration is
+unavailable under its frozen gate and prospective validation is optional
 **Decision date:** 2026-08-03; OANDA schema migration 2026-08-04
 **Assets:** spot gold (`XAUUSD`) and spot silver (`XAGUSD`) spread bets
 **Scope:** technical and mathematical risk assessment, not directional or
@@ -172,6 +172,12 @@ probability and are not value-at-risk.
 Every decision includes stable reason codes, warnings, the exact policy
 version and a JSON-serializable calculation record.
 
+Schema 3 also includes the versioned `policy-pressure-v1-2026-08-10` ordinal
+score. It reports the greatest utilization of the applicable size, risk, cost,
+portfolio, margin, drawdown or entry-count limit on a 1–7 scale; any hard block
+is 7. Evidence completeness is reported separately on a 0–3 scale. Neither
+number is a probability of loss.
+
 ## 6. Delivery order
 
 1. Offline schemas, deterministic calculations, scenarios and JSON report.
@@ -186,14 +192,16 @@ version and a JSON-serializable calculation record.
 5. **Implemented offline:** gold/silver existing-position aggregation and a
    dependency-free static HTML report. Cross-metal broker mapping requires
    both account-specific configs; ambiguous margin allocation fails closed.
-6. **Implemented foundation, awaiting standardized prospective observations:** immutable
+6. **Implemented and preserved as optional validation infrastructure:** immutable
    pre-outcome assessment logging followed by separately validated realised
    excursion, slippage, spread, margin and P&L observations. No outcome is
    predicted or backfilled. Executable bid/ask path validation and outcome
    construction plus an outage-aware OANDA stream recorder are implemented and
    practice-account smoke validated. No direction-balanced validation sample
    with paired future paths has yet been collected.
-7. Define the current calibration-refresh policy, collect the preregistered
-   prospective coverage sample, and provide a simpler user-facing assessment
-   workflow. Strategy integration and order submission are optional extensions
-   under separate authority.
+7. **Completed with bounded claims:** the calibration-refresh policy and local
+   user workflow are implemented. The current release failed admission and the
+   preregistered coverage sample remains unresolved, so both are explicitly
+   excluded from the completed claim. Strategy integration, prospective
+   continuation and order submission are optional projects under separate
+   scope and authority.

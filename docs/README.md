@@ -9,26 +9,28 @@ results. Historical documents are evidence, not the current build queue.
 
 Read these in order:
 
-1. [`risk_framework_roadmap.md`](risk_framework_roadmap.md) — current objective,
-   status, remaining work and completion criteria.
-2. [`pretrade_risk_engine.md`](pretrade_risk_engine.md) — versioned inputs,
+1. [`final_validation_report.md`](final_validation_report.md) — final product
+   classification, evidence, limitations and supported claims.
+2. [`risk_framework_roadmap.md`](risk_framework_roadmap.md) — objective,
+   completed scope and explicit closure decisions.
+3. [`pretrade_risk_engine.md`](pretrade_risk_engine.md) — versioned inputs,
    calculations, decisions and policy boundary.
-3. [`pretrade_risk_calibration.md`](pretrade_risk_calibration.md) — causal
+4. [`pretrade_risk_calibration.md`](pretrade_risk_calibration.md) — causal
    historical range and adverse-excursion calibration.
-4. [`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md)
+5. [`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md)
    — frozen admission rules for a current rolling profile.
-5. [`pretrade_oanda_snapshot.md`](pretrade_oanda_snapshot.md) — authenticated
+6. [`pretrade_oanda_snapshot.md`](pretrade_oanda_snapshot.md) — authenticated
    read-only broker facts.
-6. [`paper_risk_runtime.md`](paper_risk_runtime.md) — restart-safe account risk
+7. [`paper_risk_runtime.md`](paper_risk_runtime.md) — restart-safe account risk
    anchors and reconciliation.
-7. [`pretrade_event_calendar.md`](pretrade_event_calendar.md) — deterministic
+8. [`pretrade_event_calendar.md`](pretrade_event_calendar.md) — deterministic
    scheduled-event controls.
-8. [`pretrade_paper_observations.md`](pretrade_paper_observations.md) and
+9. [`pretrade_paper_observations.md`](pretrade_paper_observations.md) and
    [`pretrade_quote_path.md`](pretrade_quote_path.md) — immutable prospective
    assessments and executable-path outcomes.
-9. [`prospective_calibration_validation.md`](prospective_calibration_validation.md)
+10. [`prospective_calibration_validation.md`](prospective_calibration_validation.md)
    — research-only, direction-balanced validation of current range forecasts.
-10. [`risk_ui.md`](risk_ui.md) — basic localhost React workflow and its strict
+11. [`risk_ui.md`](risk_ui.md) — basic localhost React workflow and its strict
     read-only security boundary.
 
 Supporting operational diagnostics are grouped separately:

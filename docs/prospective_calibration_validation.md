@@ -8,6 +8,11 @@ later unseen gold/silver paths
 
 **Trading, direction and P&L:** prohibited
 
+**Closure status (2026-08-10):** optional study preserved but not continued.
+The immutable ledger contains 944 pending forecasts across five London dates
+and zero resolved outcomes. They were not scored early or used to support the
+completed research-prototype claim.
+
 ## 1. Sampling unit
 
 One forecast row is an asset, London entry timestamp and horizon. It contains
@@ -60,7 +65,7 @@ descriptive only. Reaching the checkpoint does not automatically admit a
 calibration release or change policy. Any promotion requires a separately
 frozen decision using these results.
 
-## 5. Manual weekly workflow
+## 5. Optional future workflow
 
 Register up to five future weekdays before the first entry:
 

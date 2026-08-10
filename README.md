@@ -1,9 +1,12 @@
 # Quantitative Precious-Metals Pre-Trade Risk Framework
 
-**Status:** active risk-evaluation product; directional strategy discovery is
-closed and retained as historical research.
+**Status:** completed research prototype. Directional strategy discovery is
+closed and retained as historical research; production validation is not
+claimed.
 
-**Active roadmap:** [`docs/risk_framework_roadmap.md`](docs/risk_framework_roadmap.md)
+**Final validation:** [`docs/final_validation_report.md`](docs/final_validation_report.md)
+
+**Closure record:** [`docs/risk_framework_roadmap.md`](docs/risk_framework_roadmap.md)
 
 **Documentation map:** [`docs/README.md`](docs/README.md)
 
@@ -77,6 +80,11 @@ optional future extensions, not completion requirements for the risk product.
   resolution and coverage reporting with rejected releases kept research-only.
 - Localhost-only React trade form with read-only OANDA assessment and JSON/HTML
   report downloads.
+- Versioned 1–7 policy-pressure assessment calculated by the Python engine.
+- Manual GBP spread-bet account mode with read-only OANDA market inputs and
+  explicit unverified-account provenance.
+- Reproducible 18-case closure matrix spanning all four decision outcomes and
+  the principal fail-closed controls.
 
 ### Validated evidence
 
@@ -231,20 +239,17 @@ tests/                      deterministic and integration tests
 data/, models/, reports/    ignored local artifacts
 ```
 
-## Current roadmap
+## Project closure
 
-The remaining core work is:
+There is no remaining implementation required for the declared research-
+prototype scope. The final audit is in
+[`docs/final_validation_report.md`](docs/final_validation_report.md).
 
-1. define and implement a legitimate current calibration-refresh policy;
-2. prospectively evaluate standardized trade intents against later 1–4 hour
-   range and adverse-excursion paths;
-3. accumulate and resolve the registered prospective calibration schedule; and
-4. produce a final validation/audit report describing what the framework can
-   and cannot claim.
-
-Continuous streaming, P1/P2/P3 shadow checks and future paper execution remain
-useful integration demonstrations, but they do not block completion of the
-risk-evaluation framework.
+The registered 40-date prospective calibration study remains unresolved and
+optional. Its ledger is retained unchanged, but it is not a completion
+requirement and contributes no evidence to the completed claim. Continuous
+streaming, hosted deployment, order execution and renewed strategy research are
+possible future projects under separate scope and authority.
 
 ## Historical research
 

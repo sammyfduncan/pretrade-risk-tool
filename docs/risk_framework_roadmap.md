@@ -1,12 +1,14 @@
-# Quantitative pre-trade risk framework roadmap
+# Quantitative pre-trade risk framework closure record
 
-**Active since:** 2026-08-03
+**Started:** 2026-08-03
+
+**Closed:** 2026-08-10
+
+**Final status:** completed research prototype
 
 **Assets:** `XAUUSD`, `XAGUSD`
 
 **Cadence:** intended intraday holding periods of 60–240 minutes
-
-**Execution boundary:** OANDA v20 read-only practice data
 
 **Order authority:** none
 
@@ -16,32 +18,38 @@ Build a technically rigorous decision-support tool that evaluates the risk of
 an intended gold or silver trade. The tool is conditional on a supplied trade
 thesis; it neither produces direction nor needs a profitable strategy.
 
-For each proposal it must answer:
+For each proposal it answers:
 
 - Is every required fact present, current and internally consistent?
 - What is the cost-inclusive cash loss at the proposed stop?
 - What is the largest broker-valid size within the risk policy?
-- What margin, notional and correlated metals exposure would result?
+- What margin, notional and metals exposure would result?
 - Does the trade violate session, event, loss, entry-count or portfolio gates?
-- How does its geometry compare with conservative historical and current
-  range/adverse-excursion evidence?
+- What deterministic spread and available calibrated-movement stresses apply?
 - Which assumptions and limitations prevent a stronger claim?
 
-## 2. Completion boundary
+## 2. Final completion boundary
 
-The core product is complete when:
+The research prototype is complete because:
 
-1. offline and read-only OANDA assessments implement the same versioned policy;
-2. every calculation and fail-closed branch has deterministic tests;
-3. a current, provenance-bearing calibration source is admitted or explicitly
-   unavailable under a documented policy;
-4. standardized prospective intents have measured 60/120/180/240-minute paths
-   and coverage diagnostics without directional selection;
-5. a user can enter a trade and understand the resulting report without editing
-   internal code; and
-6. a final audit states the supported and unsupported claims.
+1. offline, OANDA-account and manual-account assessments use the same versioned
+   Python policy;
+2. deterministic calculations and fail-closed branches have automated tests;
+3. historical calibration is causal and current calibration is explicitly
+   unavailable when its frozen admission gate fails;
+4. prospective schedule and resolution machinery preserve a valid future-data
+   boundary, although the optional 40-date sample was not collected;
+5. a user can enter a trade through the local React interface and download an
+   auditable report; and
+6. [`final_validation_report.md`](final_validation_report.md) states every
+   supported and unsupported claim.
 
-The following are not required for core completion:
+The prospective checkpoint was an earlier validation ambition, not something
+that can be completed honestly inside the final two-day development time-box.
+It was moved outside the completion boundary explicitly. Its forecasts remain
+pending and provide no evidence for closure.
+
+The following were never required for this completed scope:
 
 - profitable P1/P2/P3 rules;
 - directional ML or sentiment;
@@ -49,85 +57,70 @@ The following are not required for core completion:
 - live capital; or
 - a strategy P&L threshold.
 
-## 3. Current implementation state
+## 3. Completed implementation
 
-### Complete
-
-- Versioned input schema and `ALLOW`/`REDUCE`/`BLOCK`/`INCOMPLETE` decisions.
-- Stop-risk, reward/risk, sizing, notional, margin and portfolio calculations.
-- Session, event, daily/weekly loss, entry-count and kill-switch gates.
-- Deterministic stress scenarios and HTML/JSON output.
+- Versioned trade, account, instrument, market and portfolio contracts.
+- `ALLOW`, `REDUCE`, `BLOCK` and `INCOMPLETE` decisions with stable reason codes.
+- Stop-risk, reward/risk, broker-step sizing, notional, margin and portfolio
+  calculations.
+- Session, scheduled-event, daily/weekly loss, entry-count and kill-switch
+  controls.
+- Current, median and p95 execution-cost gates plus deterministic stress cases.
 - Causal historical range and side-specific adverse-excursion calibration.
-- Read-only OANDA account/market/position adapter.
-- Exact restart-safe account and position reconciliation.
-- Immutable prospective assessment, outcome and quote-path contracts.
-- Source parity, quote-cost and operational integrity diagnostics.
-- Basic localhost React workflow for read-only OANDA trade assessment and
-  downloadable JSON/HTML reports.
+- Fail-closed current-calibration refresh and admission machinery.
+- Authenticated read-only OANDA account, quote, instrument and position input.
+- Manual GBP spread-bet account mode using read-only OANDA market data.
+- Restart-safe account state, quote recording, reconciliation and immutable
+  prospective ledgers.
+- JSON and standalone HTML reports.
+- Localhost-only React workflow with a versioned 1–7 policy-pressure score.
+- Reproducible 18-case final scenario matrix and closure audit.
 
-### Partially complete
+## 4. Phase outcomes
 
-- **Current calibration:** the first post-development release was rejected for
-  p95 under-coverage and is explicitly unavailable to the risk evaluator.
-- **Prospective validation:** 944 direction-balanced forecasts covering five
-  London dates are registered and immutable; resolution awaits later quote
-  paths and the primary checkpoint remains 40 London dates.
+### R1 — current calibration policy: complete, unavailable result
 
-### Optional extensions
+The source, estimator, freshness, parity and release gates were frozen. The
+latest complete release failed p95 coverage and was correctly marked
+`REJECTED`. The active evaluator cannot load it.
 
-- continuous OANDA quote recording;
-- P1/P2/P3 shadow-signal integration;
-- an approved volatility forecast as a size-reduction input;
-- practice order execution under separate authority; and
-- renewed strategy research under a new preregistration.
+### R2 — prospective validation infrastructure: complete, study unfinished
 
-## 4. Next implementation phases
+Registration, immutable storage, delayed resolution and coverage reporting are
+implemented and tested. The preserved ledger has 944 pending forecasts across
+five dates and zero outcomes. The 40-date checkpoint was not reached and is not
+claimed.
 
-### Phase R1 — current calibration policy
+### R3 — user-facing workflow: complete
 
-**Complete with an honest unavailable result:** the version-one source,
-estimator, freshness, parity and release gates are defined in
-[`pretrade_calibration_refresh_policy.md`](pretrade_calibration_refresh_policy.md).
-The first refresh built successfully but was rejected for p95 under-coverage.
-The risk evaluator therefore continues without current calibrated scenarios.
-The acquisition span was corrected from 550 to 900 days to satisfy the
-unchanged OOF sample-quality design; a read-only diagnostic confirmed that this
-does not rescue the coverage result.
+The local interface supports OANDA demo facts or a manually described external
+GBP spread-bet account. It displays the Python-generated policy score and core
+risk numbers, with details and downloadable JSON/HTML. There is no order route.
 
-### Phase R2 — standardized prospective validation
+### R4 — final audit: complete
 
-**Design and implementation complete; collection active:** the weekly
-offline-first schedule, immutable ledger, direction-balanced outcomes and
-40-London-date checkpoint are defined in
-[`prospective_calibration_validation.md`](prospective_calibration_validation.md).
-The manual register, delayed resolve and summary commands preserve rejected
-releases as research-only and calculate no strategy P&L. The first five-date
-schedule contains 944 forecasts from a complete rejected release. A later
-manual refresh can resolve matured paths with `--latest-source`; invalid or
-partial refresh directories are skipped explicitly.
+The closure scenario matrix passes 18/18 cases and covers both metals, both
+trade directions, all four decision outcomes, costs, margin, drawdowns,
+portfolio state and data-integrity refusals. Historical evidence and unresolved
+validation limitations are recorded in
+[`final_validation_report.md`](final_validation_report.md).
 
-### Phase R3 — user-facing assessment workflow
+## 5. Final evidence classification
 
-**Version-one workflow complete:** a concise trade form accepts instrument,
-side, order type, entry, stop,
-target, holding period and optional size. Broker/account facts should populate
-automatically from read-only OANDA. It presents decision, reason codes,
-recommended size, cash risk, margin, costs, portfolio impact, scenarios and
-limitations in plain language, with JSON and standalone HTML downloads. It is
-localhost-only and intentionally provides no order route.
+| Claim | Status |
+|---|---|
+| Engineering implementation | Complete |
+| Deterministic scenario validation | Passed |
+| Causal historical range calibration | Passed on frozen development data |
+| Authenticated read-only market integration | Demonstrated |
+| Current calibration admission | Failed; unavailable |
+| 40-date prospective checkpoint | Not reached |
+| Directional or profitability edge | Not claimed |
+| Production or real-money approval | Not claimed |
 
-### Phase R4 — final audit
+## 6. Optional future projects
 
-Freeze the product version, rerun the complete test and calibration suite, and
-publish an audit covering data provenance, causal boundaries, historical and
-prospective coverage, broker limitations, failure modes and non-claims.
-
-## 5. Evidence discipline
-
-- Historical calibration evaluates risk coverage, not direction or profit.
-- Prospective assessments are immutable before their future path is measured.
-- Missing or stale inputs remain visible and cannot be replaced by a different
-  provider without an explicit policy version.
-- Negative coverage, cost or operational results are retained.
-- Continuous collection counts are not treated as independent statistical
-  observations merely because the broker emits many quotes.
+There is no remaining work for the declared scope. Continuing the 40-date
+study, hosting the UI, supporting a reconciled external portfolio, submitting
+orders or starting new directional research would each be a separately scoped
+project rather than completion work for this repository.
