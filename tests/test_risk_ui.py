@@ -9,9 +9,11 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import pytest
+import pandas as pd
 
 from commodity_ml.intraday.risk_ui import (
     RiskUIError,
+    current_market_defaults,
     evaluate_manual_request,
     evaluate_read_only_request,
     latest_admitted_calibration,
@@ -58,6 +60,57 @@ def test_browser_contract_is_small_and_fail_closed():
         normalize_trade_request(_request(requested_size=float("inf")))
     with pytest.raises(RiskUIError, match="true or false"):
         normalize_trade_request(_request(allow_overnight="false"))
+
+
+def test_current_market_defaults_use_one_quote_call_and_transparent_percentages(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(
+        "commodity_ml.intraday.risk_ui.load_config",
+        lambda path: SimpleNamespace(
+            data=SimpleNamespace(oanda=SimpleNamespace(instrument="XAU_USD"))
+        ),
+    )
+
+    class FakeClient:
+        calls = 0
+
+        def pricing(self, instruments):
+            self.calls += 1
+            assert instruments == ["XAU_USD"]
+            return {
+                "prices": [
+                    {
+                        "instrument": "XAU_USD",
+                        "time": "2026-08-10T09:59:50Z",
+                        "status": "tradeable",
+                        "bids": [{"price": "2399.90"}],
+                        "asks": [{"price": "2400.10"}],
+                    }
+                ]
+            }
+
+    client = FakeClient()
+    result = current_market_defaults(
+        "XAUUSD",
+        "long",
+        project_root=tmp_path,
+        client=client,
+        now=pd.Timestamp("2026-08-10T10:00:00Z"),
+    )
+
+    assert client.calls == 1
+    assert result["order_authority"] is False
+    assert result["mid"] == pytest.approx(2400.0)
+    assert result["suggested_stop_price"] == pytest.approx(2388.0)
+    assert result["suggested_target_price"] == pytest.approx(2424.0)
+    assert result["suggested_slippage_points_per_side"] == pytest.approx(0.12)
+    assert result["assumptions"] == {
+        "stop_fraction": 0.005,
+        "target_fraction": 0.01,
+        "slippage_basis_points_per_side": 0.5,
+        "values_are_editable_examples": True,
+    }
 
 
 def _manual_request(**manual_changes):
@@ -181,6 +234,16 @@ def test_local_server_serves_build_routes_manual_mode_and_rejects_unknown_api(
             "risk_report": {"decision": "ALLOW"},
         },
     )
+    monkeypatch.setattr(
+        _SERVER_MODULE,
+        "current_market_defaults",
+        lambda instrument, side, **kwargs: {
+            "instrument": instrument,
+            "side": side,
+            "mid": 2400,
+            "order_authority": False,
+        },
+    )
     try:
         server = RiskUIServer(("127.0.0.1", 0), static, tmp_path)
     except PermissionError:
@@ -200,6 +263,18 @@ def test_local_server_serves_build_routes_manual_mode_and_rejects_unknown_api(
             "order_authority": False,
         }
         assert b"Risk UI" in urlopen(f"{base}/", timeout=3).read()
+        defaults = json.loads(
+            urlopen(
+                f"{base}/api/market-defaults?instrument=XAUUSD&side=long",
+                timeout=3,
+            ).read()
+        )
+        assert defaults == {
+            "instrument": "XAUUSD",
+            "side": "long",
+            "mid": 2400,
+            "order_authority": False,
+        }
         manual = Request(
             f"{base}/api/evaluate",
             data=json.dumps({"mode": "manual"}).encode("utf-8"),

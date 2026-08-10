@@ -1,16 +1,6 @@
-# Quantitative Precious-Metals Pre-Trade Risk Framework
+# Quant commodities (metals, gold/silver) pre-trade risk framework
 
-**Status:** completed research prototype. Directional strategy discovery is
-closed and retained as historical research; production validation is not
-claimed.
 
-**Final validation:** [`docs/final_validation_report.md`](docs/final_validation_report.md)
-
-**Closure record:** [`docs/risk_framework_roadmap.md`](docs/risk_framework_roadmap.md)
-
-**Documentation map:** [`docs/README.md`](docs/README.md)
-
-## Purpose
 
 This project evaluates the technical and mathematical risk of an intended
 intraday gold or silver trade before an order exists.
@@ -204,6 +194,10 @@ is calculated in Python and is not a loss probability. OANDA credentials remain
 in the ignored `.env`, and the app exposes no create, amend or close-order
 action.
 
+The form fetches one current read-only quote and pre-fills editable examples
+for entry reference, stop, target and slippage. They are transparent percentage
+defaults rather than trade recommendations.
+
 ### Manual calibration refresh
 
 Refresh the locally stored range/adverse-excursion profile explicitly:
@@ -245,9 +239,8 @@ There is no remaining implementation required for the declared research-
 prototype scope. The final audit is in
 [`docs/final_validation_report.md`](docs/final_validation_report.md).
 
-The registered 40-date prospective calibration study remains unresolved and
-optional. Its ledger is retained unchanged, but it is not a completion
-requirement and contributes no evidence to the completed claim. Continuous
+The cancelled prospective calibration ledger is retained unchanged as an audit
+artifact but contributes no evidence to the completed claim. Continuous
 streaming, hosted deployment, order execution and renewed strategy research are
 possible future projects under separate scope and authority.
 

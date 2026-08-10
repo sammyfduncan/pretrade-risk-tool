@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { buildRiskSummary, formatMoney } from "./riskSummary.js";
 
 const initialForm = {
@@ -41,6 +41,48 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [marketDefaults, setMarketDefaults] = useState(null);
+  const [defaultsError, setDefaultsError] = useState("");
+  const [defaultsLoading, setDefaultsLoading] = useState(true);
+  const [defaultsRefresh, setDefaultsRefresh] = useState(0);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadDefaults = async () => {
+      setDefaultsLoading(true);
+      setDefaultsError("");
+      setMarketDefaults(null);
+      try {
+        const query = new URLSearchParams({
+          instrument: form.instrument,
+          side: form.side,
+        });
+        const response = await fetch(`/api/market-defaults?${query}`, {
+          signal: controller.signal,
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Current price unavailable");
+        setMarketDefaults(data);
+        setForm((current) => ({
+          ...current,
+          entry_price: String(data.suggested_entry_price),
+          stop_price: String(data.suggested_stop_price),
+          target_price: String(data.suggested_target_price),
+          max_slippage_points_per_side: String(
+            data.suggested_slippage_points_per_side,
+          ),
+        }));
+      } catch (reason) {
+        if (reason.name !== "AbortError") {
+          setDefaultsError(reason.message || "Current price unavailable");
+        }
+      } finally {
+        if (!controller.signal.aborted) setDefaultsLoading(false);
+      }
+    };
+    loadDefaults();
+    return () => controller.abort();
+  }, [form.instrument, form.side, defaultsRefresh]);
 
   const update = (event) => {
     const { name, value, type, checked } = event.target;
@@ -136,6 +178,22 @@ export default function App() {
 
       <form onSubmit={evaluate}>
         <h2>Trade idea</h2>
+        <div className="market-defaults" aria-live="polite">
+          <div>
+            <span>Current midpoint</span>
+            <strong>{defaultsLoading ? "Loading…" : marketDefaults ? show(marketDefaults.mid, 4) : "—"}</strong>
+            {marketDefaults && <small>Bid {show(marketDefaults.bid, 4)} · Ask {show(marketDefaults.ask, 4)}</small>}
+            {defaultsError && <small className="defaults-error">{defaultsError}</small>}
+          </div>
+          <button
+            type="button"
+            className="secondary compact-button"
+            onClick={() => setDefaultsRefresh((value) => value + 1)}
+            disabled={defaultsLoading}
+          >
+            Refresh defaults
+          </button>
+        </div>
         <div className="fields">
           <Field label="Account source">
             <select value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -170,19 +228,20 @@ export default function App() {
               <option value="240">4 hours</option>
             </select>
           </Field>
-          {form.order_type !== "market" && <NumberField label="Entry price" name="entry_price" value={form.entry_price} onChange={update} required />}
-          <NumberField label="Stop price" name="stop_price" value={form.stop_price} onChange={update} required />
-          <NumberField label="Target price" name="target_price" value={form.target_price} onChange={update} required />
+          {form.order_type !== "market" && <NumberField label="Entry price" help="Current midpoint supplied as an editable starting value." name="entry_price" value={form.entry_price} onChange={update} required />}
+          <NumberField label="Stop price" help="Editable example: 0.5% from the current midpoint." name="stop_price" value={form.stop_price} onChange={update} required />
+          <NumberField label="Target price" help="Editable example: 1.0% from the current midpoint (2:1 before costs)." name="target_price" value={form.target_price} onChange={update} required />
           <NumberField
             label={mode === "manual" ? "Stake (£ per price unit)" : "Requested OANDA units (optional)"}
             name="requested_size"
             value={form.requested_size}
             onChange={update}
+            placeholder={mode === "manual" ? "e.g. 1" : "e.g. 10"}
             required={mode === "manual"}
           />
           <NumberField
             label="Maximum slippage per side"
-            help="Enter quoted-price units, not ticks. Around a gold price of 4,185, 0.21 is approximately 0.5 basis points per side."
+            help="Editable example: 0.5 basis points of the current midpoint per side."
             name="max_slippage_points_per_side"
             value={form.max_slippage_points_per_side}
             onChange={update}
@@ -192,13 +251,13 @@ export default function App() {
         {mode === "manual" && <>
           <h2>External account</h2>
           <div className="fields">
-            <NumberField label="Account equity (£)" name="equity" value={manualAccount.equity} onChange={updateManual} required />
-            <NumberField label="Available funds (£)" name="available_funds" value={manualAccount.available_funds} onChange={updateManual} required />
-            <NumberField label="Equity at start of day (£)" name="day_start_equity" value={manualAccount.day_start_equity} onChange={updateManual} required />
-            <NumberField label="Equity at start of week (£)" name="week_start_equity" value={manualAccount.week_start_equity} onChange={updateManual} required />
-            <NumberField label="Entries today" name="entries_today" value={manualAccount.entries_today} onChange={updateManual} required />
-            <NumberField label="Margin requirement (%)" name="margin_rate_percent" value={manualAccount.margin_rate_percent} onChange={updateManual} required />
-            <NumberField label="Commission per £ stake, per side" name="commission_per_stake_per_side" value={manualAccount.commission_per_stake_per_side} onChange={updateManual} required />
+            <NumberField label="Account equity (£)" name="equity" value={manualAccount.equity} onChange={updateManual} placeholder="e.g. 10000" required />
+            <NumberField label="Available funds (£)" name="available_funds" value={manualAccount.available_funds} onChange={updateManual} placeholder="e.g. 9000" required />
+            <NumberField label="Equity at start of day (£)" name="day_start_equity" value={manualAccount.day_start_equity} onChange={updateManual} placeholder="e.g. 10000" required />
+            <NumberField label="Equity at start of week (£)" name="week_start_equity" value={manualAccount.week_start_equity} onChange={updateManual} placeholder="e.g. 10000" required />
+            <NumberField label="Entries today" name="entries_today" value={manualAccount.entries_today} onChange={updateManual} placeholder="0" required />
+            <NumberField label="Margin requirement (%)" name="margin_rate_percent" value={manualAccount.margin_rate_percent} onChange={updateManual} placeholder="e.g. 5" required />
+            <NumberField label="Commission per £ stake, per side" name="commission_per_stake_per_side" value={manualAccount.commission_per_stake_per_side} onChange={updateManual} placeholder="0" required />
           </div>
           <label className="check">
             <input type="checkbox" name="kill_switch_active" checked={manualAccount.kill_switch_active} onChange={updateManual} />

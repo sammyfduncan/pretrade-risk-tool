@@ -12,6 +12,8 @@ from typing import Any, Mapping
 
 import pandas as pd
 
+from commodity_ml.config import load_config
+from commodity_ml.data import oanda
 from commodity_ml.intraday.pretrade_report import render_pretrade_report_html
 
 
@@ -20,10 +22,82 @@ SUPPORTED_INSTRUMENTS = {
     "XAGUSD": ("config/silver.yaml", "config/gold.yaml"),
 }
 SUPPORTED_HORIZONS = {60, 120, 180, 240}
+DEFAULT_STOP_FRACTION = 0.005
+DEFAULT_TARGET_FRACTION = 0.01
+DEFAULT_SLIPPAGE_BPS = 0.5
 
 
 class RiskUIError(RuntimeError):
     """A browser request cannot safely be evaluated."""
+
+
+def current_market_defaults(
+    instrument: str,
+    side: str,
+    *,
+    project_root: str | Path,
+    client: Any | None = None,
+    now: pd.Timestamp | None = None,
+) -> dict[str, Any]:
+    """Fetch one current quote and derive simple, editable form defaults."""
+    symbol = str(instrument).upper()
+    direction = str(side).lower()
+    if symbol not in SUPPORTED_INSTRUMENTS:
+        raise RiskUIError("instrument must be XAUUSD or XAGUSD")
+    if direction not in {"long", "short"}:
+        raise RiskUIError("side must be long or short")
+    root = Path(project_root).resolve()
+    primary_config, _ = SUPPORTED_INSTRUMENTS[symbol]
+    current_time = pd.Timestamp.now(tz="UTC") if now is None else pd.Timestamp(now)
+    if current_time.tzinfo is None:
+        raise RiskUIError("market-default time must include a timezone")
+    current_time = current_time.tz_convert("UTC")
+    try:
+        cfg = load_config(root / primary_config)
+        broker_instrument = cfg.data.oanda.instrument
+        if not broker_instrument:
+            raise RuntimeError("config has no OANDA instrument")
+        broker = client or oanda.get_client()
+        quotes = oanda.quotes_from_pricing(broker.pricing([broker_instrument]))
+        quote = quotes.get(broker_instrument)
+        if quote is None:
+            raise RuntimeError("OANDA omitted the configured market instrument")
+        quote.validate_for_entry(now=current_time)
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise RiskUIError(f"current market defaults unavailable: {exc}") from exc
+
+    precision = 2 if symbol == "XAUUSD" else 3
+    mid = float(quote.mid)
+    if direction == "long":
+        stop = mid * (1.0 - DEFAULT_STOP_FRACTION)
+        target = mid * (1.0 + DEFAULT_TARGET_FRACTION)
+    else:
+        stop = mid * (1.0 + DEFAULT_STOP_FRACTION)
+        target = mid * (1.0 - DEFAULT_TARGET_FRACTION)
+    return {
+        "schema_version": 1,
+        "order_authority": False,
+        "instrument": symbol,
+        "broker_instrument": broker_instrument,
+        "side": direction,
+        "as_of": quote.timestamp.isoformat(),
+        "bid": round(float(quote.bid), precision),
+        "ask": round(float(quote.ask), precision),
+        "mid": round(mid, precision),
+        "suggested_entry_price": round(mid, precision),
+        "suggested_stop_price": round(stop, precision),
+        "suggested_target_price": round(target, precision),
+        "suggested_slippage_points_per_side": round(
+            mid * DEFAULT_SLIPPAGE_BPS / 10_000,
+            precision,
+        ),
+        "assumptions": {
+            "stop_fraction": DEFAULT_STOP_FRACTION,
+            "target_fraction": DEFAULT_TARGET_FRACTION,
+            "slippage_basis_points_per_side": DEFAULT_SLIPPAGE_BPS,
+            "values_are_editable_examples": True,
+        },
+    }
 
 
 def latest_admitted_calibration(root: str | Path) -> tuple[Path, Path] | None:

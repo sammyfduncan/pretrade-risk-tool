@@ -9,12 +9,13 @@ import json
 import mimetypes
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from dotenv import load_dotenv
 
 from commodity_ml.intraday.risk_ui import (
     RiskUIError,
+    current_market_defaults,
     evaluate_manual_request,
     evaluate_read_only_request,
     render_request_report,
@@ -29,7 +30,8 @@ class RiskUIHandler(BaseHTTPRequestHandler):
     server_version = "CommodityRiskUI/1"
 
     def do_GET(self) -> None:
-        path = urlsplit(self.path).path
+        request = urlsplit(self.path)
+        path = request.path
         if path == "/api/health":
             self._json(
                 HTTPStatus.OK,
@@ -43,6 +45,18 @@ class RiskUIHandler(BaseHTTPRequestHandler):
                     "order_authority": False,
                 },
             )
+            return
+        if path == "/api/market-defaults":
+            query = parse_qs(request.query)
+            try:
+                result = current_market_defaults(
+                    (query.get("instrument") or [""])[0],
+                    (query.get("side") or [""])[0],
+                    project_root=self.server.project_root,
+                )
+                self._json(HTTPStatus.OK, result)
+            except RiskUIError as exc:
+                self._json(HTTPStatus.BAD_REQUEST, {"error": str(exc)})
             return
         if path.startswith("/api/"):
             self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
