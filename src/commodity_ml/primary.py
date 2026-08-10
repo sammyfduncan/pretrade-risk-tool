@@ -1,21 +1,8 @@
-"""Primary signals — the rule that decides *direction*, before ML gets involved.
+"""Primary signals; rule to decide direction, before ml.
 
-This exists to support meta-labeling. Both gold and silver showed the same
-asymmetry: no feature predicts direction (|corr| <= 0.09, noise level) while
-several predict volatility strongly (|corr| ~ 0.51-0.54). Asking a model
-"which way will it go" therefore asks it to supply information nothing in the
-dataset contains.
-
-Meta-labeling restructures the question. A simple, transparent rule picks the
-side; the model then answers a *different* question — "given this rule wants to
-go long here, is this a good moment to obey it?" That second question is about
-regime, and regime is exactly what our features do carry. The model can only
-filter trades, never invent them, which is also why it cannot manufacture an
-edge out of noise the way a direction model can.
-
-Note what this does and does not assume. It does not assume the primary rule
-has an edge on its own. It assumes the rule's *win rate varies with regime* in
-a learnable way. If it doesn't, meta-labeling correctly reports no improvement.
+Supports meta-labeling. Both gold and silver showed the same asymmetry: 
+neither predicts direction (|corr| <= 0.09, noise level), some predict 
+volatility strongly (|corr| ~ 0.51-0.54). 
 """
 
 from __future__ import annotations

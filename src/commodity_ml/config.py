@@ -1,7 +1,6 @@
 """Typed config loaded from config/<asset>.yaml.
 
-Everything tunable lives in the yaml; modules receive these dataclasses and
-contain no magic numbers of their own.
+ONLY make changes to yaml not .py
 """
 
 from __future__ import annotations
@@ -23,11 +22,10 @@ class DukascopyConfig:
 
 @dataclass(frozen=True)
 class OANDAConfig:
-    """Account-specific OANDA v20 execution settings.
+    """Account-specific OANDA v20 execution settings
 
-    Instrument precision, minimum size, margin and home-currency conversion are
-    deliberately read from the authenticated account.  They are not copied
-    into YAML because OANDA can vary them by division and account.
+    Instrument: position, min size margin, curr. conv. read from authed
+    account. Not copied into YAML, OANDA varies them.
     """
 
     instrument: str | None = None
@@ -76,12 +74,11 @@ class FeatureConfig:
 
 @dataclass(frozen=True)
 class CrossAssetConfig:
-    """The gold/silver ratio. See features/crossasset.py.
+    """Gold/silver ratio, see features/crossasset.py.
 
-    Deliberately defined the same way for every precious metal — the ratio
-    describes the *environment* both metals sit in, so gold.yaml and
-    silver.yaml carry an identical block and the transferability control
-    stays a three-line diff.
+    Defined the same for every instrument — ratio describes the environment
+    both metals sit in, so gold.yaml and silver.yaml carry identical block.
+    transferability control stays a three-line diff.
     """
 
     numerator_symbol: str = "XAUUSD"
@@ -90,18 +87,11 @@ class CrossAssetConfig:
 
 @dataclass(frozen=True)
 class COTConfig:
-    """CFTC Commitments of Traders — which futures contract is 'this asset'.
+    """CFTC Commitments of Traders; which futures contract relates to this asset.
 
-    Only the contract code is per-asset; the release schedule, publication lag
-    and staleness tolerance are properties of the CFTC's publishing process and
-    live as constants in features/cot.py, exactly as FRED lags live in macro.py.
-
-    No default code on purpose. A default would be *one asset's* code inherited
-    by every other config, so enabling features.cot on a new asset without
-    setting this would silently train it on gold's positioning — wrong data,
-    no error, plausible-looking numbers. Verified codes (checked against the
-    API 2026-07-29): gold 088691, silver 084691, platinum 076651,
-    palladium 075651.
+    Only contract code is per asset; release schedule, publication lag,
+    staleness tolerance are properties of the CFTC's publishing process and
+    defined as constants in features/cot.py, as FRED lags live in macro.py.
     """
 
     contract_code: str = ""
@@ -109,20 +99,13 @@ class COTConfig:
 
 @dataclass(frozen=True)
 class GDELTConfig:
-    """GDELT headline filter — the per-asset entity filter.
+    """GDELT headline filter, the per asset entity filter.
 
-    These phrases are matched against article TITLES (<PAGE_TITLE> in the GKG
-    Extras field). Since the 2026-07-29 move from the DOC 2.0 REST API to
-    BigQuery there is no article full text to search, so the filter is a list
-    of headline phrases rather than a DOC 2.0 query string — tighter, because
-    it selects articles ABOUT the metal rather than ones mentioning it in
-    passing. See features/gdelt.py and docs/archive/step2_design.md §4.1.
-
-    This is the one genuinely per-asset judgment call in the alt-data layer
-    (README: a blended 'commodities sentiment' is rejected as too diffuse). It
-    must be validated by eyeballing sample headlines BEFORE any snapshot is
-    fetched — scripts/fetch_altdata.py --preview — so an empty list with the
-    family enabled is a refusal, not a default.
+    Phrases matched against article titles. Filter is list of headline phrases
+    rather than query str for BigQuery, tighter as it selects articles about asset
+    rather than ones mentioning it in passing. 
+    
+    Only perasset judgement call in alt-data layer.
     """
 
     title_phrases: tuple[str, ...] = ()
@@ -266,10 +249,10 @@ class AssetConfig:
         symbol: str | None = None,
         granularity: str | None = None,
     ) -> Path:
-        """Raw candles are namespaced by source so two providers can coexist
+        """Raw candles namespaced by source so two providers can coexist
         on disk and be compared (scripts/compare_sources.py).
 
-        `symbol` overrides the asset's own symbol, which is how cross-asset
+        symbol overrides the asset's own symbol, which is how cross-asset
         features reach the partner leg's candles (gold needs silver's file).
         """
         source = source or self.data.source
@@ -279,16 +262,16 @@ class AssetConfig:
 
     @property
     def cot_snapshot_path(self) -> Path:
-        """Pinned COT snapshot (scripts/fetch_altdata.py). Symbol-keyed like raw
+        """Pinned COT snapshot (scripts/fetch_altdata.py). Symbol keyed like raw
         candles; no source/granularity segments because neither applies. A
-        sidecar `<name>.meta.json` written next to it carries provenance."""
+        sidecar <name>.meta.json written next to it carries provenance."""
         return PROJECT_ROOT / "data" / "raw" / f"{self.symbol}_cot.parquet"
 
     @property
     def gdelt_snapshot_path(self) -> Path:
-        """Pinned GDELT snapshot. GDELT is not point-in-time reproducible, so
-        this file IS the sample — build_dataset.py and predict.py only ever
-        read it, never silently refetch."""
+        """Pinned GDELT snapshot. GDELT is not point in time reproducible, so
+        this file is the sample
+        """
         return PROJECT_ROOT / "data" / "raw" / f"{self.symbol}_gdelt.parquet"
 
     @property
@@ -338,7 +321,7 @@ class AssetConfig:
 
 
 def _gdelt_config(raw: dict) -> GDELTConfig:
-    """YAML gives a list; the dataclass is frozen and holds a tuple, so that a
+    """YAML gives a list; dataclass is frozen and holds a tuple, so that a
     config cannot be mutated after the snapshot sidecar has been checked
     against it."""
     fields = dict(raw)
@@ -385,9 +368,9 @@ def load_config(path: str | Path) -> AssetConfig:
 
 
 def bars_per_year(granularity: str) -> float:
-    """Approximate trading bars per year for annualizing metrics.
+    """Approximate trading bars per year for annualising metrics.
 
-    Metals trade ~24h/day, 5 days/week, ~52 weeks -> hours per year.
+    Metals trade 24/5, 52 weeks -> hours/yr.
     """
     hours_per_year = 24 * 5 * 52
     per_hour = {"M5": 12, "M15": 4, "M30": 2, "H1": 1, "H4": 1 / 4, "D": 1 / 24}

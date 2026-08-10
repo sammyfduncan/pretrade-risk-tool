@@ -1,14 +1,8 @@
 """Model factories.
 
-Step-1 policy: fixed, conservative defaults — no hyperparameter tuning until
-the walk-forward harness itself is trusted (see `docs/archive/step1_freeze_record.md`). The LightGBM
-settings below lean toward *underfitting*: financial labels are mostly noise,
-so the regularization (min_child_samples, subsampling, shallow-ish trees)
-matters more than raw capacity.
-
-The LogisticRegression baseline exists to answer one question honestly:
-is the boosted model actually earning its complexity? If LightGBM can't beat
-a scaled linear model out-of-fold, the features (not the model) need work.
+Fixed, conservative defaults, no hyperparameter tuing until walkforward harness is trusted.
+LightGBM settings here may cause underfitting from noise, regularisation matters more than
+capacity.
 """
 
 from __future__ import annotations

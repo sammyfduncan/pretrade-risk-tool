@@ -1,40 +1,4 @@
-"""Probability calibration — making the number mean what it says.
-
-The problem
------------
-A classifier's raw output is a *score*, not a probability. LightGBM's
-0.72 does not mean "this happens 72% of the time"; it means "this ranks high".
-Run 2 and run 3 both reported a Brier score worse than the no-skill baseline
-of always predicting the base rate — the model's ranking was fine, its
-probabilities were overconfident nonsense.
-
-That matters for three concrete reasons here:
-  * position sizing off an uncalibrated probability sizes off noise;
-  * a bot running unsupervised has nothing but the number to reason with;
-  * comparing LightGBM against the logistic baseline on Brier is meaningless
-    while one of them is systematically miscalibrated.
-
-What it does NOT do
--------------------
-Both calibrators are monotonic, so **AUC is essentially unchanged** and — since
-the backtest enters on an expanding *quantile* of the prediction distribution
-rather than an absolute probability — trading results barely move either.
-Calibration buys interpretability, not edge. Expect the Brier score to improve
-and everything else to stay put; if returns jump, something is wrong.
-
-Avoiding the obvious leak
--------------------------
-A calibrator fitted on the same rows the model was fitted on learns to correct
-in-sample overconfidence that does not exist out-of-sample, and one fitted on
-the *test* rows is straightforward leakage. So within each walk-forward fold
-the calibrator is fitted on a held-out tail of that fold's training data,
-separated from it by the same `gap` the outer split uses.
-
-The model is then refitted on the full training block, so the calibrator maps
-the outputs of a *slightly* differently-trained model than the one it grades.
-That is the standard trade (sklearn's CalibratedClassifierCV does the same
-with ensemble=False); the alternative wastes 20% of every fold's training data.
-"""
+# probability calibration
 
 from __future__ import annotations
 

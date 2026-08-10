@@ -1,40 +1,40 @@
 const DECISION_TITLES = {
-  ALLOW: "Within configured limits",
+  ALLOW: "Within limits",
   REDUCE: "Reduce the proposed size",
-  BLOCK: "Outside configured limits",
+  BLOCK: "Outside limits",
   INCOMPLETE: "Assessment incomplete",
 };
 
 const NOTICE_TEXT = {
   volatility_forecast_not_approved_for_sizing:
-    "Current volatility was not approved for position sizing, so no volatility-based size reduction was applied.",
+    "Current volatility not approved for position size, so no volatility based size reduction applied",
   historical_range_calibration_unavailable_or_stale:
-    "Current calibrated range and adverse-movement evidence is unavailable, so the tool cannot judge how the stop compares with recent typical movement.",
+    "Current calibrated range and negative movement evidence not found, no comparison",
   account_type_confirmed_in_config_not_exposed_by_oanda_v20:
-    "OANDA does not expose the account product through this API; the configured spread-bet account type could not be independently confirmed.",
+    "OANDA doesn't expose account type in this API",
   broker_reports_hedging_disabled:
-    "OANDA reports hedging disabled for this account. The current one-position policy does not require hedging.",
+    "OANDA reports hedging disabled for this account, current policy doesn't require hedging",
   manual_account_facts_not_broker_verified:
-    "External account values were supplied manually and were not verified by a broker API.",
+    "External account values not verified through broker API",
   external_margin_rate_user_supplied:
-    "The external broker margin requirement was supplied manually.",
+    "external broker margin requirement entered manually",
   external_existing_positions_limited_to_explicit_none_confirmation:
-    "Portfolio exposure relies on your confirmation that no other gold or silver positions are open.",
+    "Portfolio exposure relies on confirmation that no other positions open",
   "median_cost_above_0.10R":
-    "Typical same-session execution cost is above 10% of the planned trade risk.",
+    "same session execution cost above 10% of the planned trade risk",
   "current_cost_above_0.25R":
-    "Current execution cost is above 25% of the planned trade risk.",
+    "Current execution cost above 25% of the planned trade risk",
   "p95_cost_above_0.25R":
-    "Stressed historical execution cost is above 25% of the planned trade risk.",
+    "Stressed historical execution cost is above 25% of the planned trade risk",
   quote_timestamp_after_decision:
-    "The market quote arrived after the recorded decision time, so the timing evidence is invalid.",
-  stale_quote: "The quote is too old for a new assessment.",
-  scheduled_event_blackout: "The trade falls inside a configured scheduled-event blackout.",
-  market_not_open: "OANDA reports that the market is not currently tradeable.",
-  daily_loss_limit_reached: "The configured daily loss limit has been reached.",
-  weekly_loss_limit_reached: "The configured weekly loss limit has been reached.",
-  maximum_entries_reached: "The configured daily entry limit has been reached.",
-  outside_entry_session: "The proposed entry is outside the configured trading session.",
+    "Market quote arrived after the recorded decision time, timing evidence invalid",
+  stale_quote: "Quote is too old for a new assessment",
+  scheduled_event_blackout: "Trade falls inside a configured scheduled event blackout",
+  market_not_open: "OANDA reports market closed",
+  daily_loss_limit_reached: "Configured daily loss limit reached",
+  weekly_loss_limit_reached: "Configured weekly loss limit reached",
+  maximum_entries_reached: "TConfigured daily entry limit reached",
+  outside_entry_session: "Proposed entry outside trading session",
 };
 
 export function buildRiskSummary(report = {}, adapterIssues = []) {
@@ -50,10 +50,10 @@ export function buildRiskSummary(report = {}, adapterIssues = []) {
   const limitations = [];
 
   if (warnings.includes("volatility_forecast_not_approved_for_sizing")) {
-    limitations.push("No approved current-volatility adjustment was applied to size.");
+    limitations.push("No volatility adjustment applied to size.");
   }
   if (warnings.includes("historical_range_calibration_unavailable_or_stale")) {
-    limitations.push("No current calibrated range or adverse-movement comparison was available.");
+    limitations.push("No calibrated range or negative movement comparison available.");
   }
 
   const plannedLoss = finite(cash.planned_stop_loss);
@@ -113,7 +113,7 @@ export function translateNotice(code) {
   const text = String(code || "");
   if (NOTICE_TEXT[text]) return NOTICE_TEXT[text];
   if (text.startsWith("missing:")) {
-    return `Required information is missing: ${humanize(text.slice("missing:".length))}.`;
+    return `Required info missing: ${humanize(text.slice("missing:".length))}.`;
   }
   return `${humanize(text)}.`;
 }
@@ -133,15 +133,15 @@ export function formatMoney(value, currency) {
 
 function decisionMeaning(decision) {
   if (decision === "ALLOW") {
-    return "The supplied size fits the account, cost and policy limits that could be evaluated. This does not mean the trade is safe or likely to profit.";
+    return "Supplied size fits account, cost and policy limits ";
   }
   if (decision === "REDUCE") {
-    return "The trade can be evaluated, but the supplied size exceeds the framework's safe broker-valid maximum.";
+    return "Trade evaluated, but size exceeds the framework's safe validated maximum ";
   }
   if (decision === "BLOCK") {
-    return "At least one non-negotiable account, market, cost or policy rule prevents this trade under the supplied assumptions.";
+    return "Account, market, cost or policy rule preventing trade under supplied params ";
   }
-  return "One or more required facts are missing, so the framework refuses to give an allow or reduce decision.";
+  return "One or more required facts are missing, so the framework refuses to give an allow or reduce decision ";
 }
 
 function finite(value) {

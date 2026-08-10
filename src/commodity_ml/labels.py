@@ -1,58 +1,27 @@
-"""Label construction — what the model is asked to predict.
+"""Label construction; what the model is asked to predict.
 
-Kept deliberately small and separate: this is the module most prone to
-accidental lookahead bugs. The one rule: labels may look *forward* from bar t
-(that's their job), but any scaling/threshold applied to them (ATR here) must
-be computed from data available *at* bar t.
+Main rule: labels may look forward from bar t, but any scaling applied to them 
+must be computed from data available at bar t.
 
-Why triple_barrier is the default
----------------------------------
-The original `long_threshold` label ("did price rise more than k*ATR over the
-next N bars?") was measurably contaminated by volatility. Its threshold is set
-from ATR at bar t, so the label is easier to satisfy whenever volatility
-*rises* after t. Volatility is highly forecastable (features correlate ~0.62
-with future volatility, versus ~0.05 with future direction), so a model
-maximizes that label's AUC by predicting volatility and ignoring direction
-entirely — which is exactly what the first gold run did: AUC 0.52 with a
-correlation of -0.001 between its probabilities and the actual forward return.
-
-Triple barriers fix this structurally. Both barriers sit at +/-k*ATR, so a
-rise in volatility makes *both* more likely to be touched. Predicting
-volatility therefore earns no advantage, and only genuine directional
-information can move AUC above 0.50. Expect the reported AUC to drop toward
-0.50 — that is the honest directional number becoming visible, not a
-regression.
-
-The barriers are intended to define the executable exit too. The historical
-H4 backtest did not fully achieve that contract: labels inspect future high/low
-from the signal close, while its vectorbt path used close-only bars and a
-delayed entry anchor. The active intraday rebuild must align and test the two
-trade by trade before interpreting P&L.
+triple_barrier is default
 
 Modes
------
 triple_barrier (default):
-    1 if the upper barrier is touched first, 0 if the lower is touched first.
-    If neither is touched within the horizon, the bar is labeled by the sign
-    of its return at the horizon (`timeout: sign`) or dropped (`timeout: drop`).
+    1 if the upper barrier is touched first, 0 if lower first.
+    If neither is touched within the horizon, the bar labeled by sign
+    of its return at the horizon (`timeout: sign`) or dropped (`timeout: drop`)
 
 meta:
-    Identical barrier outcomes, but training is restricted to bars where the
-    primary rule (see primary.py) wants to be long. The label then reads
-    "would obeying the rule here have paid off?", turning the model from a
-    direction predictor into a trade filter. Sample restriction happens in
-    scripts/train.py; the label maths is the same.
+    training restricted to bars where primary rule (primary.py) set long.
 
 updown:
-    1 if the forward return over `horizon_bars` is positive. Symmetric and
-    immune to the volatility channel, but noisier: most bars are chop.
+    1 if forward return over horizon bar is positive. Symmetric and
+    immune to the volatility channel but noisier
 
-long_threshold (legacy, kept for reproducing earlier results):
-    1 if forward return > atr_mult * ATR(14)/close. Volatility-contaminated
-    as described above; do not use for new work.
+long_threshold (legacy):
+    1 if forward return > atr_mult * ATR(14)/close
 
-The final `horizon` bars get NaN labels (their future isn't known yet) and
-must be dropped before training.
+Final `horizon` bars get NaN labels, must be dropped before training
 """
 
 from __future__ import annotations
@@ -69,23 +38,18 @@ LABEL_COLUMNS = ["label", "exit_bars", "barrier_pct", "exit_time"]
 def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
     """Build labels for every bar.
 
-    Returns a DataFrame with:
-      label       1.0 / 0.0, NaN where the outcome isn't knowable
+    Returns DF with:
+      label       1.0 / 0.0, NaN where outcome unknown
       exit_bars   how many bars until the labeled outcome resolved (barrier
                   touch or horizon). An execution simulator must reproduce
                   this contract explicitly; the historical H4 simulator did
                   not yet do so exactly.
-      barrier_pct the +/- barrier width at that bar, as a fraction of price.
-                  Feeds the backtest's per-bar stop-loss / take-profit.
-      exit_time   the timestamp `exit_bars` later. Every label owns a forward
-                  window [t, exit_time], and neighbouring windows overlap —
-                  that overlap is what sample weighting corrects for
-                  (modeling/sample_weights.py). Computed here because this is
-                  the only place that sees the full, unfiltered bar timeline:
-                  meta-mode training is a sparse subset of it, so positions
-                  cannot be recovered downstream.
+      barrier_pct +/- barrier width at that bar, as fraction of price.
+                  Feeds backtest per-bar SL/TP.
+      exit_time   timestamp exit_bars later. Each label has forward
+                  window [t, exit_time]; neighbouring windows overlap
 
-    All four are metadata, never model inputs — they describe the outcome.
+    All four are metadata, never model inputs
     """
     close = df["close"]
     atr_pct = (atr(df, length=14) / close).rename("barrier_pct")
@@ -133,11 +97,11 @@ def make_labels(df: pd.DataFrame, cfg: LabelConfig) -> pd.DataFrame:
 
 
 def _exit_times(index: pd.DatetimeIndex, exit_bars: np.ndarray) -> np.ndarray:
-    """Timestamp of the bar `exit_bars` ahead, NaT where the label is unknown.
+    """Timestamp of exit_bars ahead, NaT where label is unknown
 
-    Works in integer bar positions, not wall-clock arithmetic: metals stop
-    trading over the weekend, so "12 bars later" and "48 hours later" are
-    different instants and only the first one matches the label.
+    Works in int bar positions; not wall clock arithmetic; 
+    "12 bars later" and "48 hours later" different instants 
+    accounting for weekend closures
     """
     n = len(index)
     out = np.full(n, np.datetime64("NaT"), dtype="datetime64[ns]")
@@ -146,7 +110,6 @@ def _exit_times(index: pd.DatetimeIndex, exit_bars: np.ndarray) -> np.ndarray:
         target = (np.flatnonzero(known) + exit_bars[known]).astype(int)
         out[known] = index.values[np.clip(target, 0, n - 1)]
     return pd.DatetimeIndex(out, tz="UTC")
-
 
 def _triple_barrier(
     high: np.ndarray,
@@ -157,12 +120,11 @@ def _triple_barrier(
     k: float,
     timeout: str,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Walk forward from each bar until a barrier is touched.
+    """Walk forward from each bar until barrier touched
 
     Scans bars t+1..t+horizon and reports which barrier came first. When a
-    single bar's range spans *both* barriers we cannot tell from OHLC which
-    was touched first, so we assume the adverse one — pessimistic by
-    construction, because the optimistic assumption would inflate results.
+    single bar's range spans both, cannot tell from OHLC which
+    was touched first, so assume adverse bar
     """
     n = len(close)
     labels = np.full(n, np.nan)

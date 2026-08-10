@@ -1,13 +1,9 @@
-"""The live trade/no-trade decision, separated from the CLI that prints it.
+"""The live trade/no trade decision.
 
-This is the code that will eventually place real orders, so it lives in the
-package where it can be tested rather than inside `scripts/predict.py`.
+Under meta labelling model never picks a side. Primary rule decides 
+whether to go long; model decides whether that long is worth taking. 
 
-Under meta-labeling the model never picks a side. The primary rule decides
-whether to be long at all; the model only decides whether *that particular* long
-is worth taking. A high score on a bar where the trend rule is flat means
-nothing — there is no trade to filter. Both conditions must hold, which is why
-`take_trade` is a conjunction and not a score comparison.
+Extensible for trade execution
 """
 
 from __future__ import annotations
@@ -35,20 +31,13 @@ class Decision:
 
 
 def decide(artifact: dict, features: pd.Series, primary_long: bool) -> Decision:
-    """Score one bar's feature row against the stored entry threshold.
+    """Score one bars feature row against scored entry threshold. 
+    artifact is what train.py saved, threshold read from it not recomputed;
+    backtest entry rile is an expanding quantile of the out of fold dist.
 
-    `artifact` is what `train.py` saved. The threshold is read from it rather
-    than recomputed, because the backtest's entry rule is an *expanding
-    quantile* of the out-of-fold distribution — a single bar has no
-    distribution of its own to take a quantile of, so a live path that tried to
-    derive its own threshold would be answering a different question than the
-    one the backtest measured.
-
-    Two numbers with two jobs, and they are not interchangeable: `score` is the
-    raw model output and is what the threshold was derived from, so it decides.
-    `calibrated_proba` is what the score *means* and is for reporting and
-    position sizing. Ranking on the calibrated value would change which bars
-    trade, for reasons unrelated to signal (`docs/archive/step1_freeze_record.md`).
+    Score is raw model output (threshold derives from), it decides.
+    calibrated_proba is what score means, used for reporting and position sizing. 
+    Ranking on calibrated val changes which bars trade.
     """
     model = artifact["model"]
     row = features.to_frame().T

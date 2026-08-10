@@ -1,18 +1,17 @@
-"""Walk-forward training harness.
+"""Walk forward training harness.
 
-Uses sklearn's TimeSeriesSplit (never hand-rolled, never shuffled): each fold
-trains on an expanding window of the past and tests on the block immediately
-after it, so every test prediction comes from a model that has never seen
-that bar or anything after it.
+Uses sklearn's TimeSeriesSplit: each fold trains on an expanding window 
+and tests on the block immediately after it, so every test prediction comes
+from a model that has never seen that bar or anything after it.
 
-The `gap` parameter is load-bearing: labels look `horizon` bars into the
-future, so the last `horizon` training bars share future price action with
-the first test bars. Skipping `gap >= horizon` bars between train and test
+The gap parameter is load bearing: labels look horizon bars into the
+future, so the last horizon training bars share future price action with
+the first test bars. Skipping gap >= horizon bars between train and test
 removes that overlap. AssetConfig enforces gap >= horizon at load time.
 
-The concatenated per-fold test predictions form the *out-of-fold* (OOF)
-series — an honest simulation of "what would the model have predicted at the
-time" — which is the only thing the backtest is allowed to consume.
+Concatenated per fold test predictions form the out of fold series; 
+honest simulation of model predictions; which is only thing backtest
+is allowed to consume.
 
 Two corrections layer on top, both fitted strictly inside each fold:
 
@@ -22,8 +21,8 @@ Two corrections layer on top, both fitted strictly inside each fold:
     better than they measure.
 
 Both are per-fold on purpose. Computing either across the whole dataset would
-let test-period rows influence how training-period rows are weighted or
-scored — a mild leak, but exactly the kind this project exists to avoid.
+let test period rows influence how training period rows are weighted/scored — 
+mild leak, but exactly the kind this project exists to avoid.
 """
 
 from __future__ import annotations
@@ -63,20 +62,14 @@ class FoldResult:
 
 @dataclass
 class WalkForwardResult:
-    """Two out-of-fold series, deliberately kept apart.
+    """Two out of fold series, both kept apart.
 
-    `oof_proba` is the raw model score. It is what the backtest ranks on,
+    oof_proba is raw model score. It is what the backtest ranks on,
     because the entry rule is a *quantile* of the prediction distribution and
     quantiles are a statement about ordering.
 
-    `oof_calibrated` is the same score mapped onto honest probabilities. It is
+    oof_calibrated is same score mapped onto honest probabilities. It is
     what Brier is measured on and what position sizing would use later.
-
-    Keeping them separate is what makes "calibration changes interpretation,
-    not behaviour" true by construction rather than by hope. Ranking on
-    calibrated output looked harmless and was not: isotonic collapsed 4,845
-    distinct predictions into ~1,000, which moved the trade count from 137 to
-    71 for reasons entirely unrelated to signal.
     """
 
     oof_proba: pd.Series          # raw out-of-fold score — ranking, entries
@@ -95,7 +88,7 @@ def walk_forward(
     calibration: str = "none",
     purge_by_exit_time: bool = False,
 ) -> WalkForwardResult:
-    """Run expanding-window walk-forward training and collect OOF predictions."""
+    """Run expanding window walk forward training and collect OOF predictions."""
     if not X.index.is_monotonic_increasing:
         raise ValueError("X must be sorted by time before walk-forward splitting.")
     if sample_weighting == "uniqueness" and exit_time is None:
@@ -162,7 +155,6 @@ def walk_forward(
     result.oof_calibrated = pd.concat(calibrated_chunks).sort_index()
     return result
 
-
 def fit_final_model(
     X: pd.DataFrame,
     y: pd.Series,
@@ -173,12 +165,14 @@ def fit_final_model(
     gap: int = 0,
     purge_by_exit_time: bool = False,
 ) -> CalibratedModel:
-    """Fit on all available history — the artifact for future/live prediction.
+    """Fits onto all history — the artifact for future/live prediction.
 
     Its quality estimate comes from the walk-forward folds, never from
     predictions on its own training data. The returned object carries the
     calibrator and the feature order with it, so the live path cannot apply
     one without the other.
+    Quality estimate comes from walk forward folds, never from preds on own
+    train data. Returned obj. carries calibrator and feature order with it.
     """
     weights = _fold_weights(sample_weighting, X.index, exit_time)
     calibrator = _fit_fold_calibrator(
@@ -251,12 +245,10 @@ def _fit_fold_calibrator(
 
 
 def _fit(model, X: pd.DataFrame, y: pd.Series, weights: np.ndarray | None):
-    """Fit, routing sample weights through a Pipeline to its final step.
+    """Fit routing sample weights through a pipeline to final step
 
-    A bare estimator takes `sample_weight=`; a Pipeline needs it addressed to
-    the step that consumes it (`clf__sample_weight`). Getting this wrong fails
-    loudly rather than silently, but only for the baseline model, so it is
-    worth handling in one place.
+    Bare estimator takes sample_weight; pipeline needs it addressed to
+    the step that consumes it (clf__sample_weight)
     """
     if weights is None:
         model.fit(X, y)
