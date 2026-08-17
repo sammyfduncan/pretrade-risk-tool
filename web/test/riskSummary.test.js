@@ -37,14 +37,14 @@ test("summarizes an allow decision without calling the trade safe", () => {
     },
   });
 
-  assert.equal(summary.decisionTitle, "Within configured limits");
+  assert.equal(summary.decisionTitle, "Within limits");
   assert.equal(summary.evidenceLevel, "LIMITED");
   assert.ok(Math.abs(summary.accountEquity - 100000) < 1e-9);
   assert.ok(Math.abs(summary.budgetUsage - 0.09832) < 1e-12);
   assert.equal(summary.riskScore, 6);
   assert.equal(summary.riskDriver, "median cost");
   assert.equal(summary.evidenceScore, 1);
-  assert.match(summary.decisionMeaning, /does not mean the trade is safe/i);
+  assert.match(summary.decisionMeaning, /does not predict the outcome or guarantee safety/i);
 });
 
 test("translates internal codes and formats account currency", () => {

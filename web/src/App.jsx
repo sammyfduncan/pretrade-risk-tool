@@ -28,11 +28,16 @@ const initialManualAccount = {
 
 const optionalNumber = (value) => (value === "" ? null : Number(value));
 const show = (value, digits = 2) => {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
-  return Number(value).toLocaleString(undefined, { maximumFractionDigits: digits });
+  const number = Number(value);
+  if (value === null || value === undefined || !Number.isFinite(number)) return "—";
+  return number.toLocaleString(undefined, { maximumFractionDigits: digits });
 };
-const percent = (value) =>
-  value === null || value === undefined ? "—" : `${(Number(value) * 100).toFixed(2)}%`;
+const percent = (value) => {
+  const number = Number(value);
+  return value === null || value === undefined || !Number.isFinite(number)
+    ? "—"
+    : `${(number * 100).toFixed(2)}%`;
+};
 
 export default function App() {
   const [mode, setMode] = useState("oanda");

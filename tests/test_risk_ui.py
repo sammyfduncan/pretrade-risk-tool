@@ -54,6 +54,8 @@ def test_browser_contract_is_small_and_fail_closed():
         normalize_trade_request(_request(instrument="EURUSD"))
     with pytest.raises(RiskUIError, match="holding_period"):
         normalize_trade_request(_request(holding_period_minutes=30))
+    with pytest.raises(RiskUIError, match="integer"):
+        normalize_trade_request(_request(holding_period_minutes=120.5))
     with pytest.raises(RiskUIError, match="entry_price is required"):
         normalize_trade_request(_request(order_type="limit"))
     with pytest.raises(RiskUIError, match="finite"):
@@ -140,6 +142,8 @@ def test_manual_account_contract_is_explicit_and_fail_closed():
         normalize_manual_request(_manual_request(no_other_metals_positions_confirmed=False))
     with pytest.raises(RiskUIError, match="decimal fraction"):
         normalize_manual_request(_manual_request(margin_rate=5))
+    with pytest.raises(RiskUIError, match="integer"):
+        normalize_manual_request(_manual_request(entries_today=1.5))
 
 
 def test_oanda_runner_preserves_read_only_boundary(tmp_path, monkeypatch):
@@ -252,7 +256,10 @@ def test_local_server_serves_build_routes_manual_mode_and_rejects_unknown_api(
     thread.start()
     base = f"http://127.0.0.1:{server.server_address[1]}"
     try:
-        health = json.loads(urlopen(f"{base}/api/health", timeout=3).read())
+        health_response = urlopen(f"{base}/api/health", timeout=3)
+        health = json.loads(health_response.read())
+        assert health_response.headers["X-Frame-Options"] == "DENY"
+        assert "camera=()" in health_response.headers["Permissions-Policy"]
         assert health == {
             "status": "ok",
             "mode": "READ_ONLY_RISK_UI",

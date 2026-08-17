@@ -190,6 +190,9 @@ def fetch_account_snapshot(
     nav = _finite_float(raw.get("NAV"), "account NAV")
     if not np.isclose(nav, balance + open_pnl, atol=1e-4):
         raise RuntimeError("OANDA NAV does not equal balance plus unrealized P&L")
+    hedging = raw.get("hedgingEnabled")
+    if hedging is not None and not isinstance(hedging, bool):
+        raise RuntimeError("OANDA hedgingEnabled must be a boolean when supplied")
     return BrokerAccountSnapshot(
         account_id=account_id,
         currency=str(raw.get("currency") or "").upper(),
@@ -199,9 +202,7 @@ def fetch_account_snapshot(
         open_pnl=open_pnl,
         equity=nav,
         available=_finite_float(raw.get("marginAvailable"), "available margin"),
-        hedging_enabled=(
-            bool(raw["hedgingEnabled"]) if "hedgingEnabled" in raw else None
-        ),
+        hedging_enabled=hedging,
     )
 
 
@@ -243,7 +244,10 @@ def instrument_metadata_from_responses(
         account_currency=account_currency,
         label=str(instrument.get("displayName") or name),
     )
-    precision = int(_finite_float(instrument.get("tradeUnitsPrecision"), "trade precision"))
+    raw_precision = _finite_float(instrument.get("tradeUnitsPrecision"), "trade precision")
+    if not raw_precision.is_integer():
+        raise RuntimeError("OANDA trade unit precision must be an integer")
+    precision = int(raw_precision)
     if precision < 0 or precision > 12:
         raise RuntimeError("OANDA trade unit precision is outside supported range")
     minimum = _positive_float(instrument.get("minimumTradeSize"), "minimum trade size")
@@ -431,6 +435,8 @@ def _mapping(value: Any) -> Mapping[str, Any]:
 
 
 def _finite_float(value: Any, name: str) -> float:
+    if isinstance(value, bool):
+        raise RuntimeError(f"OANDA {name} is missing or non-numeric")
     try:
         number = float(value)
     except (TypeError, ValueError) as exc:
@@ -454,7 +460,12 @@ def _optional_positive(value: Any) -> float | None:
 
 
 def _timestamp(value: Any, name: str) -> pd.Timestamp:
-    timestamp = pd.Timestamp(value)
+    try:
+        timestamp = pd.Timestamp(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"OANDA {name} is missing or invalid") from exc
+    if pd.isna(timestamp):
+        raise RuntimeError(f"OANDA {name} is missing or invalid")
     if timestamp.tzinfo is None:
         timestamp = timestamp.tz_localize("UTC")
     return timestamp.tz_convert("UTC")

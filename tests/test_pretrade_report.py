@@ -123,3 +123,15 @@ def test_renderer_escapes_untrusted_text():
 def test_renderer_refuses_non_report_document():
     with pytest.raises(ValueError, match="does not contain"):
         render_pretrade_report_html({"hello": "world"})
+
+
+def test_renderer_suppresses_non_finite_numbers():
+    value = report()
+    value["cash_risk"]["proposed"]["planned_stop_loss"] = float("inf")
+    value["assessment"]["maximum_pressure_ratio"] = float("nan")
+
+    html = render_pretrade_report_html(value)
+
+    assert ">inf<" not in html.lower()
+    assert ">nan<" not in html.lower()
+    assert html.count("—") >= 2

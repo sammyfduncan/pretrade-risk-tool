@@ -288,10 +288,12 @@ def _integer(value: Any, name: str) -> int:
     if isinstance(value, bool):
         raise RiskUIError(f"{name} must be an integer")
     try:
-        number = int(value)
+        numeric = float(value)
     except (TypeError, ValueError) as exc:
         raise RiskUIError(f"{name} must be an integer") from exc
-    return number
+    if not math.isfinite(numeric) or not numeric.is_integer():
+        raise RiskUIError(f"{name} must be an integer")
+    return int(numeric)
 
 
 def _optional_positive(value: Any, name: str) -> float | None:

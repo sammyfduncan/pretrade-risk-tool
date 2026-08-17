@@ -6,6 +6,8 @@ ONLY make changes to yaml not .py
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
+from numbers import Real
 from pathlib import Path
 
 import pandas as pd
@@ -59,6 +61,16 @@ class LabelConfig:
     atr_mult: float = 1.0
     timeout: str = "sign"  # triple_barrier only: label timeouts by sign, or drop them
 
+    def __post_init__(self) -> None:
+        if self.mode not in ("triple_barrier", "meta", "updown", "long_threshold"):
+            raise ValueError(f"Unknown label.mode: {self.mode!r}")
+        if isinstance(self.horizon_bars, bool) or not isinstance(self.horizon_bars, int) or self.horizon_bars < 1:
+            raise ValueError("label.horizon_bars must be a positive integer")
+        if not _finite_real(self.atr_mult) or self.atr_mult <= 0:
+            raise ValueError("label.atr_mult must be finite and positive")
+        if self.timeout not in ("sign", "drop"):
+            raise ValueError("label.timeout must be 'sign' or 'drop'")
+
 
 @dataclass(frozen=True)
 class FeatureConfig:
@@ -83,6 +95,17 @@ class CrossAssetConfig:
 
     numerator_symbol: str = "XAUUSD"
     denominator_symbol: str = "XAGUSD"
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.numerator_symbol, str)
+            or not self.numerator_symbol.strip()
+            or not isinstance(self.denominator_symbol, str)
+            or not self.denominator_symbol.strip()
+        ):
+            raise ValueError("cross-asset symbols must be non-empty")
+        if self.numerator_symbol == self.denominator_symbol:
+            raise ValueError("cross-asset numerator and denominator must differ")
 
 
 @dataclass(frozen=True)
@@ -110,6 +133,13 @@ class GDELTConfig:
 
     title_phrases: tuple[str, ...] = ()
 
+    def __post_init__(self) -> None:
+        if any(
+            not isinstance(value, str) or not value.strip()
+            for value in self.title_phrases
+        ):
+            raise ValueError("gdelt.title_phrases must contain non-empty strings")
+
 
 @dataclass(frozen=True)
 class PrimaryConfig:
@@ -119,11 +149,25 @@ class PrimaryConfig:
     ema_span: int = 50  # trend rule
     lookback: int = 20  # breakout rule
 
+    def __post_init__(self) -> None:
+        if self.rule not in ("trend", "breakout", "always"):
+            raise ValueError(f"Unknown primary.rule: {self.rule!r}")
+        for name in ("ema_span", "lookback"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"primary.{name} must be a positive integer")
+
 
 @dataclass(frozen=True)
 class CVConfig:
     n_splits: int = 5
     gap_bars: int = 12
+
+    def __post_init__(self) -> None:
+        if isinstance(self.n_splits, bool) or not isinstance(self.n_splits, int) or self.n_splits < 2:
+            raise ValueError("cv.n_splits must be an integer of at least 2")
+        if isinstance(self.gap_bars, bool) or not isinstance(self.gap_bars, int) or self.gap_bars < 0:
+            raise ValueError("cv.gap_bars must be a non-negative integer")
 
 
 @dataclass(frozen=True)
@@ -142,6 +186,8 @@ class ModelConfig:
     calibration: str = "none"  # none | isotonic | sigmoid
 
     def __post_init__(self) -> None:
+        if self.type not in ("lightgbm", "logistic"):
+            raise ValueError(f"model.type must be 'lightgbm' or 'logistic', got {self.type!r}")
         if self.sample_weighting not in ("none", "uniqueness"):
             raise ValueError(
                 f"model.sample_weighting must be 'none' or 'uniqueness', "
@@ -161,10 +207,14 @@ class BacktestConfig:
     init_cash: float = 10_000.0
 
     def __post_init__(self) -> None:
-        if not 0.0 < self.entry_quantile < 1.0:
+        if not _finite_real(self.entry_quantile) or not 0.0 < self.entry_quantile < 1.0:
             raise ValueError(
                 f"entry_quantile must be strictly between 0 and 1, got {self.entry_quantile}"
             )
+        if not _finite_real(self.fee_pct) or not 0 <= self.fee_pct < 1:
+            raise ValueError("backtest.fee_pct must be finite and between 0 and 1")
+        if not _finite_real(self.init_cash) or self.init_cash <= 0:
+            raise ValueError("backtest.init_cash must be finite and positive")
 
 
 @dataclass(frozen=True)
@@ -184,6 +234,15 @@ class AssetConfig:
     backtest: BacktestConfig = field(default_factory=BacktestConfig)
 
     def __post_init__(self) -> None:
+        if (
+            not isinstance(self.asset, str)
+            or not self.asset.strip()
+            or not isinstance(self.symbol, str)
+            or not self.symbol.strip()
+        ):
+            raise ValueError("asset and symbol must be non-empty")
+        if self.granularity not in ("M5", "M15", "M30", "H1", "H4", "D"):
+            raise ValueError(f"Unsupported granularity: {self.granularity!r}")
         if self.cv.gap_bars < self.label.horizon_bars:
             raise ValueError(
                 f"cv.gap_bars ({self.cv.gap_bars}) must be >= label.horizon_bars "
@@ -228,7 +287,12 @@ class AssetConfig:
     def holdout_ts(self) -> pd.Timestamp | None:
         if self.data.holdout_start is None:
             return None
-        return pd.Timestamp(self.data.holdout_start, tz="UTC")
+        timestamp = pd.Timestamp(self.data.holdout_start)
+        if pd.isna(timestamp):
+            raise ValueError("data.holdout_start must be a valid timestamp")
+        if timestamp.tzinfo is None:
+            return timestamp.tz_localize("UTC")
+        return timestamp.tz_convert("UTC")
 
     def development_slice(self, df: pd.DataFrame) -> pd.DataFrame:
         """Rows available for training, tuning and inspection."""
@@ -377,3 +441,11 @@ def bars_per_year(granularity: str) -> float:
     if granularity not in per_hour:
         raise ValueError(f"Unsupported granularity: {granularity}")
     return hours_per_year * per_hour[granularity]
+
+
+def _finite_real(value: object) -> bool:
+    return (
+        isinstance(value, Real)
+        and not isinstance(value, bool)
+        and math.isfinite(float(value))
+    )

@@ -33,7 +33,7 @@ const NOTICE_TEXT = {
   market_not_open: "OANDA reports market closed",
   daily_loss_limit_reached: "Configured daily loss limit reached",
   weekly_loss_limit_reached: "Configured weekly loss limit reached",
-  maximum_entries_reached: "TConfigured daily entry limit reached",
+  maximum_entries_reached: "Configured daily entry limit reached",
   outside_entry_session: "Proposed entry outside trading session",
 };
 
@@ -133,15 +133,15 @@ export function formatMoney(value, currency) {
 
 function decisionMeaning(decision) {
   if (decision === "ALLOW") {
-    return "Supplied size fits account, cost and policy limits ";
+    return "Supplied size fits the configured account, cost and policy limits. This does not predict the outcome or guarantee safety.";
   }
   if (decision === "REDUCE") {
-    return "Trade evaluated, but size exceeds the framework's safe validated maximum ";
+    return "Trade evaluated, but size exceeds the framework's policy maximum.";
   }
   if (decision === "BLOCK") {
-    return "Account, market, cost or policy rule preventing trade under supplied params ";
+    return "An account, market, cost or policy rule prevents the trade under the supplied parameters.";
   }
-  return "One or more required facts are missing, so the framework refuses to give an allow or reduce decision ";
+  return "One or more required facts are missing, so the framework refuses to give an allow or reduce decision.";
 }
 
 function finite(value) {

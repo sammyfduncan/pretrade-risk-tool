@@ -1,39 +1,33 @@
-# Quant commodities (metals, gold/silver) pre-trade risk tool
+# Quantitative precious-metals pre-trade risk tool
 
-
-
-This framework quantifies the technical risk of a prospective
-intraday gold/silver trade before an order exists.
+This read-only framework quantifies the technical risk of a prospective
+intraday gold or silver trade before an order exists.
 
 The user—or a separately validated strategy—supplies the proposed direction,
 entry, stop, target, holding period and optional size. The framework combines
 that geometry with account state, current executable OANDA prices, broker
 contract facts, existing metals exposure, scheduled-event controls and
-historically calibrated range/adverse-excursion evidence.
+historically calibrated range and adverse-excursion evidence.
 
-The user provides the propososed direction, entry, stop, target, holding period 
-and optimal size. The framework combines this with account state, current prices 
-(s. OANDA), exposure and pre calibrated range evidence.
+It returns one of four decisions:
 
-Will return one of 4 decisions:
-
-- `ALLOW`: fits risk limit;
+- `ALLOW`: fits the configured risk limits;
 - `REDUCE`: size must be reduced;
 - `BLOCK`: policy, market, cost or portfolio prevents trade entry;
 - `INCOMPLETE`: a fact is absent and framework won't guess.
 
-`ALLOW` doesn't predict profit.
+`ALLOW` does not predict profitability or guarantee a maximum loss.
 
 ## Specs
 
 - covers spot gold (`XAUUSD`) and silver (`XAGUSD`);
 - uses quantitative data only;
-- accepts market, limit and stop trade;
+- accepts market, limit and stop trades;
 - calculates cash at stop risk, cost adjusted reward + risk, margin, notional and
   portfolio concentration;
 - applies London session, daily/weekly loss, entry count, scheduled event and
   kill switch controls;
-- reports deterministic spread and gap stresses; 
+- reports deterministic spread and gap stresses;
 - blocks on missing, delayed, inconsistent or unreconciled data.
 
 ## Instructions
@@ -93,13 +87,11 @@ Copy `examples/oanda_pretrade_intent.template.json` then run:
 
 ### Browser UI
 
-Install/build local react interface:
+Install and build the local React interface:
 
 ```bash
-cd web
-npm install
-npm run build
-cd ..
+npm ci --prefix web
+npm run build --prefix web
 ```
 
 Start local server:
@@ -113,3 +105,16 @@ Start local server:
 ```bash
 .venv/bin/python scripts/refresh_current_risk_calibration.py
 ```
+
+### Verification
+
+Run the complete offline test and build checks:
+
+```bash
+.venv/bin/python -m pytest
+npm test --prefix web
+npm run build --prefix web
+```
+
+The application is decision support only. It contains no broker order endpoint
+and is not approved for unattended execution or real-money reliance.

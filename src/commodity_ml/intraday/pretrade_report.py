@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from html import escape
+import math
 from typing import Any, Mapping, Sequence
 
 
@@ -238,6 +239,8 @@ def _number(value: Any, decimals: int = 3) -> str:
         number = float(value)
     except (TypeError, ValueError):
         return "—"
+    if not math.isfinite(number):
+        return "—"
     return f"{number:,.{decimals}f}".rstrip("0").rstrip(".")
 
 
@@ -251,16 +254,18 @@ def _score(value: Any, maximum: Any) -> str:
 
 def _money(value: Any) -> str:
     try:
-        return f"{float(value):,.2f}"
+        number = float(value)
     except (TypeError, ValueError):
         return "—"
+    return f"{number:,.2f}" if math.isfinite(number) else "—"
 
 
 def _percent(value: Any) -> str:
     try:
-        return f"{float(value):.3%}"
+        number = float(value)
     except (TypeError, ValueError):
         return "—"
+    return f"{number:.3%}" if math.isfinite(number) else "—"
 
 
 def _points(value: Any) -> str:

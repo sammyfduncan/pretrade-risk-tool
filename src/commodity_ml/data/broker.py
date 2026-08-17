@@ -28,6 +28,8 @@ class BrokerAccountSnapshot:
                 raise ValueError(f"broker account {name} must be finite")
         if not np.isclose(self.equity, self.balance + self.open_pnl, atol=1e-6):
             raise ValueError("broker account equity must equal balance plus open P&L")
+        if self.hedging_enabled is not None and not isinstance(self.hedging_enabled, bool):
+            raise ValueError("broker account hedging_enabled must be boolean or None")
 
 
 @dataclass(frozen=True)
@@ -116,6 +118,12 @@ class BrokerInstrumentMetadata:
                 raise ValueError(f"broker metadata {name} must be finite and positive")
         if self.margin_rate > 1:
             raise ValueError("broker margin rate must be a decimal fraction <= 1")
+        if self.maximum_order_size is not None and (
+            not np.isfinite(self.maximum_order_size) or self.maximum_order_size <= 0
+        ):
+            raise ValueError("broker maximum order size must be finite and positive")
+        if not isinstance(self.streaming_prices_available, bool):
+            raise ValueError("broker streaming-prices flag must be boolean")
 
     def notional_per_size_unit(self, price: float) -> float:
         if not np.isfinite(price) or price <= 0:

@@ -125,6 +125,16 @@ def test_account_equity_uses_authoritative_nav_and_reports_hedging():
     assert account.hedging_enabled is False
 
 
+def test_account_snapshot_refuses_non_boolean_hedging_flag():
+    client = FakeClient(pd.Timestamp("2026-01-05 10:00", tz="UTC"))
+    client.account_summary = lambda: {
+        **FakeClient.account_summary(client),
+        "hedgingEnabled": "false",
+    }
+    with pytest.raises(RuntimeError, match="hedgingEnabled"):
+        fetch_account_snapshot(client, account_type="SPREADBET")
+
+
 def test_quote_freshness_and_market_status_fail_closed():
     now = pd.Timestamp("2026-01-05 10:00", tz="UTC")
     quote = quotes_from_pricing(pricing(now - pd.Timedelta(seconds=10)))["XAU_USD"]
@@ -147,6 +157,16 @@ def test_metadata_derives_precision_margin_and_conservative_conversion():
     assert metadata.notional_value_per_price_unit == pytest.approx(0.80)
     assert metadata.margin_rate == pytest.approx(0.05)
     assert metadata.notional_per_size_unit(2500) == pytest.approx(2000)
+
+
+def test_metadata_refuses_fractional_trade_unit_precision():
+    malformed = {**instrument(), "tradeUnitsPrecision": 1.5}
+    with pytest.raises(RuntimeError, match="precision must be an integer"):
+        instrument_metadata_from_responses(
+            malformed,
+            pricing(pd.Timestamp("2026-01-05 10:00", tz="UTC")),
+            account_currency="GBP",
+        )
 
 
 def test_combined_snapshot_and_trade_id_reconciliation():

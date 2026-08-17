@@ -8,13 +8,19 @@ configuration means — that is a freeze break, not a convenience.
 
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from commodity_ml.config import (
     AssetConfig,
+    BacktestConfig,
     COTConfig,
+    CVConfig,
+    DataConfig,
     FeatureConfig,
     GDELTConfig,
+    LabelConfig,
+    ModelConfig,
     load_config,
 )
 
@@ -33,6 +39,32 @@ def test_unknown_yaml_keys_fail_loudly():
         COTConfig(**{"contract": "088691"})  # should be contract_code
     with pytest.raises(TypeError):
         GDELTConfig(**{"search": "gold"})  # should be title_phrases
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        lambda: LabelConfig(horizon_bars=0),
+        lambda: LabelConfig(mode="unknown"),
+        lambda: CVConfig(n_splits=1),
+        lambda: ModelConfig(type="unknown"),
+        lambda: BacktestConfig(fee_pct=float("nan")),
+        lambda: AssetConfig(asset="gold", symbol="XAUUSD", granularity="M1"),
+    ],
+)
+def test_invalid_numeric_and_enum_config_is_refused_early(factory):
+    with pytest.raises(ValueError):
+        factory()
+
+
+def test_timezone_aware_holdout_is_normalized_without_reinterpretation():
+    cfg = AssetConfig(
+        asset="gold",
+        symbol="XAUUSD",
+        granularity="H1",
+        data=DataConfig(holdout_start="2025-07-01T01:00:00+01:00"),
+    )
+    assert cfg.holdout_ts == pd.Timestamp("2025-07-01T00:00:00Z")
 
 
 def test_snapshot_paths_are_symbol_keyed():
