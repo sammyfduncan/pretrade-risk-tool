@@ -1,13 +1,12 @@
-# Quantitative precious-metals pre-trade risk tool
+# Quantitative precious metals pretrade risk tool
 
-This read-only framework quantifies the technical risk of a prospective
-intraday gold or silver trade before an order exists.
+Framework quantifying technical risk of a prospective intraday XAU/XAG trade (gold/Silver).
 
-The user—or a separately validated strategy—supplies the proposed direction,
-entry, stop, target, holding period and optional size. The framework combines
-that geometry with account state, current executable OANDA prices, broker
-contract facts, existing metals exposure, scheduled-event controls and
-historically calibrated range and adverse-excursion evidence.
+Select a proposed direction or separately validated strategy; entry, stop,
+target, holding period and optional size. The framework combines this with 
+account state, current executable market prices (as supplied via OANDA API).
+broker contract facts, existing metals exposure, scheduled event controls and 
+historically calibrated range and adverse excursion evidence.
 
 It returns one of four decisions:
 
